@@ -5,3 +5,6 @@
 node_modules/
 **/dist/
 **/.next/
+redis-stable/
+redis-stable.tar.gz
+node_modules/
