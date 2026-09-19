@@ -1,0 +1,177 @@
+// Prisma 7 schema — connection URL is configured in prisma.config.ts
+// See: https://pris.ly/d/config-datasource
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  OPERATOR
+}
+
+enum MarketplacePlatform {
+  MERCADO_LIVRE
+  AMAZON
+  SHOPEE
+}
+
+enum MarketplaceAccountStatus {
+  ACTIVE
+  WARNING
+  DISCONNECTED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+enum FinancialTransactionType {
+  REVENUE
+  FEE
+  PRODUCT_COST
+  SHIPPING
+  TAX
+  EXPENSE
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  document  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users              User[]
+  marketplaceAccounts MarketplaceAccount[]
+  products           Product[]
+  orders             Order[]
+
+  @@map("tenants")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(OPERATOR)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model MarketplaceAccount {
+  id               String                   @id @default(uuid())
+  tenantId         String                   @map("tenant_id")
+  platform         MarketplacePlatform
+  status           MarketplaceAccountStatus @default(ACTIVE)
+  externalSellerId String?                  @map("external_seller_id")
+  name             String
+  accessToken      String?                  @map("access_token")
+  refreshToken     String?                  @map("refresh_token")
+  expiresAt        DateTime?                @map("expires_at")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders Order[]
+  source String @default("MERCADO_LIVRE")
+  lastSyncedAt DateTime? @map("last_synced_at")
+
+  @@unique([tenantId, platform, externalSellerId])
+  @@index([tenantId, status])
+  @@map("marketplace_accounts")
+}
+
+model Product {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  sku             String
+  title           String
+  costPrice       Float    @map("cost_price")
+  basePrice       Float    @map("base_price")
+  stockQuantity   Int      @default(0) @map("stock_quantity")
+  minStockQuantity Int     @default(0) @map("min_stock_quantity")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, stockQuantity])
+  @@map("products")
+}
+
+model Order {
+  id                   String      @id @default(uuid())
+  tenantId             String      @map("tenant_id")
+  marketplaceAccountId String      @map("marketplace_account_id")
+  externalOrderId      String      @map("external_order_id")
+  totalAmount          Float       @map("total_amount")
+  status               OrderStatus
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+  financialTransactions FinancialTransaction[]
+
+  @@unique([tenantId, externalOrderId])
+  @@index([tenantId, status, createdAt])
+  @@map("orders")
+}
+
+model FinancialTransaction {
+  id          String                   @id @default(uuid())
+  tenantId    String                   @map("tenant_id")
+  orderId     String?                  @map("order_id")
+  amount      Float
+  type        FinancialTransactionType
+  description String?
+  date        DateTime                 @default(now())
+  createdAt   DateTime                 @default(now()) @map("created_at")
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, type, date])
+  @@map("financial_transactions")
+}
+
+model AuthSession {
+  id String @id
+  userId String @map("user_id")
+  tenantId String @map("tenant_id")
+  refreshHash String @map("refresh_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([userId, tenantId])
+  @@map("auth_sessions")
+}
+
+model OAuthState {
+  stateHash String @id @map("state_hash")
+  userId String @map("user_id")
+  tenantId String @map("tenant_id")
+  sessionId String @map("session_id")
+  verifier String
+  expiresAt DateTime @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  @@index([expiresAt])
+  @@map("oauth_states")
+}

@@ -1,0 +1,10 @@
+**/node_modules
+**/.next
+**/dist
+**/.git
+**/.env*
+.local
+**/*.log
+redis-stable
+*.tar.gz
+**/coverage

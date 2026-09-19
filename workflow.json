@@ -1,0 +1,185 @@
+{
+  "version": "1.0",
+  "name": "autonomous-saas-evolution-workflow",
+  "description": "Continuous improvement loop for a multi-tenant marketplace SaaS.",
+  "mode": "iterative",
+  "loop": true,
+  "phases": [
+    {
+      "id": "analyze_system",
+      "name": "Analyze System",
+      "objectives": [
+        "Scan codebase",
+        "Analyze architecture",
+        "Detect bottlenecks",
+        "Detect bugs",
+        "Detect poor UX",
+        "Detect performance issues",
+        "Detect tenant isolation risks",
+        "Inspect sync stability",
+        "Inspect finance quality"
+      ],
+      "primary_agents": [
+        "architect_agent",
+        "backend_agent",
+        "frontend_agent",
+        "finance_agent",
+        "sync_agent",
+        "qa_agent"
+      ],
+      "deliverables": [
+        "System findings",
+        "Risk list",
+        "Improvement opportunities"
+      ]
+    },
+    {
+      "id": "prioritize",
+      "name": "Prioritize Improvements",
+      "objectives": [
+        "Classify improvements as critical, high, medium, or low",
+        "Prioritize security, stability, sync, finance, performance, and UX"
+      ],
+      "primary_agents": [
+        "product_agent",
+        "architect_agent",
+        "qa_agent"
+      ],
+      "deliverables": [
+        "Priority queue",
+        "Improvement backlog"
+      ]
+    },
+    {
+      "id": "plan_execution",
+      "name": "Plan Execution",
+      "objectives": [
+        "Break work into tasks",
+        "Define dependencies",
+        "Assign tasks to specialized agents",
+        "Sequence changes safely"
+      ],
+      "primary_agents": [
+        "product_agent",
+        "architect_agent"
+      ],
+      "deliverables": [
+        "Execution plan",
+        "Task assignments"
+      ]
+    },
+    {
+      "id": "implement",
+      "name": "Implement",
+      "objectives": [
+        "Write code",
+        "Refactor modules",
+        "Create services",
+        "Improve queries",
+        "Improve dashboards",
+        "Improve finance logic",
+        "Improve sync engine"
+      ],
+      "primary_agents": [
+        "backend_agent",
+        "frontend_agent",
+        "finance_agent",
+        "sync_agent",
+        "devops_agent"
+      ],
+      "deliverables": [
+        "Code changes",
+        "Refactors",
+        "New modules",
+        "Operational improvements"
+      ]
+    },
+    {
+      "id": "test",
+      "name": "Test",
+      "objectives": [
+        "Run unit tests",
+        "Run integration tests",
+        "Validate tenant isolation",
+        "Validate RBAC",
+        "Validate sync flows",
+        "Validate finance calculations",
+        "Validate performance-sensitive areas"
+      ],
+      "primary_agents": [
+        "qa_agent",
+        "backend_agent",
+        "frontend_agent",
+        "finance_agent",
+        "sync_agent"
+      ],
+      "deliverables": [
+        "Test results",
+        "Validation report",
+        "Failures list"
+      ]
+    },
+    {
+      "id": "fix_errors",
+      "name": "Fix Errors",
+      "objectives": [
+        "Inspect failures",
+        "Patch issues",
+        "Rerun affected tests",
+        "Ensure regressions are contained"
+      ],
+      "primary_agents": [
+        "backend_agent",
+        "frontend_agent",
+        "finance_agent",
+        "sync_agent",
+        "devops_agent",
+        "qa_agent"
+      ],
+      "deliverables": [
+        "Fixes applied",
+        "Retest results"
+      ]
+    },
+    {
+      "id": "document",
+      "name": "Document",
+      "objectives": [
+        "Update README",
+        "Document changes",
+        "Log risks",
+        "Document next steps"
+      ],
+      "primary_agents": [
+        "product_agent",
+        "architect_agent",
+        "qa_agent"
+      ],
+      "deliverables": [
+        "Updated documentation",
+        "Iteration log",
+        "Next-step plan"
+      ]
+    }
+  ],
+  "priority_order": [
+    "Multi-tenant security hardening",
+    "Sync engine stability",
+    "Financial system improvements",
+    "Dashboard performance",
+    "UX improvements for multi-account usage",
+    "Automation",
+    "Error handling and logging"
+  ],
+  "iteration_log_template": {
+    "iteration": "N",
+    "analyzed": [],
+    "findings": [],
+    "priority": [],
+    "implemented": [],
+    "tested": [],
+    "fixed": [],
+    "remaining_risks": [],
+    "next": []
+  }
+}

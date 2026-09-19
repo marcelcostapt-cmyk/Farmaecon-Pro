@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: farmaecon-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-farmaecon}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secretpassword}
+      POSTGRES_DB: ${DB_NAME:-farmaecon_db}
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - farmaecon-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: farmaecon-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    networks:
+      - farmaecon-network
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: farmaecon-api
+    restart: always
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-farmaecon}:${DB_PASSWORD:-secretpassword}@db:5432/${DB_NAME:-farmaecon_db}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 3001
+      NODE_ENV: production
+      FRONTEND_URL: https://app.farmaecon.com.br
+      ML_APP_ID: ${ML_APP_ID}
+      ML_SECRET_KEY: ${ML_SECRET_KEY}
+      ML_REDIRECT_URI: https://app.farmaecon.com.br/auth/callback
+    networks:
+      - farmaecon-network
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: farmaecon-web
+    restart: always
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: https://api.farmaecon.com.br/api/v1
+      NEXT_PUBLIC_ML_APP_ID: ${ML_APP_ID}
+      NODE_ENV: production
+    networks:
+      - farmaecon-network
+
+networks:
+  farmaecon-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:

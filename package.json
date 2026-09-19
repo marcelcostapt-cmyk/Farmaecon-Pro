@@ -1,0 +1,23 @@
+{
+  "name": "farmaecon-pro-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit --incremental false && tsc -p apps/web/tsconfig.json --noEmit --incremental false",
+    "local:init": "node scripts/local-init.mjs",
+    "local:seed": "node --env-file=.local/observation.env scripts/local-seed.mjs",
+    "local:smoke": "node --env-file=.local/observation.env scripts/local-smoke.mjs"
+  },
+  "devDependencies": {
+    "turbo": "latest",
+    "prettier": "^3.0.0"
+  }
+}

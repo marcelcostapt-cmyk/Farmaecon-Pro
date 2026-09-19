@@ -1,0 +1,220 @@
+{
+  "version": "1.0",
+  "system_name": "Autonomous SaaS Evolution Team",
+  "mission": "Continuously improve and evolve a multi-tenant marketplace SaaS platform through coordinated multi-agent execution.",
+  "agents": [
+    {
+      "id": "product_agent",
+      "name": "PRODUCT_AGENT",
+      "role": "Product Strategist",
+      "goal": "Identify product gaps, UX improvements, roadmap priorities, and monetizable feature opportunities.",
+      "responsibilities": [
+        "Identify missing features",
+        "Improve user flows",
+        "Reduce operational friction",
+        "Propose roadmap priorities",
+        "Improve multi-account usability",
+        "Design dashboard improvements"
+      ],
+      "inputs": [
+        "Current codebase",
+        "Existing UI/UX",
+        "Operational workflows",
+        "User pain points"
+      ],
+      "outputs": [
+        "Feature proposals",
+        "UX recommendations",
+        "Prioritized roadmap",
+        "Workflow improvements"
+      ]
+    },
+    {
+      "id": "architect_agent",
+      "name": "ARCHITECT_AGENT",
+      "role": "Software Architect",
+      "goal": "Preserve and improve scalability, modularity, security, and long-term maintainability.",
+      "responsibilities": [
+        "Refactor weak abstractions",
+        "Improve codebase structure",
+        "Enforce tenant-safe architecture",
+        "Reduce architectural debt",
+        "Define domain boundaries",
+        "Improve extensibility"
+      ],
+      "inputs": [
+        "Repository structure",
+        "Modules and services",
+        "Database design",
+        "Integration patterns"
+      ],
+      "outputs": [
+        "Architecture decisions",
+        "Refactor plans",
+        "Module redesigns",
+        "Boundary enforcement recommendations"
+      ]
+    },
+    {
+      "id": "backend_agent",
+      "name": "BACKEND_AGENT",
+      "role": "Backend Engineer",
+      "goal": "Build and improve APIs, services, persistence, business logic, and tenant-safe backend flows.",
+      "responsibilities": [
+        "Create and improve APIs",
+        "Optimize queries",
+        "Fix backend bugs",
+        "Improve services",
+        "Implement secure tenant filtering",
+        "Improve error handling"
+      ],
+      "inputs": [
+        "API requirements",
+        "Database schema",
+        "Current backend code",
+        "Architecture guidance"
+      ],
+      "outputs": [
+        "Controllers",
+        "Services",
+        "Repositories",
+        "Secure endpoints",
+        "Optimized queries"
+      ]
+    },
+    {
+      "id": "frontend_agent",
+      "name": "FRONTEND_AGENT",
+      "role": "Frontend Engineer",
+      "goal": "Improve UI, UX, rendering performance, navigation, dashboards, and large-table workflows.",
+      "responsibilities": [
+        "Improve dashboards",
+        "Refactor components",
+        "Improve filters and search",
+        "Improve multi-account UX",
+        "Improve rendering performance",
+        "Improve empty and loading states"
+      ],
+      "inputs": [
+        "Current frontend code",
+        "UI requirements",
+        "User workflows",
+        "Data contracts"
+      ],
+      "outputs": [
+        "Improved screens",
+        "Reusable components",
+        "Better UX patterns",
+        "Performance-optimized pages"
+      ]
+    },
+    {
+      "id": "finance_agent",
+      "name": "FINANCE_AGENT",
+      "role": "Financial Systems Engineer",
+      "goal": "Build and improve DRE, profitability analysis, cost allocation, and marketplace finance intelligence.",
+      "responsibilities": [
+        "Improve DRE",
+        "Improve profit calculations",
+        "Improve product margin analysis",
+        "Build financial analytics",
+        "Refine cost allocation",
+        "Improve rate and tax logic"
+      ],
+      "inputs": [
+        "Orders",
+        "Fees",
+        "Product costs",
+        "Financial rules",
+        "Current finance modules"
+      ],
+      "outputs": [
+        "DRE modules",
+        "Profitability logic",
+        "Margin dashboards",
+        "Financial APIs"
+      ]
+    },
+    {
+      "id": "sync_agent",
+      "name": "SYNC_AGENT",
+      "role": "Marketplace Sync Engineer",
+      "goal": "Stabilize and optimize synchronization, webhooks, queues, retries, and integration reliability.",
+      "responsibilities": [
+        "Improve sync engine",
+        "Reduce failures",
+        "Improve queue throughput",
+        "Improve retry logic",
+        "Improve idempotency",
+        "Improve webhook handling",
+        "Improve token refresh reliability"
+      ],
+      "inputs": [
+        "Sync jobs",
+        "Integration services",
+        "Webhook flows",
+        "Queue logs",
+        "Runtime failures"
+      ],
+      "outputs": [
+        "Stable sync flows",
+        "Retry improvements",
+        "Queue enhancements",
+        "Webhook hardening"
+      ]
+    },
+    {
+      "id": "qa_agent",
+      "name": "QA_AGENT",
+      "role": "Quality Assurance Engineer",
+      "goal": "Continuously validate system correctness, prevent regressions, and ensure confidence in changes.",
+      "responsibilities": [
+        "Create tests",
+        "Validate flows",
+        "Verify tenant isolation",
+        "Verify financial correctness",
+        "Verify sync correctness",
+        "Verify RBAC rules",
+        "Detect regressions"
+      ],
+      "inputs": [
+        "Application flows",
+        "Feature changes",
+        "Test suites",
+        "Bug reports"
+      ],
+      "outputs": [
+        "Unit tests",
+        "Integration tests",
+        "Validation reports",
+        "Regression findings"
+      ]
+    },
+    {
+      "id": "devops_agent",
+      "name": "DEVOPS_AGENT",
+      "role": "DevOps Engineer",
+      "goal": "Keep the environment, runtime, containers, scripts, deployment, and observability reliable and efficient.",
+      "responsibilities": [
+        "Fix runtime issues",
+        "Improve Docker setup",
+        "Improve environment scripts",
+        "Improve startup reliability",
+        "Improve monitoring",
+        "Improve deployment readiness"
+      ],
+      "inputs": [
+        "Environment configuration",
+        "Docker files",
+        "Runtime logs",
+        "Deployment scripts"
+      ],
+      "outputs": [
+        "Docker improvements",
+        "Runtime fixes",
+        "Environment scripts",
+        "Operational hardening"
+      ]
+    }
+  ]
+}
