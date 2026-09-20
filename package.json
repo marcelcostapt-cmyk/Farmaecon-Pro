@@ -2,6 +2,7 @@
   "name": "farmaecon-pro-monorepo",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@11.9.0",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -14,7 +15,13 @@
     "typecheck": "tsc -p apps/api/tsconfig.json --noEmit --incremental false && tsc -p apps/web/tsconfig.json --noEmit --incremental false",
     "local:init": "node scripts/local-init.mjs",
     "local:seed": "node --env-file=.local/observation.env scripts/local-seed.mjs",
-    "local:smoke": "node --env-file=.local/observation.env scripts/local-smoke.mjs"
+    "local:smoke": "node --env-file=.local/observation.env scripts/local-smoke.mjs",
+    "prod:init": "node scripts/production-env.mjs",
+    "prod:check": "node --env-file=.local/production.env scripts/production-env.mjs --check --traefik",
+    "prod:backup": "node --env-file=.local/production.env scripts/production-backup.mjs backup",
+    "prod:verify-restore": "node --env-file=.local/production.env scripts/production-backup.mjs verify-restore",
+    "test:deployment": "node --test scripts/production.test.mjs && node scripts/verify-production-compose.mjs",
+    "test:production-stack": "node scripts/production-ci.mjs"
   },
   "devDependencies": {
     "turbo": "latest",

@@ -1,5 +1,7 @@
 
 .local/
+.turbo/
+**/*.tsbuildinfo
 **/.env*
 !**/.env*.example
 node_modules/

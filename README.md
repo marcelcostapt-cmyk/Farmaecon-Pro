@@ -116,6 +116,7 @@ docker compose down     # Derrubar containers
 
 ## Documentação
 
+- [`docs/production-observation.md`](./docs/production-observation.md) — Preparação da VPS, variáveis atuais, validação Docker, backup, recuperação e bloqueios para conta real
 - [`docs/architecture.md`](./docs/architecture.md) — Diagramas C4 e ERD
 - [`docs/backlog_roadmap.md`](./docs/backlog_roadmap.md) — Épicos, histórias e roadmap
 - [`docs/onboarding.md`](./docs/onboarding.md) — Guia de onboarding e integração
