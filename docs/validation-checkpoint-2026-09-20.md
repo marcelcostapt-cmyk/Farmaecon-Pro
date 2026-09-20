@@ -27,15 +27,18 @@ alterações de produção deste checkpoint.
 
 ## Validação Docker e publicação da branch
 
-- `npm run test:production-stack`: inicialização com configuração de produção,
-  bootstrap de administrador, login, persistência após reinício, backup e restore
-  isolado. O runtime desta sessão não disponibiliza daemon Docker.
-- CI foi ampliado para executar esse cenário. Após o bloqueio inicial da revisão
-  automática, o responsável autorizou explicitamente o envio das alterações e a
-  abertura de um Pull Request no repositório público. A tentativa autorizada de
-  enviar a árvore Git retornou HTTP 403, `Resource not accessible by integration`.
-  Nenhuma branch remota ou PR foi criado. É necessário corrigir o acesso de
-  escrita da integração GitHub antes de enviar e executar o CI do incremento.
+- Branch publicada: `codex/production-observation-deploy`.
+- [Pull Request #1](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/pull/1)
+  aberto após autorização explícita do responsável. O erro inicial de permissão
+  HTTP 403 foi superado e o envio foi confirmado pela API do GitHub.
+- O CI do PR executa `npm run test:production-stack`: inicialização com
+  configuração de produção, bootstrap de administrador, login, persistência após
+  reinício, backup cifrado e restore isolado. O runtime local desta sessão não
+  disponibiliza daemon Docker; a execução de containers é feita nos runners do
+  GitHub Actions.
+- A lista de [execuções da branch](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions?query=branch%3Acodex%2Fproduction-observation-deploy)
+  e os checks do PR registram o resultado de cada commit. Exigir CI aprovado na
+  versão escolhida antes de publicar imagens ou promover uma release.
 - VPS, DNS, HTTPS, imagens publicadas e OAuth real não foram alterados nem
   verificados novamente por falta de acesso Hostinger nesta sessão.
 
@@ -43,7 +46,7 @@ alterações de produção deste checkpoint.
 
 - Revogar/substituir o segredo Mercado Livre presente anteriormente no arquivo
   de exemplo público. A remoção desta versão não revoga nem apaga o histórico.
-- Validar o cenário completo de containers adicionado neste incremento.
+- Exigir aprovação do cenário completo de containers no CI da versão a publicar.
 - Completar separação do usuário de banco/RLS; os testes atuais provam filtros
   de autorização da API, não isolamento imposto pelo PostgreSQL.
 - Tratar cobertura de pedidos e dados financeiros ausentes no conector antes
