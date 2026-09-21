@@ -61,7 +61,7 @@ cd apps/web && npm run dev          # Frontend em :3000
 | Campo | Valor |
 |-------|-------|
 | Email | `admin@farmaecon.com` |
-| Senha | `admin1234` |
+Os usuários de teste são criados por `npm run local:seed`, com senhas aleatórias no arquivo local protegido. Não existe senha pública padrão.
 
 ## API — Endpoints Principais
 

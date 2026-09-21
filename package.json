@@ -21,10 +21,17 @@
     "prod:backup": "node --env-file=.local/production.env scripts/production-backup.mjs backup",
     "prod:verify-restore": "node --env-file=.local/production.env scripts/production-backup.mjs verify-restore",
     "test:deployment": "node --test scripts/production.test.mjs && node scripts/verify-production-compose.mjs",
-    "test:production-stack": "node scripts/production-ci.mjs"
+    "test:production-stack": "node scripts/production-ci.mjs",
+    "start:standalone": "node scripts/start-standalone.mjs",
+    "security:scan": "node scripts/scan-secrets.mjs",
+    "test:postgres-security": "node --env-file=.local/observation.env scripts/postgres-security.mjs",
+    "test:migration-upgrade": "node --env-file=.local/observation.env scripts/migration-upgrade.mjs",
+    "test:browser": "node --env-file=.local/observation.env scripts/browser-smoke.mjs",
+    "credentials:prepare": "python3 scripts/marketplace-credentials.py"
   },
   "devDependencies": {
-    "turbo": "latest",
-    "prettier": "^3.0.0"
+    "playwright": "1.63.0",
+    "prettier": "^3.0.0",
+    "turbo": "latest"
   }
 }

@@ -5,6 +5,7 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { productionDefaults, validateProduction } from './production-env.mjs';
+import { verifyBrowser } from './browser-check.mjs';
 
 // Disposable CI installation. Uses production settings, no real domains/accounts.
 const project = `farmaecon-prod-ci-${randomUUID().slice(0, 8)}`;
@@ -55,6 +56,10 @@ try {
   assert.equal(report.financial.netProfit, null);
   assert.equal(report.mode, 'OBSERVATION');
   assert(!/accessToken|refreshToken|password|verifier/.test(JSON.stringify(report)));
+  await verifyBrowser({
+    baseURL: `http://localhost:${webPort.split(':')[1]}`, apiBase: `http://${apiPort}/api/v1`, secureCookies: true,
+    accounts: [{ email: fixture.OWNER_EMAIL, password: fixture.OWNER_PASSWORD }],
+  });
   compose(['restart', 'db', 'redis']);
   let ready = false;
   for (let i = 0; i < 45; i++) {

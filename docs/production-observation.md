@@ -1,6 +1,6 @@
 # Publicação do Farmaecon em Modo Observação
 
-Atualizado em 20/09/2026. Este procedimento prepara a instalação; não comprova
+Atualizado em 21/09/2026. Este procedimento prepara a instalação; não comprova
 que a VPS foi alterada. Consultar o resultado do CI do commit a publicar.
 
 ## Artefatos e configurações
@@ -73,9 +73,10 @@ produção, migrações repetidas, bootstrap, login, relatório vazio, reinício
 dependências, backup cifrado e restauração em outro container sem rede. Remove
 apenas os volumes que ele próprio criou. Não consulta marketplaces ou DNS real.
 
-O CI também executa o fluxo de observação com duas empresas, permissões e
-pedidos simulados em PostgreSQL/Redis. O teste de produção faz login pela API;
-ele não equivale à homologação completa do OAuth real ou do navegador com HTTPS.
+O CI também executa o fluxo de observação com duas empresas, permissões,
+estados OAuth concorrentes e pedidos simulados em PostgreSQL/Redis. Chromium
+testa login, relatório, renovação e logout pelo frontend nas duas configurações.
+O teste em loopback não equivale à homologação do OAuth real ou do HTTPS público.
 
 Promover **as imagens testadas**, sem reconstruí-las depois: atribuir tags do
 commit às imagens `farmaecon-api-check:ci` e `farmaecon-web-check:ci`, registrando
@@ -154,13 +155,17 @@ Antes de habilitar uma conta real:
 - Revisar isolamento: os testes atuais exercitam autorização/filtros na API;
   o schema ainda não implementa PostgreSQL RLS e o usuário de banco da base
   Compose ainda é o proprietário. Separação de papéis/RLS permanece pendente.
-- Homologar paginação/cobertura de pedidos e validação de campos financeiros:
-  o sync atual é limitado a 200 pedidos e ainda tem fallback para zero em
-  valores ausentes. Não certificar DRE ou margem com esses dados.
+- Homologar paginação/cobertura com a fonte: lotes inválidos ou que excedem o
+  limite de 200 pedidos são rejeitados integralmente. Valores e datas ausentes
+  não recebem zero/data atual; falhas preservam a última sincronização válida.
+  Contas maiores exigem particionamento por período antes do aceite real.
 - Confirmar credenciais atuais, callback exato
   `https://app.farmaecon.com.br/auth/callback`, PKCE S256 e consentimento do
   proprietário pelo navegador. Só então configurar `MARKETPLACE_SOURCE=MERCADO_LIVRE`
   e `ML_PKCE_ENABLED=true`; o modo continua Observação e sem escrita comercial.
+
+Seguir a etapa explícita de [instalação das novas credenciais](validation-stages.md)
+antes do consentimento OAuth. O preparador usa entrada oculta e conserva MOCK.
 
 ## Referências consultadas
 

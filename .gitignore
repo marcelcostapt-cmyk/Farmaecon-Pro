@@ -1,5 +1,7 @@
 
 .local/
+__pycache__/
+*.pyc
 .turbo/
 **/*.tsbuildinfo
 **/.env*

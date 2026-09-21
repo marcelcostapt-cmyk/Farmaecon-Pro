@@ -13,6 +13,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - run: npm run security:scan
+      - run: python3 -m unittest scripts/test_marketplace_credentials.py
+      - run: npx playwright install --with-deps chromium
       - run: npm exec --workspace api -- prisma generate
       - run: npm run test:deployment
       - run: npm test --workspace api -- --runInBand
@@ -24,6 +27,21 @@ jobs:
       - run: docker compose --env-file .local/observation.env -f docker-compose.observation.yml up -d --build --wait
       - run: node --env-file=.local/observation.env scripts/local-seed.mjs
       - run: node --env-file=.local/observation.env scripts/local-smoke.mjs
+      - run: npm run test:postgres-security
+      - run: npm run test:migration-upgrade
+      - run: npm run test:browser
       - run: npm run test:production-stack
+      - name: Preserve the exact validated images
+        run: |
+          mkdir -p .local/release
+          docker image inspect --format '{{.Id}} {{join .RepoTags " "}}' farmaecon-api-check:ci farmaecon-web-check:ci > .local/release/images.ids
+          docker save farmaecon-api-check:ci farmaecon-web-check:ci | gzip -1 > .local/release/images.tar.gz
+          cd .local/release
+          sha256sum images.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: farmaecon-images-${{ github.sha }}
+          path: .local/release/
+          retention-days: 7
       - if: always()
         run: docker compose --env-file .local/observation.env -f docker-compose.observation.yml down

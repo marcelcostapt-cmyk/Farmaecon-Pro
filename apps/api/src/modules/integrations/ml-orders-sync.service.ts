@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { MarketplacePlatform, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { MlApiService } from './ml-api.service';
+import { validateOrder } from './order-validation';
 
 interface SyncOrdersResult {
   accountId: string;
@@ -32,6 +33,7 @@ export class MlOrdersSyncService {
       throw new Error(`Account ${accountId} is not a Mercado Livre account`);
     }
 
+    try {
     const remoteOrders = account.source === 'SIMULATED'
       ? [{ id: `sim-${account.id}-1`, status: 'paid', total_amount: 125.50, date_created: new Date().toISOString() },
          { id: `sim-${account.id}-2`, status: 'payment_required', total_amount: 80, date_created: new Date().toISOString() }]
@@ -39,14 +41,12 @@ export class MlOrdersSyncService {
 
     if (remoteOrders.length === 0) {
       this.logger.log(`No Mercado Livre orders found for account ${accountId}`);
-      await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { lastSyncedAt: new Date() } });
+      await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { lastSyncedAt: new Date(), lastSyncState: 'COMPLETE', lastSyncAttemptAt: new Date(), lastSyncError: null } });
       return { accountId, importedCount: 0 };
     }
 
-    const operations: Prisma.PrismaPromise<unknown>[] = remoteOrders.map((order) => {
-      const externalOrderId = String(order.id);
-      const totalAmount = this.resolveTotalAmount(order);
-      const createdAt = this.resolveOrderDate(order);
+    const validated = remoteOrders.map(order => ({ order, ...validateOrder(order, account.source === 'SIMULATED') }));
+    const operations: Prisma.PrismaPromise<unknown>[] = validated.map(({ order, externalOrderId, totalAmount, createdAt }) => {
       const status = this.mapOrderStatus(order.status);
 
       return this.prisma.order.upsert({
@@ -60,6 +60,7 @@ export class MlOrdersSyncService {
           marketplaceAccountId: account.id,
           totalAmount,
           status,
+          createdAt,
         },
         create: {
           tenantId: account.tenantId,
@@ -72,20 +73,17 @@ export class MlOrdersSyncService {
       });
     });
 
-    await this.prisma.$transaction([...operations, this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { lastSyncedAt: new Date() } })]);
+    await this.prisma.$transaction([...operations, this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { lastSyncedAt: new Date(), lastSyncState: 'COMPLETE', lastSyncAttemptAt: new Date(), lastSyncError: null } })]);
 
     this.logger.log(`Imported ${remoteOrders.length} Mercado Livre orders for account ${accountId}`);
     return { accountId, importedCount: remoteOrders.length };
-  }
-
-  private resolveTotalAmount(order: { total_amount?: number; total_amount_with_shipping?: number }) {
-    return Number(order.total_amount_with_shipping ?? order.total_amount ?? 0);
-  }
-
-  private resolveOrderDate(order: { date_created?: string; date_closed?: string }) {
-    const rawDate = order.date_created ?? order.date_closed;
-    const parsed = rawDate ? new Date(rawDate) : new Date();
-    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+    } catch (error) {
+      await this.prisma.marketplaceAccount.updateMany({
+        where: { id: accountId, tenantId },
+        data: { lastSyncState: 'FAILED', lastSyncAttemptAt: new Date(), lastSyncError: 'ORDER_SYNC_INCOMPLETE' },
+      });
+      throw error;
+    }
   }
 
   private mapOrderStatus(status?: string): OrderStatus {
