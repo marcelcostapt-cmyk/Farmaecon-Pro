@@ -7,6 +7,7 @@ RUN npm ci
 COPY apps/api apps/api
 COPY scripts/production-bootstrap.mjs scripts/production-bootstrap.mjs
 COPY scripts/clear-marketplace-credentials.mjs scripts/clear-marketplace-credentials.mjs
+COPY scripts/database-migrate.mjs scripts/database-migrate.mjs
 RUN npm exec --workspace api -- prisma generate
 RUN npm run build --workspace api
 

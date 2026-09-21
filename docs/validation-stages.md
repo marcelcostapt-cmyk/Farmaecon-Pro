@@ -6,7 +6,7 @@ comprovada e dependências externas. Um teste com fixture não homologa uma cont
 | Etapa | Critério de saída | Situação |
 | --- | --- | --- |
 | 0. Retirar credenciais antigas | Código e exemplos sem segredos; revogação e cópias antigas identificadas | Exemplo de produção limpo em `main`; histórico, backups e ambiente remoto ainda exigem tratamento |
-| 1. Segurança e validação local | Testes, tipos, builds, duas empresas em PostgreSQL e navegador | Ver checkpoint; RLS e papel de banco sem ownership ainda pendentes |
+| 1. Segurança e validação local | Testes, tipos, builds, duas empresas em PostgreSQL e navegador | Fluxo PostgreSQL/navegador aprovado na primeira rodada; nova proteção RLS aguarda CI |
 | 2. Pacote Docker | Banco vazio e atualização com dados, saúde, login, persistência, restore e artefatos preservados | Ver CI do commit exato; não equivale a implantação na VPS |
 | 3. Instalação na VPS | Inventário atual, Traefik preservado, mesmos artefatos, backup e recuperação comprovados | Bloqueada até disponibilidade do Hostinger Connector e aprovação dos gates anteriores |
 | 4. DNS e HTTPS | Apenas app/api ajustados após leitura atual; TLS, redirecionamento e navegador verificados | Pendente de acesso e destino atual confirmado |

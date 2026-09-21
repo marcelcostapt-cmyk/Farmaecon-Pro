@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
+import { inTenant } from '../../shared/prisma/tenant-context';
 
 @Processor(QUEUE_MARKETPLACE_SYNC)
 export class MarketplaceSyncProcessor extends WorkerHost {
@@ -19,7 +20,7 @@ export class MarketplaceSyncProcessor extends WorkerHost {
       case 'initial-sync':
       case 'sync-account-orders':
         this.logger.log(`Processing Mercado Livre sync job "${job.name}" for account ${accountId}`);
-        await this.ordersSync.syncRecentOrders(accountId, tenantId);
+        await inTenant(tenantId, () => this.ordersSync.syncRecentOrders(accountId, tenantId));
         return;
       default:
         this.logger.warn(`Ignoring unknown marketplace sync job "${job.name}"`);

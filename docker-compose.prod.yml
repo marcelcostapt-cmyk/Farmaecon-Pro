@@ -43,7 +43,8 @@ services:
     restart: 'no'
     environment:
       DATABASE_URL: *database-url
-    command: [npm, exec, --workspace, api, --, prisma, migrate, deploy]
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Set a distinct runtime database password}
+    command: [node, scripts/database-migrate.mjs]
     healthcheck: { disable: true }
     networks: [farmaecon-internal]
     depends_on:
@@ -69,7 +70,7 @@ services:
     <<: *api-image
     restart: unless-stopped
     environment:
-      DATABASE_URL: *database-url
+      DATABASE_URL: postgresql://farmaecon_runtime:${RUNTIME_DB_PASSWORD:?Set a distinct runtime database password}@db:5432/${DB_NAME:-farmaecon_db}
       REDIS_HOST: redis
       REDIS_PORT: '6379'
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set a distinct access token key}

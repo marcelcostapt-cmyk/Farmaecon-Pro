@@ -23,7 +23,9 @@ for (const extra of [[], ['-f', 'docker-compose.vps.yml']]) {
   assert.equal(model.networks['farmaecon-internal'].internal, true);
   assert(!web.networks['farmaecon-internal'], 'Frontend must not have direct database access');
   assert.equal(migrate.image, api.image, 'Migration must use the same API artifact');
-  assert.deepEqual(migrate.command, ['npm', 'exec', '--workspace', 'api', '--', 'prisma', 'migrate', 'deploy']);
+  assert.deepEqual(migrate.command, ['node', 'scripts/database-migrate.mjs']);
+  assert(new URL(api.environment.DATABASE_URL).username === 'farmaecon_runtime', 'API must use the restricted role');
+  assert(api.environment.DATABASE_URL !== migrate.environment.DATABASE_URL, 'Migration and runtime identities must differ');
   assert.equal(api.depends_on.migrate.condition, 'service_completed_successfully');
   assert.equal(api.depends_on.redis.condition, 'service_healthy');
   assert.equal(web.depends_on.api.condition, 'service_healthy');
@@ -44,7 +46,7 @@ for (const extra of [[], ['-f', 'docker-compose.vps.yml']]) {
     assert.equal(api.labels['traefik.http.routers.farmaecon-api.rule'], `Host(\`${env.API_DOMAIN}\`)`);
   }
 }
-for (const field of ['DB_PASSWORD', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'TOKEN_ENCRYPTION_KEY', 'API_IMAGE', 'WEB_IMAGE']) {
+for (const field of ['DB_PASSWORD', 'RUNTIME_DB_PASSWORD', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'TOKEN_ENCRYPTION_KEY', 'API_IMAGE', 'WEB_IMAGE']) {
   assert.notEqual(config([], { ...env, [field]: '' }).status, 0, `${field} must fail closed`);
 }
 console.log('PASS: production and VPS Compose, private data services, required keys, artifact parity, migrations, internal API routing and observation defaults.');

@@ -10,7 +10,7 @@ const image = /^(?:[a-z0-9][a-z0-9./:_-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*|[a-z0-9][a
 
 export function productionDefaults() {
   return {
-    DB_USER: 'farmaecon', DB_PASSWORD: random(), DB_NAME: 'farmaecon_db',
+    DB_USER: 'farmaecon', DB_PASSWORD: random(), RUNTIME_DB_PASSWORD: random(), DB_NAME: 'farmaecon_db',
     JWT_ACCESS_SECRET: random(), JWT_REFRESH_SECRET: random(),
     TOKEN_ENCRYPTION_KEY: key(), BACKUP_ENCRYPTION_KEY: key(),
     OWNER_EMAIL: '', OWNER_PASSWORD: random(), OWNER_NAME: 'Administrador', COMPANY_NAME: 'Farmaecon',
@@ -34,6 +34,7 @@ export function validateProduction(env, { traefik = false } = {}) {
   for (const field of ['DB_USER', 'DB_NAME']) if (!/^[a-z][a-z0-9_]{0,62}$/.test(env[field] ?? '')) fail(field);
   // Base64url avoids ambiguous URL characters in the assembled DATABASE_URL.
   if (!/^[A-Za-z0-9_-]{32,}$/.test(env.DB_PASSWORD ?? '')) fail('DB_PASSWORD');
+  if (!/^[A-Za-z0-9_-]{32,}$/.test(env.RUNTIME_DB_PASSWORD ?? '') || env.RUNTIME_DB_PASSWORD === env.DB_PASSWORD) fail('RUNTIME_DB_PASSWORD');
   for (const field of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) if ((env[field] ?? '').length < 32) fail(field);
   if (env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET) fail('JWT_REFRESH_SECRET');
   for (const field of ['TOKEN_ENCRYPTION_KEY', 'BACKUP_ENCRYPTION_KEY']) {

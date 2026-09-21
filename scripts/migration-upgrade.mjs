@@ -41,7 +41,7 @@ try {
   const accounts = (await database.query('SELECT last_sync_state, last_sync_attempt_at, last_sync_error, last_synced_at FROM marketplace_accounts')).rows;
   assert(accounts.length === 2 && accounts.every(a => a.last_sync_state === 'NOT_SYNCED' && a.last_sync_attempt_at === null && a.last_sync_error === null && a.last_synced_at), 'Upgrade must preserve timestamps without claiming previous complete sync evidence');
   const migrations = (await database.query('SELECT COUNT(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')).rows[0].count;
-  assert(migrations === 3, 'All current migrations must be applied');
+  assert(migrations === 4, 'All current migrations must be applied');
   console.log('PASS: populated previous schema upgraded twice with both tenants, monetary values and dates preserved; new synchronization evidence starts uncertified.');
 } finally {
   await database?.end();

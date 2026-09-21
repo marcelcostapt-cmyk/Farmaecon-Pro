@@ -23,17 +23,24 @@ services:
       retries: 20
   migrate:
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    env_file: [.local/observation.env]
     environment:
       DATABASE_URL: postgresql://farmaecon:${LOCAL_DB_PASSWORD}@db:5432/farmaecon_observation
-    command: ["npm", "exec", "--workspace", "api", "--", "prisma", "migrate", "deploy"]
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Generate the runtime key}
+    command: ["node", "scripts/database-migrate.mjs"]
     depends_on:
       db: { condition: service_healthy }
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    env_file: [.local/observation.env]
     environment:
-      DATABASE_URL: postgresql://farmaecon:${LOCAL_DB_PASSWORD}@db:5432/farmaecon_observation
+      DATABASE_URL: postgresql://farmaecon_runtime:${RUNTIME_DB_PASSWORD:?Generate the runtime key}@db:5432/farmaecon_observation
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      LOCAL_SIMULATION: "true"
+      MARKETPLACE_SOURCE: MOCK
+      MARKETPLACE_MODE: OBSERVATION
+      FRONTEND_URL: http://localhost:3000
+      PORT: 3001
       REDIS_HOST: redis
       REDIS_PORT: 6379
       HOST: 0.0.0.0

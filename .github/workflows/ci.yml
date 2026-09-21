@@ -34,7 +34,7 @@ jobs:
       - name: Preserve the exact validated images
         run: |
           mkdir -p .local/release
-          docker image inspect --format '{{.Id}} {{join .RepoTags " "}}' farmaecon-api-check:ci farmaecon-web-check:ci > .local/release/images.ids
+          docker image inspect --format '{{.Id}} {{range .RepoTags}}{{.}} {{end}}' farmaecon-api-check:ci farmaecon-web-check:ci > .local/release/images.ids
           docker save farmaecon-api-check:ci farmaecon-web-check:ci | gzip -1 > .local/release/images.tar.gz
           cd .local/release
           sha256sum images.tar.gz > SHA256SUMS

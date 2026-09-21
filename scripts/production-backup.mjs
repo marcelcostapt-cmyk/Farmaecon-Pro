@@ -62,12 +62,16 @@ async function verifyRestore(source) {
       await delay(1000);
     }
     if (!ready) throw new Error('Isolated restore database did not become ready');
+    // pg_dump contains policies, but cluster roles are deliberately not dumped.
+    run(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-v', 'ON_ERROR_STOP=1', '-c', 'CREATE ROLE farmaecon_runtime NOLOGIN NOSUPERUSER NOBYPASSRLS;']);
     const child = spawn(docker, ['exec', '-i', container, 'pg_restore', '-U', 'postgres', '-d', 'restore_check', '--exit-on-error', '--no-owner', '--no-privileges'], { stdio: ['pipe', 'ignore', 'ignore'] });
     const exit = completed(child);
     await Promise.all([pipeline(createReadStream(archive), child.stdin), exit]);
     const migrations = run(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', 'SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NOT NULL']);
     if (!/^\d+$/.test(migrations) || Number(migrations) < 1) throw new Error('Restored database lacks completed migrations');
     run(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', 'SELECT count(*) FROM public.tenants; SELECT count(*) FROM public.orders; SELECT count(*) FROM public.auth_sessions;']);
+    const protectedTables = run(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relrowsecurity"]);
+    if (Number(protectedTables) !== 8) throw new Error('Restored row-security policies are incomplete');
     console.log('PASS: authenticated archive restored in a disposable Postgres container with no network. Production database untouched.');
   } finally {
     try { if (container) run(['rm', '-f', container]); }

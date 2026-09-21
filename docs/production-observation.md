@@ -12,6 +12,9 @@ que a VPS foi alterada. Consultar o resultado do CI do commit a publicar.
 - `.env.prod.example`: referência com campos de credenciais vazios.
 - A API exige `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` e `TOKEN_ENCRYPTION_KEY`.
   A variável antiga `JWT_SECRET` não atende ao contrato atual.
+- `RUNTIME_DB_PASSWORD` é distinta de `DB_PASSWORD`. A API conecta como
+  `farmaecon_runtime`, sujeito a RLS; apenas migração/bootstrap/backup usam o
+  proprietário. A senha administrativa não é entregue à API.
 - `API_INTERNAL_URL=http://api:3001/api/v1` conecta o servidor Next.js à API
   no momento da execução. Não depende de `NEXT_PUBLIC_*` embutido no build.
 - `MARKETPLACE_SOURCE=MOCK` é o padrão; `MARKETPLACE_MODE=OBSERVATION` é fixo.
@@ -38,6 +41,11 @@ e volumes da instalação anterior, se existir. O padrão novo é `farmaecon`.
 O gerador usa senha do banco em base64url para permitir composição segura da
 URL; senhas existentes com caracteres especiais exigem tratamento explícito,
 nunca troca silenciosa da senha ou do volume.
+
+Em um arquivo criado antes da separação de papéis, acrescentar somente a nova
+chave, preservando todas as outras: `node scripts/runtime-key.mjs .local/production.env`.
+Para simulação existente, usar o mesmo comando com `.local/observation.env`.
+O comando grava com `0600` e não imprime a chave. A migração prepara o papel.
 
 Inspecionar primeiro o Traefik via Hostinger Connector: resolver ACME, entradas
 e modo de rede. Se usa bridge, a rede deve existir e ser acessível ao Traefik.
@@ -83,6 +91,9 @@ commit às imagens `farmaecon-api-check:ci` e `farmaecon-web-check:ci`, registra
 seus IDs. Para transportar entre máquinas, usar registro autorizado por digest
 ou `docker save`/`docker load` e verificar os mesmos IDs no destino. O CI atual
 testa imagens, mas não as publica em um registro automaticamente.
+Após todos os testes, o CI guarda `images.tar.gz`, IDs e SHA-256 como artefato
+por 7 dias. Baixar essa versão validada para publicação e conferir os hashes;
+se o artefato expirou, repetir o CI e homologar a nova versão antes de promover.
 
 ## Instalar e recuperar
 
@@ -129,6 +140,10 @@ executar SQL e usa um PostgreSQL descartável com `--network none`, limite de
 memória e armazenamento temporário. Consulta migrações e tabelas esperadas;
 não modifica o banco de produção. Para bancos que excedam a capacidade do teste
 descartável, usar um ambiente de recuperação dimensionado e verificar novamente.
+O papel PostgreSQL não faz parte do dump: o teste cria um papel sem login antes
+de restaurar as políticas RLS. Na recuperação operacional, executar novamente
+o job `migrate` com as mesmas chaves protegidas para configurar login/grants
+antes de iniciar a API. Nunca entregar a conexão do proprietário à aplicação.
 
 O script exige o mesmo nome de projeto Compose do deploy. Se não for
 `farmaecon`, definir `FARMAECON_COMPOSE_PROJECT`. Para outro arquivo privado,
@@ -152,9 +167,9 @@ Antes de habilitar uma conta real:
 
 - Substituir a chave de aplicação Mercado Livre que apareceu no arquivo de
   exemplo versionado. Removê-la da versão atual não a revoga nem limpa o histórico.
-- Revisar isolamento: os testes atuais exercitam autorização/filtros na API;
-  o schema ainda não implementa PostgreSQL RLS e o usuário de banco da base
-  Compose ainda é o proprietário. Separação de papéis/RLS permanece pendente.
+- Exigir aprovação dos testes PostgreSQL/RLS da revisão a publicar: ausência
+  de contexto, leitura sem filtro, escrita cruzada, relações e pool concorrente.
+  Ver [ADR de isolamento](adr/tenant-rls.md).
 - Homologar paginação/cobertura com a fonte: lotes inválidos ou que excedem o
   limite de 200 pedidos são rejeitados integralmente. Valores e datas ausentes
   não recebem zero/data atual; falhas preservam a última sincronização válida.

@@ -28,10 +28,12 @@ em `44e0fb7`. Backups e alterações anteriores preservados.
   `apps/web/.next/standalone/apps/web/server.js`: `/login` e 12 recursos estáticos
   responderam HTTP 200 em loopback.
 - 5 testes do pacote de produção e validação dos dois arquivos Compose passaram.
-- Testes adicionais com PostgreSQL real e Chromium adicionados ao CI, aguardando
-  o resultado da nova execução antes de declarar conclusão.
-- **Pendência de arquitetura:** PostgreSQL RLS e papel de execução sem ownership
-  não estão implementados. Testes da API não substituem essa proteção no banco.
+- A [primeira rodada de CI desta revisão](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions/runs/35550050735)
+  passou em PostgreSQL real (inclusive OAuth concorrente e limpeza de tokens),
+  migração de base preenchida e Chromium com duas empresas.
+- RLS em oito tabelas, contexto transacional e identidade de execução sem
+  ownership implementados depois dessa rodada. O CI seguinte deve comprovar
+  consultas SQL sem filtro, referências cruzadas e concorrência de conexões.
 
 ## Etapa 2 — Containers
 
@@ -43,6 +45,11 @@ A nova execução acrescenta PostgreSQL com estados OAuth concorrentes, migraç�
 de uma base anterior preenchida e navegador real na stack de observação e na
 stack com configuração de produção. Este ambiente de trabalho não dispõe de
 daemon Docker; execução de containers deve ser comprovada pelo CI.
+
+A primeira rodada passou em todos esses testes e em backup/restore, mas o job
+falhou ao gerar a lista de IDs das imagens: incompatibilidade do template `join`
+com o retorno Docker. O comando foi corrigido para iterar as tags. Portanto,
+não foi declarado CI concluído nem artefato preservado nessa rodada.
 
 ## Etapas 3–6 — Pendências externas
 
