@@ -1,5 +1,10 @@
 # Checkpoint — 21/09/2026
 
+Registro intermediário preservado. Resultados finais confirmados em 22/09/2026:
+[etapa 1](01-local-validation-2026-09-22.md),
+[etapa 2](02-docker-recovery-2026-09-22.md) e
+[bloqueios externos](03-remote-prerequisites-2026-09-22.md).
+
 PR: [Farmaecon-Pro #1](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/pull/1).
 Continuação da revisão `cf79bd1`, incorporando a remoção de credenciais de `main`
 em `44e0fb7`. Backups e alterações anteriores preservados.
