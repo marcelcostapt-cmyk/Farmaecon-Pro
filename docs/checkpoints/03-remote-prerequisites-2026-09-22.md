@@ -14,6 +14,19 @@ precisam ser consultados novamente pelo conector disponível antes de publicar.
 Não foi confirmado o inventário remoto, removido token da base remota,
 configurado backup remoto ou publicado serviço.
 
+Nova conferência em 22/09/2026: os nove servidores Hostinger constam habilitados
+na configuração, mas nenhuma ferramenta Hostinger aparece no catálogo desta
+sessão; a descoberta do plugin novamente retornou lista vazia. Portanto, não
+houve chamada à API que permita diagnosticar uma falha de autenticação da conta.
+O pacote aprovado já foi baixado e conferido, conforme
+[checkpoint 2](02-docker-recovery-2026-09-22.md).
+
+Para prosseguir, é necessário disponibilizar o conector na sessão de operação
+ou autorizar o uso do hPanel pelo navegador como alternativa. A skill
+`control-browser` exige essa autorização antes de substituir um conector
+indisponível. Nenhuma interação com hPanel foi iniciada. A instalação já está
+autorizada pelo titular; o bloqueio atual é o acesso e a escolha desse canal.
+
 ## DNS e HTTPS
 
 - Consultas públicas A, AAAA e CNAME para `app.farmaecon.com.br` e

@@ -8,7 +8,7 @@ comprovada e dependências externas. Um teste com fixture não homologa uma cont
 | 0. Retirar credenciais antigas | Código e exemplos sem segredos; revogação e cópias antigas identificadas | Exemplo de produção limpo em `main`; histórico, backups e ambiente remoto ainda exigem tratamento |
 | 1. Segurança e validação local | Testes, tipos, builds, duas empresas em PostgreSQL e navegador | Concluída para o incremento local, incluindo RLS; checkpoint 1 |
 | 2. Pacote Docker | Banco vazio e atualização com dados, saúde, login, persistência, restore e artefatos preservados | Concluída no CI isolado; checkpoint 2 com imagens e hashes |
-| 3. Instalação na VPS | Inventário atual, Traefik preservado, mesmos artefatos, backup e recuperação comprovados | Bloqueada até disponibilidade do Hostinger Connector |
+| 3. Instalação na VPS | Inventário atual, Traefik preservado, mesmos artefatos, backup e recuperação comprovados | Pacote baixado e hashes conferidos; instalação bloqueada pelo acesso Hostinger |
 | 4. DNS e HTTPS | Apenas app/api ajustados após leitura atual; TLS, redirecionamento e navegador verificados | Pendente de acesso e destino atual confirmado |
 | 5. Novas credenciais | Credenciais substituídas por canal protegido, callback/PKCE confirmados, nenhuma chave em código ou conversa | Preparador disponível; nenhuma credencial real foi instalada nesta revisão |
 | 6. Conta real em Observação | Consentimento no navegador, importação completa, amostra conferida e relatório honesto | Pendente das etapas anteriores e autorização OAuth do titular |

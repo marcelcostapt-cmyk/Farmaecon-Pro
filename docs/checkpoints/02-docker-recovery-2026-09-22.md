@@ -41,6 +41,34 @@ comparar os IDs no destino antes de promover. Usar essas imagens sem reconstruç
 Se expirarem, repetir a validação e registrar os novos IDs. O artefato não é um
 backup de dados da empresa.
 
+## Conferência do pacote baixado — 22/09/2026
+
+O pacote foi recuperado para o ambiente de trabalho e os bytes foram conferidos:
+
+- SHA-256 do ZIP igual ao digest informado pelo GitHub.
+- `images.tar.gz` igual ao registro de `SHA256SUMS`:
+  `4db8b10c4552cec7a0b76595f9dfce9c27cf6d13d79cfa5c702702c2531188a2`.
+- Manifesto Docker contém exatamente API e web. O hash do JSON de configuração
+  de cada imagem corresponde ao ID validado acima; ambas são `linux/amd64`.
+- Nenhuma das variáveis de segredo da aplicação verificadas está preenchida no
+  `ENV` das imagens. Isso não é uma auditoria completa do conteúdo das camadas.
+- O ZIP contém somente `images.tar.gz`, `images.ids` e `SHA256SUMS`.
+
+O download HTTP inicial retornou 403; a recuperação do mesmo arquivo pela
+integração de arquivos funcionou. O verificador de IDs foi ajustado para tratar
+as múltiplas tags registradas em `images.ids`; os IDs em si não divergiram.
+
+Referência estruturada sem credenciais:
+[manifesto da versão](../releases/observation-2026-09-22.json).
+Essa conferência não executou Docker neste ambiente e não instalou imagens na VPS.
+Após a transferência, repetir a conferência no destino, confirmar arquitetura
+compatível e atribuir tags específicas da versão antes de iniciar os serviços.
+
+O [CI da revisão de checkpoints](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions/runs/35766524411)
+também concluiu com sucesso para `d4206f5dc7571bcf77faa8e321c34530e377aead`.
+O pacote selecionado continua sendo o da execução `35550782370`; não misturar
+IDs de imagens produzidas por execuções diferentes.
+
 ## Gate para a VPS
 
 Seguir [o runbook de instalação](../production-observation.md), incluindo
