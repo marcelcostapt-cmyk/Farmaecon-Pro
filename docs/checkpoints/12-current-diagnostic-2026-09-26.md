@@ -1,0 +1,21 @@
+# Checkpoint 12 — Diagnóstico atual do projeto
+
+- Data: 2026-09-26
+- Estado geral: MVP Observação local avançado; publicação pública ainda não homologada.
+- Código/CI: o PR #1 registra 49 testes da API, 4 do preparador de credenciais e 5 de produção, PostgreSQL/RLS com duas empresas, OAuth concorrente, navegador, migrações, persistência e backup/restore sintéticos. Essa evidência está no PR e não foi reexecutada neste diagnóstico.
+- Artefatos: imagens validadas preservadas no artefato 10617529383; expiração informada para 2026-09-28. Usar os mesmos artefatos, sem reconstrução.
+- Segurança: respostas sem tokens, sessões rotativas/revogáveis, state OAuth de uso único, PKCE preparado, tokens cifrados e isolamento multiempresa implementado no código revisado.
+- Modo operacional: MARKETPLACE_MODE=OBSERVATION e fonte MOCK; nenhuma conta real ou escrita comercial foi usada.
+- DNS público confirmado:
+  - app A -> 45.90.109.103;
+  - api A -> 45.90.109.103;
+  - api AAAA -> 2a02:4780:10:f551::1;
+  - AAAA de teste preservado.
+- HTTP confirmado: app e api redirecionam 301 para HTTPS.
+- HTTPS: bloqueado por falha de verificação com certificado autoassinado observada no caminho público.
+- IPv6: endereço publicado no DNS, mas conectividade/listener no VPS não comprovados.
+- VPS/Traefik: estado atual de containers, redes, volumes, ACME e logs não foi reconsultado porque o Hostinger Connector não está exposto ao runtime desta sessão.
+- Real Mercado Livre: pendente OAuth do titular, confirmação atual de redirect/PKCE, sincronização e amostra; custos, taxas, frete, impostos e reembolsos continuam indisponíveis.
+- Próximo gate: leitura Hostinger do Traefik/ACME e redes; corrigir certificado e IPv6; repetir health, readiness, login e relatório; só depois avançar para OAuth real em Observação.
+- Alterações remotas nesta etapa: nenhuma.
+- Segredos, tokens e credenciais: não incluídos.
