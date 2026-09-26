@@ -1,0 +1,33 @@
+{
+  "artifactId": 10617529383,
+  "verifiedAt": "2026-09-22",
+  "sourceCommit": "ea5939d5befac1f4c38aba4117b0d29cf26f0bff",
+  "ciRun": 35550782370,
+  "zipSha256": "a6a4627520b197664ddabffbc398d3d162c6baf5a06fcb922933698255ec3b48",
+  "imagesTarSha256": "4db8b10c4552cec7a0b76595f9dfce9c27cf6d13d79cfa5c702702c2531188a2",
+  "images": [
+    {
+      "tags": [
+        "farmaecon-api-check:ci"
+      ],
+      "id": "sha256:07d34f43fd093996e66b261b8eedc6791fdcc4be35eb352cdbe75758038a6d99",
+      "os": "linux",
+      "architecture": "amd64",
+      "layers": 6
+    },
+    {
+      "tags": [
+        "farmaecon-web-check:ci"
+      ],
+      "id": "sha256:bc11a8fcf90239508dcc4ad5f9048f72aea056f88c7d6d311ac3119dff8aeff8",
+      "os": "linux",
+      "architecture": "amd64",
+      "layers": 8
+    }
+  ],
+  "verification": "ZIP, inner archive and Docker image config digests verified; images not loaded in this workspace or VPS.",
+  "deploymentStatus": "NOT_DEPLOYED",
+  "artifactExpiresAt": "2026-09-28T01:28:53Z",
+  "artifactUrl": "https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions/runs/35550782370/artifacts/10617529383",
+  "requiresDestinationVerification": true
+}

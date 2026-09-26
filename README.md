@@ -61,7 +61,7 @@ cd apps/web && npm run dev          # Frontend em :3000
 | Campo | Valor |
 |-------|-------|
 | Email | `admin@farmaecon.com` |
-| Senha | `admin1234` |
+Os usuários de teste são criados por `npm run local:seed`, com senhas aleatórias no arquivo local protegido. Não existe senha pública padrão.
 
 ## API — Endpoints Principais
 
@@ -116,6 +116,7 @@ docker compose down     # Derrubar containers
 
 ## Documentação
 
+- [`docs/production-observation.md`](./docs/production-observation.md) — Preparação da VPS, variáveis atuais, validação Docker, backup, recuperação e bloqueios para conta real
 - [`docs/architecture.md`](./docs/architecture.md) — Diagramas C4 e ERD
 - [`docs/backlog_roadmap.md`](./docs/backlog_roadmap.md) — Épicos, histórias e roadmap
 - [`docs/onboarding.md`](./docs/onboarding.md) — Guia de onboarding e integração

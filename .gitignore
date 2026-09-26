@@ -1,5 +1,9 @@
 
 .local/
+__pycache__/
+*.pyc
+.turbo/
+**/*.tsbuildinfo
 **/.env*
 !**/.env*.example
 node_modules/
