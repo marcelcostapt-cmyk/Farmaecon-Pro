@@ -9,9 +9,9 @@
 - Pendências não verificáveis sem o conector:
   - resolver ACME e estado do armazenamento de certificados;
   - logs do Traefik;
-NaN
-NaN
-NaN
+  - redes e containers Farmaecon;
+  - listener IPv6 no VPS;
+  - health/readiness, login e relatório via HTTPS.
 - Próximo gate: disponibilizar o Hostinger Connector no runtime e executar somente leituras antes de qualquer alteração.
 - MARKETPLACE_MODE: OBSERVATION.
 - Segredos, tokens e credenciais: não incluídos.
