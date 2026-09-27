@@ -32,10 +32,15 @@ jobs:
       - run: npm run test:browser
       - run: npm run test:production-stack
       - name: Preserve the exact validated images
+        shell: bash
         run: |
+          set -euo pipefail
+          release_tag="${GITHUB_SHA:0:12}"
+          docker tag farmaecon-api-check:ci "farmaecon-api:${release_tag}"
+          docker tag farmaecon-web-check:ci "farmaecon-web:${release_tag}"
           mkdir -p .local/release
-          docker image inspect --format '{{.Id}} {{range .RepoTags}}{{.}} {{end}}' farmaecon-api-check:ci farmaecon-web-check:ci > .local/release/images.ids
-          docker save farmaecon-api-check:ci farmaecon-web-check:ci | gzip -1 > .local/release/images.tar.gz
+          docker image inspect --format '{{.Id}} {{range .RepoTags}}{{.}} {{end}}' "farmaecon-api:${release_tag}" "farmaecon-web:${release_tag}" > .local/release/images.ids
+          docker save "farmaecon-api:${release_tag}" "farmaecon-web:${release_tag}" | gzip -1 > .local/release/images.tar.gz
           cd .local/release
           sha256sum images.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
