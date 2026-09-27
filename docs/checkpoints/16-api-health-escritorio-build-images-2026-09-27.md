@@ -47,9 +47,24 @@ Artefato final: `farmaecon-images-473f47a6a0a6c97852beddc3f581a9338447f051`
 
 As tags internas esperadas no pacote final são `farmaecon-api:e8cf63567176` e `farmaecon-web:e8cf63567176`.
 
-## Bloqueio remoto
+## Verificação pública
 
-Não foi possível, nesta sessão, usar Hostinger Connector ou SSH. Portanto, a recuperação da API na VPS e a validação remota de health/readiness, login, HTTPS e relatório permanecem pendentes. Não declarar deploy remoto concluído com base apenas no CI.
+Verificação realizada em 2026-09-27 por HTTPS, sem ignorar certificado:
+
+| Verificação | Resultado |
+|---|---|
+| `https://api.farmaecon.com.br/api/v1/health` | HTTP 200 — `status: ok`, `mode: OBSERVATION` |
+| `https://api.farmaecon.com.br/api/v1/ready` | HTTP 200 — `status: ready` |
+| `https://app.farmaecon.com.br/escritorio` | HTTP 307 para `/login` sem sessão |
+| Login com dados inválidos | HTTP 401 — endpoint ativo e credenciais rejeitadas |
+| `/api/v1/observation/report` sem sessão | HTTP 401 — relatório protegido, rota ativa |
+| Relatório autenticado | Não executado: não foi usada nem solicitada credencial |
+
+A verificação pública confirma HTTPS, API recuperada, readiness, proteção do login e existência protegida do relatório. Ela não comprova qual tag de imagem está atualmente carregada na VPS nem substitui um smoke test autenticado.
+
+## Bloqueios remanescentes
+
+O Hostinger Connector/SSH não está disponível nesta sessão, então não foi possível inspecionar diretamente os containers ou confirmar a tag carregada no VPS. Não declarar a publicação da nova imagem como comprovada apenas pela resposta HTTP.
 
 Após obter acesso à VPS, o próximo passo seguro é:
 
@@ -57,7 +72,8 @@ Após obter acesso à VPS, o próximo passo seguro é:
 2. carregar o artefato e conferir `SHA256SUMS`;
 3. atualizar apenas as referências `API_IMAGE` e `WEB_IMAGE` no arquivo de ambiente protegido;
 4. executar migração compatível e atualizar API/Web sem recriar Traefik, PostgreSQL ou Redis;
-5. verificar `/api/v1/health`, `/api/v1/ready`, login inválido (401), redirecionamento protegido de `/escritorio`, HTTPS e relatório observacional;
-6. manter rollback para as imagens anteriores se qualquer verificação falhar.
+5. executar login real pelo navegador com a conta administrativa já provisionada, sem compartilhar a senha;
+6. abrir o relatório autenticado e conferir período, origem, última sincronização e lacunas;
+7. manter rollback para as imagens anteriores se qualquer verificação falhar.
 
 Nenhuma credencial, token de marketplace ou segredo foi incluído neste checkpoint.
