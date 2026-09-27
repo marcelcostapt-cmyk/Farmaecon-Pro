@@ -15,7 +15,7 @@ Fonte de validação: `MOCK`
 
 ## Evidência local/CI
 
-Workflow: [run 36349823192](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions/runs/36349823192)
+Workflow final: [run 36350333387](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions/runs/36350333387)
 
 O job `verify` terminou com sucesso e executou:
 
@@ -28,22 +28,24 @@ O job `verify` terminou com sucesso e executou:
 - seed e smoke test;
 - testes PostgreSQL/RLS e upgrade de migração;
 - teste de navegador;
-- stack de produção local.
+- stack de produção local;
+- preservação do pacote das imagens validadas.
 
 Commit do código: `5e4cbaf8c3a533b92af0b13449d00a8a25913725`.
+Commit do checkpoint: `e8cf6356717619aa342d06ba096c2e18c6023f4f`.
 
 ## Imagem Web rastreável
 
-O pipeline passou a preservar as imagens validadas com tag derivada do SHA do commit. O workflow está no commit `bfea043c8a7d240c8ab6504391bf3673257c7bb8`.
+O pipeline preserva as imagens validadas com tag derivada do SHA do commit. A regra foi introduzida no workflow pelo commit `bfea043c8a7d240c8ab6504391bf3673257c7bb8`.
 
-Artefato: `farmaecon-images-bfea043c8a7d240c8ab6504391bf3673257c7bb8`
+Artefato final: `farmaecon-images-473f47a6a0a6c97852beddc3f581a9338447f051`
 
-- Artifact ID: `10941817492`
-- Digest do arquivo: `sha256:546801a1b28ebda86900e565cfd8a146830bf09190b23505257bfd7c6586709f`
+- Artifact ID: `10942590125`
+- Digest do arquivo: `sha256:ba403c15f6fbad8ec2d755061ab1f8ad19ee909d39cf3d6e42a1a89555271542`
 - Retenção do artefato: até 2026-10-04
-- Run: [36349823192](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions/runs/36349823192)
+- Run: [36350333387](https://github.com/marcelcostapt-cmyk/Farmaecon-Pro/actions/runs/36350333387)
 
-As tags internas esperadas no pacote são `farmaecon-api:bfea043c8a7d` e `farmaecon-web:bfea043c8a7d`.
+As tags internas esperadas no pacote final são `farmaecon-api:e8cf63567176` e `farmaecon-web:e8cf63567176`.
 
 ## Bloqueio remoto
 
