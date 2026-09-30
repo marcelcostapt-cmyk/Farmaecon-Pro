@@ -21,7 +21,7 @@ export class IntegrationsService {
       where: { tenantId },
       select: {
         ...publicAccountSelect,
-        source: true, lastSyncedAt: true,
+        source: true, lastSyncedAt: true, lastSyncState: true, lastSyncAttemptAt: true, lastSyncError: true,
         _count: { select: { orders: true } },
       },
       orderBy: { createdAt: 'asc' },

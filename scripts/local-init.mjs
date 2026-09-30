@@ -7,7 +7,7 @@ const random = () => randomBytes(32).toString('base64url');
 const db = random();
 const env = {
   LOCAL_SIMULATION: 'true', MARKETPLACE_MODE: 'OBSERVATION', MARKETPLACE_SOURCE: 'MOCK',
-  LOCAL_DB_PASSWORD: db, DATABASE_URL: `postgresql://farmaecon:${db}@127.0.0.1:54329/farmaecon_observation`,
+  LOCAL_DB_PASSWORD: db, RUNTIME_DB_PASSWORD: random(), DATABASE_URL: `postgresql://farmaecon:${db}@127.0.0.1:54329/farmaecon_observation`,
   REDIS_HOST: '127.0.0.1', REDIS_PORT: '63799', PORT: '3001', FRONTEND_URL: 'http://localhost:3000',
   JWT_ACCESS_SECRET: random(), JWT_REFRESH_SECRET: random(), TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
   DEMO_ADMIN_A_PASSWORD: random(), DEMO_OPERATOR_A_PASSWORD: random(), DEMO_ADMIN_B_PASSWORD: random(),

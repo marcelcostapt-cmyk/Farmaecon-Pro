@@ -92,6 +92,9 @@ model MarketplaceAccount {
   orders Order[]
   source String @default("MERCADO_LIVRE")
   lastSyncedAt DateTime? @map("last_synced_at")
+  lastSyncState String @default("NOT_SYNCED") @map("last_sync_state")
+  lastSyncAttemptAt DateTime? @map("last_sync_attempt_at")
+  lastSyncError String? @map("last_sync_error")
 
   @@unique([tenantId, platform, externalSellerId])
   @@index([tenantId, status])

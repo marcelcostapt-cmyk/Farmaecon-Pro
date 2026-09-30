@@ -52,4 +52,6 @@ export class MemoryPrisma {
     };
   }
   async $transaction(arg: any) { return typeof arg === 'function' ? arg(this) : Promise.all(arg); }
+  async withTenant(_tenantId: string, operation: any) { return operation(this); }
+  async findUserForLogin(email: string) { return this.user.findUnique({ where: { email } }); }
 }

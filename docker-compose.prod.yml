@@ -1,74 +1,118 @@
-version: '3.8'
+# Production base. Add docker-compose.vps.yml for the existing Traefik.
+# API_IMAGE and WEB_IMAGE must identify the release tested by CI.
+name: farmaecon
+
+x-api-image: &api-image
+  image: ${API_IMAGE:?Set a tested API image tag or digest}
+  build:
+    context: .
+    dockerfile: apps/api/Dockerfile
+
+x-database-url: &database-url postgresql://${DB_USER:-farmaecon}:${DB_PASSWORD:?Set DB_PASSWORD}@db:5432/${DB_NAME:-farmaecon_db}
 
 services:
   db:
     image: postgres:15-alpine
-    container_name: farmaecon-db
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-farmaecon}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secretpassword}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-farmaecon_db}
-    ports:
-      - '5432:5432'
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - farmaecon-network
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [farmaecon-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   redis:
     image: redis:7-alpine
-    container_name: farmaecon-redis
-    restart: always
-    ports:
-      - '6379:6379'
-    volumes:
-      - redisdata:/data
-    networks:
-      - farmaecon-network
+    restart: unless-stopped
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [redisdata:/data]
+    networks: [farmaecon-internal]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *api-image
+    restart: 'no'
+    environment:
+      DATABASE_URL: *database-url
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Set a distinct runtime database password}
+    command: [node, scripts/database-migrate.mjs]
+    healthcheck: { disable: true }
+    networks: [farmaecon-internal]
+    depends_on:
+      db: { condition: service_healthy }
+
+  bootstrap:
+    <<: *api-image
+    profiles: [bootstrap]
+    restart: 'no'
+    environment:
+      DATABASE_URL: *database-url
+      OWNER_EMAIL: ${OWNER_EMAIL:-}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-}
+      OWNER_NAME: ${OWNER_NAME:-Administrador}
+      COMPANY_NAME: ${COMPANY_NAME:-Farmaecon}
+    command: [node, scripts/production-bootstrap.mjs]
+    healthcheck: { disable: true }
+    networks: [farmaecon-internal]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
 
   api:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
-    container_name: farmaecon-api
-    restart: always
-    depends_on:
-      - db
-      - redis
+    <<: *api-image
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-farmaecon}:${DB_PASSWORD:-secretpassword}@db:5432/${DB_NAME:-farmaecon_db}
+      DATABASE_URL: postgresql://farmaecon_runtime:${RUNTIME_DB_PASSWORD:?Set a distinct runtime database password}@db:5432/${DB_NAME:-farmaecon_db}
       REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: 3001
+      REDIS_PORT: '6379'
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set a distinct access token key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set a distinct refresh token key}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?Set a 32-byte base64 key}
+      HOST: 0.0.0.0
+      PORT: '3001'
       NODE_ENV: production
-      FRONTEND_URL: https://app.farmaecon.com.br
-      ML_APP_ID: ${ML_APP_ID}
-      ML_SECRET_KEY: ${ML_SECRET_KEY}
-      ML_REDIRECT_URI: https://app.farmaecon.com.br/auth/callback
-    networks:
-      - farmaecon-network
+      LOCAL_SIMULATION: 'false'
+      FRONTEND_URL: https://${APP_DOMAIN:?Set APP_DOMAIN}
+      MARKETPLACE_MODE: OBSERVATION
+      MARKETPLACE_SOURCE: ${MARKETPLACE_SOURCE:-MOCK}
+      ML_PKCE_ENABLED: ${ML_PKCE_ENABLED:-false}
+      ML_APP_ID: ${ML_APP_ID:-}
+      ML_SECRET_KEY: ${ML_SECRET_KEY:-}
+      ML_REDIRECT_URI: https://${APP_DOMAIN:?Set APP_DOMAIN}/auth/callback
+    networks: [farmaecon-internal, web]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
 
   web:
+    image: ${WEB_IMAGE:?Set a tested frontend image tag or digest}
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-    container_name: farmaecon-web
-    restart: always
-    depends_on:
-      - api
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: https://api.farmaecon.com.br/api/v1
-      NEXT_PUBLIC_ML_APP_ID: ${ML_APP_ID}
       NODE_ENV: production
-    networks:
-      - farmaecon-network
+      LOCAL_SIMULATION: 'false'
+      API_INTERNAL_URL: http://api:3001/api/v1
+      FRONTEND_URL: https://${APP_DOMAIN:?Set APP_DOMAIN}
+    networks: [web]
+    depends_on:
+      api: { condition: service_healthy }
 
 networks:
-  farmaecon-network:
-    driver: bridge
+  farmaecon-internal:
+    internal: true
+  web: {}
 
+# Keep these keys and the existing Compose project name on upgrades.
 volumes:
   pgdata:
   redisdata:

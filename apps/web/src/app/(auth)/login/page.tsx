@@ -94,9 +94,7 @@ export default function LoginPage() {
       </Card>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Credenciais de demo:{' '}
-        <span className="font-mono">admin@farmaecon.com</span> /{' '}
-        <span className="font-mono">admin1234</span>
+        Use o acesso fornecido pelo administrador da sua empresa.
       </p>
     </div>
   );
