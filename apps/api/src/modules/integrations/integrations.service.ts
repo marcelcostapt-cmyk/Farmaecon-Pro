@@ -21,7 +21,12 @@ export class IntegrationsService {
       where: { tenantId },
       select: {
         ...publicAccountSelect,
-        source: true, lastSyncedAt: true,
+        source: true, lastSyncedAt: true, lastSyncState: true,
+        lastSyncAttemptAt: true, lastSyncError: true,
+        syncStates: { where: { operation: 'ORDERS' }, select: {
+          status: true, expectedTotal: true, importedCount: true, nextOffset: true,
+          lastError: true,
+        }, take: 1 },
         _count: { select: { orders: true } },
       },
       orderBy: { createdAt: 'asc' },
@@ -31,7 +36,12 @@ export class IntegrationsService {
       ...acc,
       orderCount: acc._count.orders,
       status: acc.status,
-
+      syncStatus: acc.syncStates[0]?.status ?? acc.lastSyncState ?? 'NOT_STARTED',
+      expectedTotal: acc.syncStates[0]?.expectedTotal ?? null,
+      importedCount: acc.syncStates[0]?.importedCount ?? 0,
+      nextOffset: acc.syncStates[0]?.nextOffset ?? 0,
+      lastSyncAttemptAt: acc.lastSyncAttemptAt,
+      syncError: acc.syncStates[0]?.lastError ?? acc.lastSyncError ?? null,
     }));
   }
 

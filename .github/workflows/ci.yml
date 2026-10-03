@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
@@ -18,11 +18,24 @@ jobs:
       - run: npm run typecheck
       - run: npm run build --workspace api
       - run: npm run build --workspace web
-      - run: docker build -f apps/api/Dockerfile -t farmaecon-api-check .
-      - run: docker build -f apps/web/Dockerfile -t farmaecon-web-check .
+      - run: docker build -f apps/api/Dockerfile -t farmaecon-api-check:ci .
+      - run: docker build -f apps/web/Dockerfile -t farmaecon-web-check:ci .
       - run: node scripts/local-init.mjs
       - run: docker compose --env-file .local/observation.env -f docker-compose.observation.yml up -d --build --wait
       - run: node --env-file=.local/observation.env scripts/local-seed.mjs
       - run: node --env-file=.local/observation.env scripts/local-smoke.mjs
+      - name: Package validated images
+        run: |
+          mkdir -p release
+          docker save farmaecon-api-check:ci farmaecon-web-check:ci | gzip -n > release/images.tar.gz
+          (cd release && sha256sum images.tar.gz > SHA256SUMS)
+          docker image inspect --format '{{json .RepoTags}} {{.Id}} {{.Created}}' \
+            farmaecon-api-check:ci farmaecon-web-check:ci > release/IMAGE_IDS
+      - name: Upload validated image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: farmaecon-images-${{ github.sha }}
+          path: release
+          if-no-files-found: error
       - if: always()
         run: docker compose --env-file .local/observation.env -f docker-compose.observation.yml down

@@ -6,7 +6,7 @@ import { MarketplacePlatform } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { MlOAuthService } from './ml-oauth.service';
 
-interface MlOrderSearchResult {
+export interface MlOrderSearchResult {
   id: number | string;
   status?: string;
   date_created?: string;
@@ -24,6 +24,15 @@ interface MlOrderSearchResponse {
   results?: MlOrderSearchResult[];
 }
 
+export interface MlOrderPage {
+  results: MlOrderSearchResult[];
+  offset: number;
+  limit: number;
+  total: number;
+  nextOffset: number;
+  complete: boolean;
+}
+
 @Injectable()
 export class MlApiService {
   private readonly logger = new Logger(MlApiService.name);
@@ -36,13 +45,16 @@ export class MlApiService {
     private readonly http: MarketplaceHttp,
   ) {}
 
-  async listSellerOrders(
+  async listSellerOrdersPage(
     accountId: string,
     tenantId: string,
-    options: { limit?: number; maxPages?: number } = {},
-  ): Promise<MlOrderSearchResult[]> {
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<MlOrderPage> {
     const limit = options.limit ?? 50;
-    const maxPages = options.maxPages ?? 4;
+    const offset = options.offset ?? 0;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isInteger(offset) || offset < 0) {
+      throw new Error('Invalid pagination bounds');
+    }
     const account = await this.prisma.marketplaceAccount.findFirstOrThrow({
       where: { id: accountId, tenantId, source: 'MERCADO_LIVRE', status: 'ACTIVE' },
       select: {
@@ -60,32 +72,37 @@ export class MlApiService {
       throw new Error(`Marketplace account ${accountId} is missing externalSellerId`);
     }
 
-    const orders: MlOrderSearchResult[] = [];
+    const url = new URL('/orders/search', this.getApiBaseUrl());
+    url.searchParams.set('seller', account.externalSellerId);
+    url.searchParams.set('offset', String(offset));
+    url.searchParams.set('limit', String(limit));
+    url.searchParams.set('sort', 'date_desc');
 
-    for (let page = 0; page < maxPages; page += 1) {
-      const offset = page * limit;
-      const url = new URL('/orders/search', this.getApiBaseUrl());
-      url.searchParams.set('seller', account.externalSellerId);
-      url.searchParams.set('offset', String(offset));
-      url.searchParams.set('limit', String(limit));
-      url.searchParams.set('sort', 'date_desc');
-
-      const payload = await this.requestForAccount<MlOrderSearchResponse>(account.id, tenantId, url);
-      const results = payload.results ?? [];
-      orders.push(...results);
-
-      if (results.length < limit) {
-        break;
-      }
-
-      const total = payload.paging?.total ?? 0;
-      if (total > 0 && offset + results.length >= total) {
-        break;
-      }
+    const payload = await this.requestForAccount<MlOrderSearchResponse>(account.id, tenantId, url);
+    const results = payload.results;
+    const total = payload.paging?.total;
+    const reportedOffset = payload.paging?.offset;
+    if (
+      !Array.isArray(results) ||
+      !Number.isSafeInteger(total) ||
+      (total ?? -1) < 0 ||
+      reportedOffset !== offset ||
+      results.length > limit ||
+      offset > (total ?? 0)
+    ) {
+      throw new Error('Incomplete or inconsistent order pagination');
     }
 
-    this.logger.log(`Fetched ${orders.length} Mercado Livre orders for account ${accountId}`);
-    return orders;
+    const nextOffset = offset + results.length;
+    const complete = nextOffset >= (total ?? 0);
+    if (!complete && results.length === 0) {
+      throw new Error('Order pagination ended before complete coverage');
+    }
+
+    this.logger.log(
+      `Fetched page offset=${offset} count=${results.length} total=${total} for account ${accountId}`,
+    );
+    return { results, offset, limit, total: total ?? 0, nextOffset, complete };
   }
 
   private getApiBaseUrl() {

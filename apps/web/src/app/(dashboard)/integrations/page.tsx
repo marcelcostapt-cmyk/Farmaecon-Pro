@@ -21,6 +21,12 @@ interface Account {
   orderCount: number;
   source: string;
   lastSyncedAt: string | null;
+  syncStatus: string;
+  expectedTotal: number | null;
+  importedCount: number;
+  nextOffset: number;
+  lastSyncAttemptAt: string | null;
+  syncError: string | null;
 }
 
 async function getAccounts() {
@@ -68,11 +74,15 @@ export default async function IntegrationsPage() {
                   </Badge>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground border-t pt-3">
-                  <span>{account.orderCount} pedidos sincronizados</span>
+                  <span>{account.orderCount} pedidos sincronizados · {account.syncStatus}</span>
                   <span>
                     {account.lastSyncedAt ? new Date(account.lastSyncedAt).toLocaleString('pt-BR') : 'Ainda não sincronizada'}
                   </span>
                 </div>
+                {account.expectedTotal !== null && account.syncStatus !== 'COMPLETE' && (
+                  <p className="text-xs text-amber-700">Cobertura parcial: {account.importedCount}/{account.expectedTotal}; próximo offset {account.nextOffset}</p>
+                )}
+                {account.syncError && <p className="text-xs text-red-700">Estado: {account.syncError}</p>}
                 <form action={`/api/integrations/${account.id}/sync`} method="post">
                   <button
                     type="submit"

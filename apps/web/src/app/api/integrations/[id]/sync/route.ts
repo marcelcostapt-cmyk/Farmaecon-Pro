@@ -7,17 +7,24 @@ export async function POST(request: Request) {
   const cookieStore = await cookies();
   const token = cookieStore.get('access_token')?.value;
   const baseUrl = new URL(request.url);
+  const publicBase =
+    process.env.NODE_ENV === 'production'
+      ? new URL(
+          process.env.FRONTEND_URL ?? 'https://app.farmaecon.com.br',
+        )
+      : baseUrl;
+
   if (request.headers.get('origin') !== (process.env.FRONTEND_URL ?? baseUrl.origin)) return new NextResponse('Forbidden', { status: 403 });
   const segments = baseUrl.pathname.split('/');
   const accountId = segments.at(-2);
 
   if (!token) {
-    return NextResponse.redirect(new URL('/login', baseUrl), { status: 303 });
+    return NextResponse.redirect(new URL('/login', publicBase), { status: 303 });
   }
 
   if (!accountId) {
     return NextResponse.redirect(
-      new URL('/integrations?error=sync_failed', baseUrl),
+      new URL('/integrations?error=sync_failed', publicBase),
       { status: 303 },
     );
   }
@@ -32,13 +39,13 @@ export async function POST(request: Request) {
 
   if (!response.ok) {
     return NextResponse.redirect(
-      new URL('/integrations?error=sync_failed', baseUrl),
+      new URL('/integrations?error=sync_failed', publicBase),
       { status: 303 },
     );
   }
 
   return NextResponse.redirect(
-    new URL('/integrations?success=sync_requested', baseUrl),
+    new URL('/integrations?success=sync_requested', publicBase),
     { status: 303 },
   );
 }

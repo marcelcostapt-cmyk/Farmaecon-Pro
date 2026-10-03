@@ -51,10 +51,11 @@ model Tenant {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users              User[]
-  marketplaceAccounts MarketplaceAccount[]
-  products           Product[]
-  orders             Order[]
+  users                 User[]
+  marketplaceAccounts   MarketplaceAccount[]
+  marketplaceSyncStates MarketplaceSyncState[]
+  products              Product[]
+  orders                Order[]
 
   @@map("tenants")
 }
@@ -88,10 +89,14 @@ model MarketplaceAccount {
   createdAt        DateTime                 @default(now()) @map("created_at")
   updatedAt        DateTime                 @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orders Order[]
-  source String @default("MERCADO_LIVRE")
-  lastSyncedAt DateTime? @map("last_synced_at")
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders            Order[]
+  source            String                 @default("MERCADO_LIVRE")
+  lastSyncedAt      DateTime?              @map("last_synced_at")
+  lastSyncState     String?                @map("last_sync_state")
+  lastSyncAttemptAt DateTime?              @map("last_sync_attempt_at")
+  lastSyncError     String?                @map("last_sync_error")
+  syncStates        MarketplaceSyncState[]
 
   @@unique([tenantId, platform, externalSellerId])
   @@index([tenantId, status])
@@ -99,16 +104,16 @@ model MarketplaceAccount {
 }
 
 model Product {
-  id              String   @id @default(uuid())
-  tenantId        String   @map("tenant_id")
-  sku             String
-  title           String
-  costPrice       Float    @map("cost_price")
-  basePrice       Float    @map("base_price")
-  stockQuantity   Int      @default(0) @map("stock_quantity")
-  minStockQuantity Int     @default(0) @map("min_stock_quantity")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  sku              String
+  title            String
+  costPrice        Float    @map("cost_price")
+  basePrice        Float    @map("base_price")
+  stockQuantity    Int      @default(0) @map("stock_quantity")
+  minStockQuantity Int      @default(0) @map("min_stock_quantity")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -127,13 +132,38 @@ model Order {
   createdAt            DateTime    @default(now()) @map("created_at")
   updatedAt            DateTime    @updatedAt @map("updated_at")
 
-  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  marketplaceAccount    MarketplaceAccount     @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
   financialTransactions FinancialTransaction[]
 
-  @@unique([tenantId, externalOrderId])
+  @@unique([tenantId, marketplaceAccountId, externalOrderId])
   @@index([tenantId, status, createdAt])
+  @@index([tenantId, marketplaceAccountId, createdAt])
   @@map("orders")
+}
+
+model MarketplaceSyncState {
+  id                   String    @id @default(uuid())
+  tenantId             String    @map("tenant_id")
+  marketplaceAccountId String    @map("marketplace_account_id")
+  operation            String    @default("ORDERS")
+  status               String    @default("PARTIAL")
+  nextOffset           Int       @default(0) @map("next_offset")
+  pageSize             Int       @default(50) @map("page_size")
+  expectedTotal        Int?      @map("expected_total")
+  importedCount        Int       @default(0) @map("imported_count")
+  completedPages       Int       @default(0) @map("completed_pages")
+  lastError            String?   @map("last_error")
+  startedAt            DateTime  @default(now()) @map("started_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  completedAt          DateTime? @map("completed_at")
+
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, marketplaceAccountId, operation])
+  @@index([tenantId, status])
+  @@map("marketplace_sync_states")
 }
 
 model FinancialTransaction {
@@ -153,25 +183,27 @@ model FinancialTransaction {
 }
 
 model AuthSession {
-  id String @id
-  userId String @map("user_id")
-  tenantId String @map("tenant_id")
-  refreshHash String @map("refresh_hash")
-  expiresAt DateTime @map("expires_at")
-  revokedAt DateTime? @map("revoked_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String    @id
+  userId      String    @map("user_id")
+  tenantId    String    @map("tenant_id")
+  refreshHash String    @map("refresh_hash")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
   @@index([userId, tenantId])
   @@map("auth_sessions")
 }
 
 model OAuthState {
-  stateHash String @id @map("state_hash")
-  userId String @map("user_id")
-  tenantId String @map("tenant_id")
-  sessionId String @map("session_id")
-  verifier String
-  expiresAt DateTime @map("expires_at")
+  stateHash  String    @id @map("state_hash")
+  userId     String    @map("user_id")
+  tenantId   String    @map("tenant_id")
+  sessionId  String    @map("session_id")
+  verifier   String
+  expiresAt  DateTime  @map("expires_at")
   consumedAt DateTime? @map("consumed_at")
+
   @@index([expiresAt])
   @@map("oauth_states")
 }
