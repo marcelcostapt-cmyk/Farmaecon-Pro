@@ -169,9 +169,10 @@ export class MlOrdersSyncService {
 
     await this.prisma.$transaction(async (tx: any) => {
       for (const order of page.results) {
-        const externalOrderId = String(order.id);
-        const totalAmount = this.resolveTotalAmount(order);
-        const createdAt = this.resolveOrderDate(order);
+        const externalOrderId = order.id == null ? '' : String(order.id).trim();
+        if (!externalOrderId) throw new Error('Empty external order id');
+        const totalAmount = this.resolveTotalAmount(order, externalOrderId);
+        const createdAt = this.resolveOrderDate(order, externalOrderId);
         const orderStatus = this.mapOrderStatus(order.status);
 
         await tx.order.upsert({
@@ -251,6 +252,11 @@ export class MlOrdersSyncService {
 
   private classifyError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
+    if (
+      message === 'Empty external order id' ||
+      message.startsWith('Invalid total_amount') ||
+      message.startsWith('Invalid date_created')
+    ) return 'INVALID_ORDER_DATA';
     if (message.includes('pagination total changed')) return 'PAGINATION_TOTAL_CHANGED';
     if (message.includes('pagination')) return 'PAGINATION_INCOMPLETE';
     if (message.includes('Mercado Livre API error 401')) return 'AUTH_EXPIRED';
@@ -259,14 +265,27 @@ export class MlOrdersSyncService {
     return 'SYNC_ERROR';
   }
 
-  private resolveTotalAmount(order: { total_amount?: number; total_amount_with_shipping?: number }) {
-    return Number(order.total_amount_with_shipping ?? order.total_amount ?? 0);
+  private resolveTotalAmount(
+    order: { total_amount?: number; total_amount_with_shipping?: number },
+    orderId: string,
+  ) {
+    const amount = order.total_amount_with_shipping ?? order.total_amount;
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
+      throw new Error(`Invalid total_amount for order ${orderId}`);
+    }
+    return amount;
   }
 
-  private resolveOrderDate(order: { date_created?: string; date_closed?: string }) {
-    const rawDate = order.date_created ?? order.date_closed;
-    const parsed = rawDate ? new Date(rawDate) : new Date();
-    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  private resolveOrderDate(order: { date_created?: string }, orderId: string) {
+    const rawDate = order.date_created;
+    if (typeof rawDate !== 'string' || rawDate.trim() === '') {
+      throw new Error(`Invalid date_created for order ${orderId}`);
+    }
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error(`Invalid date_created for order ${orderId}`);
+    }
+    return parsed;
   }
 
   private mapOrderStatus(status?: string): OrderStatus {
