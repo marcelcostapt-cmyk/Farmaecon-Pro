@@ -157,6 +157,9 @@ model MarketplaceSyncState {
   startedAt            DateTime  @default(now()) @map("started_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   completedAt          DateTime? @map("completed_at")
+  windowFrom           DateTime? @map("window_from")
+  windowTo             DateTime? @map("window_to")
+  lastSyncedWindowTo   DateTime? @map("last_synced_window_to")
 
   tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)

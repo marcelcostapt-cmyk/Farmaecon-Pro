@@ -8,6 +8,12 @@ import { MlApiService, MlOrderPage, MlOrderSearchResult } from './ml-api.service
 
 export const ORDER_SYNC_OPERATION = 'ORDERS';
 export const DEFAULT_ORDER_PAGE_SIZE = 50;
+/** The first read-only pass covers this many days when no sync history exists. */
+export const INITIAL_SYNC_WINDOW_DAYS = 90;
+/** Re-read this overlap on every completed pass to reconcile late updates. */
+export const SYNC_WINDOW_OVERLAP_HOURS = 2;
+
+const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 
 export type OrderSyncStatus = 'PARTIAL' | 'COMPLETE' | 'FAILED';
 
@@ -25,6 +31,31 @@ interface AccountForSync {
   platform: MarketplacePlatform;
   source: string;
   lastSyncedAt: Date | null;
+}
+
+interface OrderSyncWindow {
+  from: Date;
+  to: Date;
+}
+
+function floorToUtcHour(value: Date): Date {
+  const floored = new Date(value);
+  floored.setUTCMinutes(0, 0, 0);
+  return floored;
+}
+
+function subtractHours(value: Date, hours: number): Date {
+  return new Date(value.getTime() - hours * MILLISECONDS_PER_HOUR);
+}
+
+function createOrderSyncWindow(windowTo: Date, lastSyncedWindowTo?: Date | null): OrderSyncWindow {
+  const base = lastSyncedWindowTo
+    ? floorToUtcHour(lastSyncedWindowTo)
+    : subtractHours(windowTo, INITIAL_SYNC_WINDOW_DAYS * 24);
+  return {
+    from: lastSyncedWindowTo ? subtractHours(base, SYNC_WINDOW_OVERLAP_HOURS) : base,
+    to: new Date(windowTo),
+  };
 }
 
 @Injectable()
@@ -59,6 +90,7 @@ export class MlOrdersSyncService {
       throw new Error(`Account ${accountId} is not a Mercado Livre account`);
     }
 
+    const currentWindowTo = floorToUtcHour(new Date());
     let state = await this.prisma.marketplaceSyncState.findUnique({
       where: {
         tenantId_marketplaceAccountId_operation: {
@@ -82,11 +114,18 @@ export class MlOrdersSyncService {
           importedCount: 0,
           completedPages: 0,
           lastError: null,
+          windowFrom: createOrderSyncWindow(currentWindowTo).from,
+          windowTo: currentWindowTo,
+          lastSyncedWindowTo: null,
         },
       });
     } else if (state.status === 'COMPLETE' && account.source !== 'SIMULATED') {
       // A new manual sync starts a fresh bounded pass. PARTIAL/FAILED states
       // resume from their persisted cursor instead of starting over.
+      const window = createOrderSyncWindow(
+        currentWindowTo,
+        state.lastSyncedWindowTo ?? state.windowTo ?? account.lastSyncedAt,
+      );
       await this.prisma.marketplaceSyncState.updateMany({
         where: { id: state.id, tenantId, marketplaceAccountId: accountId },
         data: {
@@ -97,6 +136,8 @@ export class MlOrdersSyncService {
           completedPages: 0,
           lastError: null,
           completedAt: null,
+          windowFrom: window.from,
+          windowTo: window.to,
         },
       });
       state = {
@@ -108,10 +149,27 @@ export class MlOrdersSyncService {
         completedPages: 0,
         lastError: null,
         completedAt: null,
+        windowFrom: window.from,
+        windowTo: window.to,
       };
+    } else if (!state.windowFrom || !state.windowTo) {
+      // Legacy state rows predate bounded windows. Initialize them once so a
+      // retry keeps the same window instead of moving its boundary.
+      const window = createOrderSyncWindow(
+        currentWindowTo,
+        state.lastSyncedWindowTo ?? account.lastSyncedAt,
+      );
+      await this.prisma.marketplaceSyncState.updateMany({
+        where: { id: state.id, tenantId, marketplaceAccountId: accountId },
+        data: { windowFrom: window.from, windowTo: window.to },
+      });
+      state = { ...state, windowFrom: window.from, windowTo: window.to };
     }
 
     const attemptAt = new Date();
+    const syncWindow = state.windowFrom && state.windowTo
+      ? { from: state.windowFrom as Date, to: state.windowTo as Date }
+      : null;
 
     try {
       if (account.source === 'SIMULATED') {
@@ -129,9 +187,12 @@ export class MlOrdersSyncService {
         }, attemptAt);
       }
 
-      const page = await this.mlApi.listSellerOrdersPage(accountId, tenantId, {
+      if (!syncWindow) throw new Error('Order synchronization window is not initialized');
+      const page = await this.mlApi.listSellerOrdersPageInWindow(accountId, tenantId, {
         limit: state.pageSize,
         offset: state.nextOffset,
+        windowFrom: syncWindow.from,
+        windowTo: syncWindow.to,
       });
 
       if (state.expectedTotal !== null && state.expectedTotal !== page.total) {
@@ -209,6 +270,7 @@ export class MlOrdersSyncService {
           completedPages: { increment: 1 },
           lastError: null,
           completedAt,
+          ...(page.complete ? { lastSyncedWindowTo: state.windowTo } : {}),
         },
       });
 

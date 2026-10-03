@@ -4,7 +4,7 @@ import { MlOrdersSyncService } from './ml-orders-sync.service';
 describe('Marketplace order data integrity', () => {
   const valid = { id: '123', status: 'paid', total_amount: 125.5, date_created: '2026-09-01T23:30:00-03:00' };
   let db: MemoryPrisma;
-  const remote = { listSellerOrdersPage: jest.fn() };
+  const remote = { listSellerOrdersPageInWindow: jest.fn() };
   let service: MlOrdersSyncService;
   beforeEach(() => {
     jest.clearAllMocks();
@@ -20,17 +20,17 @@ describe('Marketplace order data integrity', () => {
     { ...valid, date_created: undefined },
     { ...valid, id: '' },
   ])('rejects malformed orders without certifying a successful sync: %j', async order => {
-    remote.listSellerOrdersPage.mockResolvedValue({ results: [order], offset: 0, limit: 50, total: 1, nextOffset: 1, complete: true });
+    remote.listSellerOrdersPageInWindow.mockResolvedValue({ results: [order], offset: 0, limit: 50, total: 1, nextOffset: 1, complete: true });
     await expect(service.syncRecentOrders('account', 'tenant')).rejects.toThrow();
     expect(db.rows.order).toHaveLength(0);
     expect(db.rows.marketplaceAccount[0].lastSyncedAt).toBeNull();
   });
   it('preserves provider amounts and date offsets and updates corrected timestamps', async () => {
-    remote.listSellerOrdersPage.mockResolvedValue({ results: [valid], offset: 0, limit: 50, total: 1, nextOffset: 1, complete: true });
+    remote.listSellerOrdersPageInWindow.mockResolvedValue({ results: [valid], offset: 0, limit: 50, total: 1, nextOffset: 1, complete: true });
     await service.syncRecentOrders('account', 'tenant');
     expect(db.rows.order[0].totalAmount).toBe(125.5);
     expect(db.rows.order[0].createdAt.toISOString()).toBe('2026-09-02T02:30:00.000Z');
-    remote.listSellerOrdersPage.mockResolvedValue({ results: [{ ...valid, date_created: '2026-09-01T22:30:00-03:00' }], offset: 0, limit: 50, total: 1, nextOffset: 1, complete: true });
+    remote.listSellerOrdersPageInWindow.mockResolvedValue({ results: [{ ...valid, date_created: '2026-09-01T22:30:00-03:00' }], offset: 0, limit: 50, total: 1, nextOffset: 1, complete: true });
     await service.syncRecentOrders('account', 'tenant');
     expect(db.rows.order).toHaveLength(1);
     expect(db.rows.order[0].createdAt.toISOString()).toBe('2026-09-02T01:30:00.000Z');
