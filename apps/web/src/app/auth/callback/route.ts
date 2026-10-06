@@ -3,8 +3,15 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const publicBase =
+    process.env.NODE_ENV === 'production'
+      ? new URL(
+          process.env.FRONTEND_URL ?? 'https://app.farmaecon.com.br',
+        )
+      : url;
+
   const access = (await cookies()).get('access_token')?.value;
-  if (!access) return NextResponse.redirect(new URL('/login', url));
+  if (!access) return NextResponse.redirect(new URL('/login', publicBase));
 
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -31,7 +38,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const response = NextResponse.redirect(new URL(`/integrations?${success ? 'success=ml_connected' : 'error=oauth_failed'}`, url));
+  const response = NextResponse.redirect(new URL(`/integrations?${success ? 'success=ml_connected' : 'error=oauth_failed'}`, publicBase));
   response.headers.set('Referrer-Policy', 'no-referrer');
   response.headers.set('Cache-Control', 'no-store');
   return response;

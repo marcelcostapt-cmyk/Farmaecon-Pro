@@ -11,7 +11,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect('/login');
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
       <aside className="flex flex-col w-48 lg:w-64 border-r bg-card px-4 py-6 gap-2">
         <div className="px-2 mb-6">
           <h1 className="text-xl font-bold text-primary">Farmaecon PRO</h1>
@@ -19,6 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <nav className="flex flex-col gap-1 flex-1">
           {[
+            { label: '🏢 Escritório',    href: '/escritorio' },
             { label: '📊 Dashboard',     href: '/dashboard' },
             { label: '🛒 Pedidos',       href: '/orders' },
             { label: 'Relatório de observação', href: '/observation' },
@@ -35,7 +35,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           ))}
         </nav>
 
-        {/* Logout */}
         <div className="border-t pt-4">
           <form action={logoutAction}>
             <button
@@ -48,7 +47,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 overflow-auto">
         <header className="border-b px-6 py-4 flex items-center justify-between bg-card">
           <h2 className="text-sm font-medium text-muted-foreground">Farmaecon PRO</h2>

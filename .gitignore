@@ -5,6 +5,13 @@
 node_modules/
 **/dist/
 **/.next/
+**/.turbo/
 redis-stable/
 redis-stable.tar.gz
 node_modules/
+
+# Artefatos de build/release — nunca versionar
+*.tar.gz
+.DS_Store
+release/
+images.tar.gz
