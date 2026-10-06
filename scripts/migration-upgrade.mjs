@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
 
@@ -40,8 +40,12 @@ try {
   assert.deepEqual(after, before, 'Existing orders must survive upgrade unchanged');
   const accounts = (await database.query('SELECT last_sync_state, last_sync_attempt_at, last_sync_error, last_synced_at FROM marketplace_accounts')).rows;
   assert(accounts.length === 2 && accounts.every(a => a.last_sync_state === 'NOT_SYNCED' && a.last_sync_attempt_at === null && a.last_sync_error === null && a.last_synced_at), 'Upgrade must preserve timestamps without claiming previous complete sync evidence');
-  const migrations = (await database.query('SELECT COUNT(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')).rows[0].count;
-  assert(migrations === 4, 'All current migrations must be applied');
+  const migrations = (await database.query('SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name')).rows.map(row => row.migration_name);
+  const expected = readdirSync('apps/api/prisma/migrations', { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+  assert.deepEqual(migrations, expected, 'All current migrations must be applied');
+  const syncTable = (await database.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.marketplace_sync_states'::regclass")).rows[0];
+  assert.equal(syncTable.relrowsecurity, true, 'New synchronization state must have RLS');
+  assert.equal((await database.query('SELECT count(*)::int AS count FROM marketplace_sync_states')).rows[0].count, 0);
   console.log('PASS: populated previous schema upgraded twice with both tenants, monetary values and dates preserved; new synchronization evidence starts uncertified.');
 } finally {
   await database?.end();

@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 const API_URL = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+function publicBaseUrl(request: NextRequest): URL {
+  return process.env.NODE_ENV === 'production'
+    ? new URL(process.env.FRONTEND_URL ?? 'https://app.farmaecon.com.br')
+    : new URL(request.url);
+}
+
 export async function proxy(request: NextRequest) {
+  const publicBase = publicBaseUrl(request);
   const access = request.cookies.get('access_token')?.value;
   let expired = true;
   try { expired = !access || JSON.parse(Buffer.from(access.split('.')[1], 'base64url').toString()).exp <= Date.now() / 1000 + 30; } catch { /* API validates authenticity */ }
@@ -20,11 +27,11 @@ export async function proxy(request: NextRequest) {
         return response;
       }
     } catch { /* Fail closed */ }
-    const response = NextResponse.redirect(new URL('/login', request.url));
+    const response = NextResponse.redirect(new URL('/login', publicBase));
     response.cookies.delete('access_token'); response.cookies.delete('refresh_token');
     return response;
   }
-  if (!access || expired) return NextResponse.redirect(new URL('/login', request.url));
+  if (!access || expired) return NextResponse.redirect(new URL('/login', publicBase));
   return NextResponse.next();
 }
 export const config = { matcher: ['/dashboard/:path*', '/orders/:path*', '/finance/:path*', '/integrations/:path*', '/observation/:path*', '/auth/callback', '/api/integrations/:path*'] };

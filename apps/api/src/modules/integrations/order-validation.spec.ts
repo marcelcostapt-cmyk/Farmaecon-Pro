@@ -15,14 +15,19 @@ describe('Read-only order data quality', () => {
     { currency_id: undefined }, { currency_id: 'USD' }, { id: '' }, { id: Number.MAX_SAFE_INTEGER + 1 }])('rejects incomplete or malformed data %j', patch => {
     expect(() => validateOrder({ ...valid, ...patch })).toThrow();
   });
-  it('does not write any orders or advance synchronization when a batch is invalid', async () => {
+  it.each([
+    { total_amount: undefined }, { total_amount: NaN }, { total_amount: -1 }, { total_amount: 1.001 },
+    { date_created: undefined }, { date_created: '2026-02-30T00:00:00Z' }, { date_created: '2026-09-18' },
+    { currency_id: undefined }, { currency_id: 'USD' }, { id: '' }, { id: Number.MAX_SAFE_INTEGER + 1 },
+  ])('does not write any part of a page containing invalid production data %j', async patch => {
     const db = new MemoryPrisma();
     db.rows.marketplaceAccount.push({ id: 'account', tenantId: 'a', platform: 'MERCADO_LIVRE', status: 'ACTIVE', source: 'MERCADO_LIVRE' });
-    const remote = { listSellerOrders: jest.fn().mockResolvedValue([valid, { ...valid, id: 124, total_amount: undefined }]) };
+    const remote = { listSellerOrdersPageInWindow: jest.fn().mockResolvedValue({ results: [valid, { ...valid, id: 124, ...patch }], offset: 0, limit: 50, total: 2, nextOffset: 2, complete: true }) };
     await expect(new MlOrdersSyncService(db as any, remote as any).syncRecentOrders('account', 'a')).rejects.toThrow();
     expect(db.order.upsert).not.toHaveBeenCalled();
     expect(db.marketplaceAccount.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lastSyncState: 'FAILED' }) }));
     expect(db.rows.marketplaceAccount[0].lastSyncedAt).toBeUndefined();
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ status: 'FAILED', nextOffset: 0, lastError: 'INVALID_ORDER_DATA' });
   });
 });
 

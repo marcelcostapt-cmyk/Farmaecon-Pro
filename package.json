@@ -25,6 +25,7 @@
     "start:standalone": "node scripts/start-standalone.mjs",
     "security:scan": "node scripts/scan-secrets.mjs",
     "test:postgres-security": "node --env-file=.local/observation.env scripts/postgres-security.mjs",
+    "test:postgres": "node --env-file=.local/observation.env scripts/test-postgres.mjs",
     "test:migration-upgrade": "node --env-file=.local/observation.env scripts/migration-upgrade.mjs",
     "test:browser": "node --env-file=.local/observation.env scripts/browser-smoke.mjs",
     "credentials:prepare": "python3 scripts/marketplace-credentials.py"

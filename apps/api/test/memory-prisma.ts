@@ -1,7 +1,7 @@
 // In-memory test double; never wired into the application. HTTP/SQL smoke tests cover the real adapter separately.
 export class MemoryPrisma {
-  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], order: [], financialTransaction: [] };
-  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; order: any; financialTransaction: any;
+  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], financialTransaction: [] };
+  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; financialTransaction: any;
   constructor() {
     for (const model of Object.keys(this.rows)) (this as any)[model] = this.model(model);
   }
@@ -26,8 +26,11 @@ export class MemoryPrisma {
       data.marketplaceAccount = this.rows.marketplaceAccount.find(a => a.id === row.marketplaceAccountId);
       data.financialTransactions = this.rows.financialTransaction.filter(t => t.orderId === row.id);
     }
-    if (model === 'marketplaceAccount') data._count = { orders: this.rows.order.filter(o => o.marketplaceAccountId === row.id).length };
-    const relations: Record<string,string> = { marketplaceAccount: 'marketplaceAccount', financialTransactions: 'financialTransaction' };
+    if (model === 'marketplaceAccount') {
+      data._count = { orders: this.rows.order.filter(o => o.marketplaceAccountId === row.id).length };
+      data.syncStates = this.rows.marketplaceSyncState.filter(s => s.marketplaceAccountId === row.id);
+    }
+    const relations: Record<string,string> = { marketplaceAccount: 'marketplaceAccount', financialTransactions: 'financialTransaction', syncStates: 'marketplaceSyncState' };
     const projectField = (k: string, spec: any): any => {
       if (spec === true) return structuredClone(data[k]);
       if (Array.isArray(data[k])) return data[k].map((v: any) => this.project(relations[k], v, spec));
@@ -47,7 +50,7 @@ export class MemoryPrisma {
       findMany: jest.fn(async (args: any = {}) => this.rows[name].filter(r => this.matches(r,args.where)).slice(args.skip ?? 0, args.take ? (args.skip ?? 0)+args.take : undefined).map(r => this.project(name,r,args))),
       count: jest.fn(async (args: any) => this.rows[name].filter(r => this.matches(r,args.where)).length),
       create: jest.fn(async (args: any) => { const row = { id: `${name}-${this.rows[name].length}`, createdAt: new Date(), revokedAt: null, consumedAt: null, ...args.data }; this.rows[name].push(row); return this.project(name,row,args); }),
-      updateMany: jest.fn(async (args: any) => { const found=this.rows[name].filter(r=>this.matches(r,args.where)); found.forEach(r=>Object.assign(r,args.data)); return { count: found.length }; }),
+      updateMany: jest.fn(async (args: any) => { const found=this.rows[name].filter(r=>this.matches(r,args.where)); found.forEach(r=>{ for(const [key,value] of Object.entries(args.data ?? {})){ if(value && typeof value === 'object' && 'increment' in (value as any)) r[key]=(r[key] ?? 0)+(value as any).increment; else Object.assign(r,{[key]:value}); } }); return { count: found.length }; }),
       upsert: jest.fn(async (args: any) => { let row=this.rows[name].find(r=>this.matches(r,args.where)); if (row) Object.assign(row,args.update); else { row={id:`${name}-${this.rows[name].length}`,createdAt:new Date(),status:'ACTIVE',...args.create};this.rows[name].push(row); } return this.project(name,row,args); }),
     };
   }

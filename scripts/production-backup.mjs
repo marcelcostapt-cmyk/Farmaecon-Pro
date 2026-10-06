@@ -71,7 +71,8 @@ async function verifyRestore(source) {
     if (!/^\d+$/.test(migrations) || Number(migrations) < 1) throw new Error('Restored database lacks completed migrations');
     run(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', 'SELECT count(*) FROM public.tenants; SELECT count(*) FROM public.orders; SELECT count(*) FROM public.auth_sessions;']);
     const protectedTables = run(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relrowsecurity"]);
-    if (Number(protectedTables) !== 8) throw new Error('Restored row-security policies are incomplete');
+    const expectedProtectedTables = run(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', "SELECT CASE WHEN to_regclass('public.marketplace_sync_states') IS NULL THEN 8 ELSE 9 END"]);
+    if (Number(protectedTables) !== Number(expectedProtectedTables)) throw new Error('Restored row-security policies are incomplete');
     console.log('PASS: authenticated archive restored in a disposable Postgres container with no network. Production database untouched.');
   } finally {
     try { if (container) run(['rm', '-f', container]); }

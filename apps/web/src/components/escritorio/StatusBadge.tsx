@@ -1,9 +1,12 @@
-export type AgentStatus = 'active' | 'attention' | 'idle' | 'blocked';
+export type AgentStatus = 'active' | 'attention' | 'idle' | 'blocked' | 'trabalhando' | 'ocioso' | 'offline';
 
 const STATUS_CONFIG: Record<
   AgentStatus,
   { label: string; dot: string; text: string }
 > = {
+  trabalhando: { label: 'Trabalhando', dot: 'bg-emerald-500', text: 'text-emerald-700' },
+  ocioso: { label: 'Ocioso', dot: 'bg-amber-500', text: 'text-amber-700' },
+  offline: { label: 'Offline', dot: 'bg-gray-400', text: 'text-gray-500' },
   active: {
     label: 'Ativo',
     dot: 'bg-emerald-500',

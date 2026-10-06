@@ -1,11 +1,13 @@
 import { StatusBadge, type AgentStatus } from './StatusBadge';
 
-const AGENTS: Array<{
+export interface Agent {
   id: string;
   name: string;
   sector: string;
   status: AgentStatus;
-}> = [
+}
+
+const AGENTS: Agent[] = [
   { id: 'gestor', name: 'Gestor', sector: 'Coordenação', status: 'active' },
   { id: 'analista', name: 'Analista', sector: 'Preços e desempenho', status: 'active' },
   { id: 'anuncios', name: 'Anúncios', sector: 'Catálogo e conteúdo', status: 'attention' },
@@ -14,7 +16,7 @@ const AGENTS: Array<{
   { id: 'sac', name: 'SAC', sector: 'Perguntas e reclamações', status: 'blocked' },
 ];
 
-export function AgentStatusList() {
+export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
   return (
     <section
       aria-labelledby="agent-status-title"
@@ -30,7 +32,7 @@ export function AgentStatusList() {
       </div>
 
       <ul className="space-y-2">
-        {AGENTS.map((agent) => (
+        {agents.map((agent) => (
           <li
             key={agent.id}
             className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-accent"

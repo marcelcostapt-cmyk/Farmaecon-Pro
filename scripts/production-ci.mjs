@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { productionDefaults, validateProduction } from './production-env.mjs';
 import { verifyBrowser } from './browser-check.mjs';
@@ -21,7 +22,26 @@ const fixture = {
 validateProduction(fixture);
 writeFileSync(file, Object.entries(fixture).map(([k,v]) => `${k}=${v}`).join('\n') + '\n', { flag: 'wx', mode: 0o600 });
 const override = `${directory}/ports.yml`;
-writeFileSync(override, 'services:\n  api:\n    ports: ["127.0.0.1::3001"]\n  web:\n    ports: ["127.0.0.1::3000"]\n', { mode: 0o600 });
+// The public-redirect fix uses FRONTEND_URL instead of the internal container
+// hostname. Give this disposable installation its real loopback browser URL.
+const portProbe = createServer();
+await new Promise((resolvePort, reject) => {
+  portProbe.once('error', reject);
+  portProbe.listen(0, '127.0.0.1', resolvePort);
+});
+const browserPort = portProbe.address().port;
+await new Promise((resolvePort, reject) => portProbe.close(error => error ? reject(error) : resolvePort()));
+const browserBase = `http://localhost:${browserPort}`;
+writeFileSync(override, `services:
+  api:
+    ports: ["127.0.0.1::3001"]
+    environment:
+      FRONTEND_URL: ${browserBase}
+  web:
+    ports: ["127.0.0.1:${browserPort}:3000"]
+    environment:
+      FRONTEND_URL: ${browserBase}
+`, { mode: 0o600 });
 const args = ['compose', '--env-file', file, '-p', project, '-f', 'docker-compose.prod.yml', '-f', override];
 const env = { ...process.env, ...fixture, FARMAECON_PRODUCTION_ENV: file, FARMAECON_COMPOSE_PROJECT: project, FARMAECON_BACKUP_DIR: backupDirectory };
 function run(command, arguments_, { allowFailure = false, log = false } = {}) {
@@ -45,6 +65,7 @@ try {
   const protectedPage = await fetch(`http://${webPort}/dashboard`, { redirect: 'manual', signal: AbortSignal.timeout(5000) });
   assert([302, 303, 307, 308].includes(protectedPage.status));
   assert.equal(new URL(protectedPage.headers.get('location'), `http://${webPort}`).pathname, '/login');
+  assert.equal(new URL(protectedPage.headers.get('location'), `http://${webPort}`).origin, browserBase);
   const login = await request('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: fixture.OWNER_EMAIL, password: fixture.OWNER_PASSWORD }) });
   assert.equal(login.status, 200);
   const session = (await login.json()).data;
@@ -57,7 +78,7 @@ try {
   assert.equal(report.mode, 'OBSERVATION');
   assert(!/accessToken|refreshToken|password|verifier/.test(JSON.stringify(report)));
   await verifyBrowser({
-    baseURL: `http://localhost:${webPort.split(':')[1]}`, apiBase: `http://${apiPort}/api/v1`, secureCookies: true,
+    baseURL: browserBase, apiBase: `http://${apiPort}/api/v1`, secureCookies: true,
     accounts: [{ email: fixture.OWNER_EMAIL, password: fixture.OWNER_PASSWORD }],
   });
   compose(['restart', 'db', 'redis']);
