@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { productionDefaults, validateProduction } from './production-env.mjs';
 import { verifyBrowser } from './browser-check.mjs';
+import { runCommand, withCleanup } from './production-diagnostics.mjs';
 
 // Disposable CI installation. Uses production settings, no real domains/accounts.
 const project = `farmaecon-prod-ci-${randomUUID().slice(0, 8)}`;
@@ -44,14 +44,9 @@ writeFileSync(override, `services:
 `, { mode: 0o600 });
 const args = ['compose', '--env-file', file, '-p', project, '-f', 'docker-compose.prod.yml', '-f', override];
 const env = { ...process.env, ...fixture, FARMAECON_PRODUCTION_ENV: file, FARMAECON_COMPOSE_PROJECT: project, FARMAECON_BACKUP_DIR: backupDirectory };
-function run(command, arguments_, { allowFailure = false, log = false } = {}) {
-  const result = spawnSync(command, arguments_, { env, encoding: 'utf8', timeout: 240000 });
-  if (result.error || (!allowFailure && result.status !== 0)) throw new Error(`Production CI command failed: ${command} ${arguments_.slice(0, 1).join(' ')}`);
-  if (log && result.stdout) console.log(result.stdout.trim());
-  return result;
-}
+const run = (command, arguments_, options = {}) => runCommand(command, arguments_, { ...options, env });
 const compose = (more, options) => run('docker', [...args, ...more], options);
-try {
+await withCleanup(async () => {
   compose(['up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '180']);
   compose(['run', '--rm', '--no-deps', 'bootstrap']);
   assert.notEqual(compose(['run', '--rm', '--no-deps', 'bootstrap'], { allowFailure: true }).status, 0, 'Bootstrap must refuse to overwrite existing users');
@@ -90,12 +85,12 @@ try {
   }
   assert(ready, 'Dependencies must recover after restart');
   assert.equal((await request('/auth/me', { headers })).status, 200, 'Session must persist across database restart');
-  run(process.execPath, ['scripts/production-backup.mjs', 'backup'], { log: true });
+  run(process.execPath, ['scripts/production-backup.mjs', 'backup']);
   const encrypted = readdirSync(backupDirectory).filter(p => p.endsWith('.pgdump.enc'));
   assert.equal(encrypted.length, 1);
-  run(process.execPath, ['scripts/production-backup.mjs', 'verify-restore', `${backupDirectory}/${encrypted[0]}`], { log: true });
+  run(process.execPath, ['scripts/production-backup.mjs', 'verify-restore', `${backupDirectory}/${encrypted[0]}`], { forwardEvents: true });
   console.log('PASS: production images, migrations, bootstrap, login, private report, dependency restart, encrypted backup and isolated restore.');
-} finally {
+}, async () => {
   // Only this randomly named, newly created CI project's volumes are removed.
   compose(['down', '--volumes', '--remove-orphans']);
-}
+}, { env });
