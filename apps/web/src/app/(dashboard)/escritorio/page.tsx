@@ -3,22 +3,23 @@ import { OfficeScene } from '@/components/escritorio/OfficeScene';
 
 export default function EscritorioPage() {
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Escritório Virtual</h1>
-        <p className="text-sm text-gray-500">
-          Acompanhe em tempo real o status dos setores e agentes do Farmaecon.
+    <div className="space-y-6">
+      <header className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Escritório Virtual</h1>
+          <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700">
+            Modo Observação
+          </span>
+        </div>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Acompanhe os setores e agentes do Farmaecon. Nesta fase, os agentes
+          analisam e recomendam, mas não executam alterações comerciais.
         </p>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <OfficeScene />
-        </div>
-
-        <div className="lg:col-span-1">
-          <AgentStatusList />
-        </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <OfficeScene />
+        <AgentStatusList />
       </div>
     </div>
   );

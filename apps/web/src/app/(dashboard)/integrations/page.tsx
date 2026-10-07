@@ -80,7 +80,7 @@ export default async function IntegrationsPage() {
                   </span>
                 </div>
                 {account.expectedTotal !== null && account.syncStatus !== 'COMPLETE' && (
-                  <p className="text-xs text-amber-700">Cobertura parcial: {account.importedCount}/{account.expectedTotal}; próximo offset {account.nextOffset}</p>
+                  <p className="text-xs text-amber-700">Sincronização pendente. {account.expectedTotal} pedidos informados nesta janela; {account.importedCount} armazenados no histórico.</p>
                 )}
                 {account.syncError && <p className="text-xs text-red-700">Estado: {account.syncError}</p>}
                 <form action={`/api/integrations/${account.id}/sync`} method="post">

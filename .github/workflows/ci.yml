@@ -13,29 +13,50 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - run: npm run security:scan
+      - run: python3 -m unittest scripts/test_marketplace_credentials.py
+      - run: npx playwright install --with-deps chromium
       - run: npm exec --workspace api -- prisma generate
+      - run: npm run test:deployment
       - run: npm test --workspace api -- --runInBand
       - run: npm run typecheck
       - run: npm run build --workspace api
       - run: npm run build --workspace web
       - run: docker build -f apps/api/Dockerfile -t farmaecon-api-check:ci .
+      - run: docker build -f apps/web/Dockerfile --target build -t farmaecon-web-tests:ci .
       - run: docker build -f apps/web/Dockerfile -t farmaecon-web-check:ci .
+      - name: API suite inside the validated image
+        run: docker run --rm --network none --entrypoint npm farmaecon-api-check:ci test --workspace api -- --runInBand
+      - name: Web suite inside the build image
+        run: docker run --rm --network none --entrypoint npm farmaecon-web-tests:ci run test:web --workspace web -- --runInBand
       - run: node scripts/local-init.mjs
       - run: docker compose --env-file .local/observation.env -f docker-compose.observation.yml up -d --build --wait
       - run: node --env-file=.local/observation.env scripts/local-seed.mjs
       - run: node --env-file=.local/observation.env scripts/local-smoke.mjs
-      - name: Package validated images
+      - run: npm run test:postgres-security
+      - run: npm run test:postgres
+      - run: npm run test:migration-upgrade
+      - run: npm run test:browser
+      - run: npm run test:production-stack
+      - name: Preserve the exact validated images
+        shell: bash
         run: |
-          mkdir -p release
-          docker save farmaecon-api-check:ci farmaecon-web-check:ci | gzip -n > release/images.tar.gz
-          (cd release && sha256sum images.tar.gz > SHA256SUMS)
-          docker image inspect --format '{{json .RepoTags}} {{.Id}} {{.Created}}' \
-            farmaecon-api-check:ci farmaecon-web-check:ci > release/IMAGE_IDS
+          set -euo pipefail
+          release_tag="${GITHUB_SHA:0:12}"
+          docker tag farmaecon-api-check:ci "farmaecon-api:${release_tag}"
+          docker tag farmaecon-web-check:ci "farmaecon-web:${release_tag}"
+          mkdir -p .local/release
+          docker image inspect --format '{{.Id}} {{range .RepoTags}}{{.}} {{end}}' "farmaecon-api:${release_tag}" "farmaecon-web:${release_tag}" > .local/release/IMAGE_IDS
+          cp .local/release/IMAGE_IDS .local/release/images.ids
+          docker save "farmaecon-api:${release_tag}" "farmaecon-web:${release_tag}" | gzip -n -1 > .local/release/images.tar.gz
+          cd .local/release
+          sha256sum images.tar.gz > SHA256SUMS
       - name: Upload validated image artifact
         uses: actions/upload-artifact@v4
         with:
           name: farmaecon-images-${{ github.sha }}
-          path: release
+          path: .local/release/
           if-no-files-found: error
+          retention-days: 7
       - if: always()
         run: docker compose --env-file .local/observation.env -f docker-compose.observation.yml down

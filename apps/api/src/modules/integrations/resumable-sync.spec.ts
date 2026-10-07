@@ -5,7 +5,7 @@ function makePage(offset: number, total: number, pageSize = 50) {
   const count = Math.min(pageSize, Math.max(total - offset, 0));
   const results = Array.from({ length: count }, (_, index) => ({
     id: offset + index + 1,
-    status: 'paid',
+    status: 'paid', currency_id: 'BRL',
     total_amount: 10 + index,
     date_created: new Date(Date.UTC(2026, 0, 1, 0, 0, offset + index)).toISOString(),
   }));
@@ -152,7 +152,7 @@ describe('resumable read-only order synchronization', () => {
   it('reconciles an overlapping order through one idempotent upsert', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-10-03T22:47:30.000Z'));
     const { db, mlApi, service } = setup(1);
-    const firstOrder = { id: 999, status: 'paid', total_amount: 10, date_created: '2026-10-03T20:30:00.000Z' };
+    const firstOrder = { id: 999, status: 'paid', currency_id: 'BRL', total_amount: 10, date_created: '2026-10-03T20:30:00.000Z' };
     const correctedOrder = { ...firstOrder, total_amount: 12.5, date_created: '2026-10-03T20:45:00.000Z' };
     mlApi.listSellerOrdersPageInWindow
       .mockResolvedValueOnce({ results: [firstOrder], offset: 0, limit: 50, total: 1, nextOffset: 1, complete: true })

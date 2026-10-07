@@ -1,37 +1,83 @@
 import { StatusBadge, type AgentStatus } from './StatusBadge';
 
-interface SectorMarker {
+const SECTORS: Array<{
   id: string;
   label: string;
+  detail: string;
   status: AgentStatus;
-  top: string;
-  left: string;
-}
-
-const SECTOR_MARKERS: SectorMarker[] = [
-  { id: 'vendas', label: 'Vendas', status: 'trabalhando', top: '20%', left: '18%' },
-  { id: 'estoque', label: 'Estoque', status: 'ocioso', top: '55%', left: '12%' },
-  { id: 'ads', label: 'Marketing', status: 'trabalhando', top: '15%', left: '65%' },
-  { id: 'financeiro', label: 'Financeiro', status: 'ocioso', top: '60%', left: '70%' },
-  { id: 'sac', label: 'Suporte', status: 'offline', top: '75%', left: '45%' },
+  tone: string;
+}> = [
+  {
+    id: 'gestao',
+    label: 'Gestão',
+    detail: 'Pauta e decisões',
+    status: 'active',
+    tone: 'from-orange-100 to-amber-50',
+  },
+  {
+    id: 'analise',
+    label: 'Análise',
+    detail: 'Dados e margem',
+    status: 'active',
+    tone: 'from-sky-100 to-cyan-50',
+  },
+  {
+    id: 'catalogo',
+    label: 'Catálogo',
+    detail: 'Anúncios e criativos',
+    status: 'attention',
+    tone: 'from-violet-100 to-fuchsia-50',
+  },
+  {
+    id: 'relacionamento',
+    label: 'Relacionamento',
+    detail: 'SAC e oportunidades',
+    status: 'blocked',
+    tone: 'from-rose-100 to-pink-50',
+  },
 ];
 
 export function OfficeScene() {
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-orange-50 to-white shadow-sm">
-      <div
-        className="relative aspect-[16/9] w-full bg-[linear-gradient(to_right,rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.04)_1px,transparent_1px)] bg-[size:24px_24px]"
-      >
-        {SECTOR_MARKERS.map((marker) => (
-          <div
-            key={marker.id}
-            className="absolute -translate-x-1/2 -translate-y-1/2"
-            style={{ top: marker.top, left: marker.left }}
-          >
-            <StatusBadge status={marker.status} className="whitespace-nowrap" />
+    <section
+      aria-labelledby="office-scene-title"
+      className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+    >
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="office-scene-title" className="text-sm font-semibold">
+              Visão do escritório
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Simulação visual da operação. Os estados reais dependem da próxima sincronização.
+            </p>
           </div>
-        ))}
+          <StatusBadge status="active" />
+        </div>
       </div>
-    </div>
+
+      <div className="bg-gradient-to-br from-slate-50 via-white to-orange-50 p-5">
+        <div className="grid min-h-[22rem] grid-cols-1 gap-4 sm:grid-cols-2">
+          {SECTORS.map((sector) => (
+            <article
+              key={sector.id}
+              className={`flex min-h-40 flex-col justify-between rounded-2xl bg-gradient-to-br ${sector.tone} p-4 ring-1 ring-black/5`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                  Setor
+                </span>
+                <StatusBadge status={sector.status} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">{sector.label}</h3>
+                <p className="mt-1 text-sm text-slate-600">{sector.detail}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

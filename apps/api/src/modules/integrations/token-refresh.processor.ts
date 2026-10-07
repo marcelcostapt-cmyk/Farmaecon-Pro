@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { MlOAuthService } from '../integrations/ml-oauth.service';
 import { QUEUE_TOKEN_REFRESH } from '../../shared/queue/queue.module';
+import { inTenant } from '../../shared/prisma/tenant-context';
 
 @Processor(QUEUE_TOKEN_REFRESH)
 export class TokenRefreshProcessor extends WorkerHost {
@@ -15,6 +16,6 @@ export class TokenRefreshProcessor extends WorkerHost {
   async process(job: Job): Promise<void> {
     const { accountId, tenantId } = job.data as { accountId: string; tenantId: string };
     this.logger.log(`Processing token refresh for account: ${accountId}`);
-    await this.mlOAuth.refreshToken(accountId, tenantId);
+    await inTenant(tenantId, () => this.mlOAuth.refreshToken(accountId, tenantId));
   }
 }

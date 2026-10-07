@@ -1,4 +1,4 @@
-import { StatusBadge, type AgentStatus } from '@/components/escritorio/StatusBadge';
+import { StatusBadge, type AgentStatus } from './StatusBadge';
 
 export interface Agent {
   id: string;
@@ -8,36 +8,43 @@ export interface Agent {
 }
 
 const AGENTS: Agent[] = [
-  { id: 'gestor', name: 'Gestor', sector: 'Gestão', status: 'trabalhando' },
-  { id: 'vendas', name: 'Vendas', sector: 'Comercial', status: 'trabalhando' },
-  { id: 'estoque', name: 'Estoque', sector: 'Logística', status: 'ocioso' },
-  { id: 'ads', name: 'Ads & Marketing', sector: 'Marketing', status: 'trabalhando' },
-  { id: 'financeiro', name: 'Financeiro', sector: 'Finanças', status: 'ocioso' },
-  { id: 'sac', name: 'SAC / Suporte', sector: 'Atendimento', status: 'offline' },
+  { id: 'gestor', name: 'Gestor', sector: 'Coordenação', status: 'active' },
+  { id: 'analista', name: 'Analista', sector: 'Preços e desempenho', status: 'active' },
+  { id: 'anuncios', name: 'Anúncios', sector: 'Catálogo e conteúdo', status: 'attention' },
+  { id: 'criativo', name: 'Criativo', sector: 'Peças e identidade', status: 'idle' },
+  { id: 'ads', name: 'ADS', sector: 'Campanhas e métricas', status: 'idle' },
+  { id: 'sac', name: 'SAC', sector: 'Perguntas e reclamações', status: 'blocked' },
 ];
 
-interface AgentStatusListProps {
-  agents?: Agent[];
-}
-
-export function AgentStatusList({ agents = AGENTS }: AgentStatusListProps) {
+export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold text-gray-900">Setores e Agentes</h2>
+    <section
+      aria-labelledby="agent-status-title"
+      className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+    >
+      <div className="mb-3">
+        <h2 id="agent-status-title" className="text-sm font-semibold">
+          Setores e agentes
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Estado demonstrativo até a sincronização real.
+        </p>
+      </div>
+
       <ul className="space-y-2">
         {agents.map((agent) => (
           <li
             key={agent.id}
-            className="flex items-center justify-between rounded-xl px-3 py-2 hover:bg-gray-50"
+            className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-accent"
           >
-            <div>
-              <p className="text-sm font-medium text-gray-900">{agent.name}</p>
-              <p className="text-xs text-gray-500">{agent.sector}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{agent.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{agent.sector}</p>
             </div>
             <StatusBadge status={agent.status} />
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }

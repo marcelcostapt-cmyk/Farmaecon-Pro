@@ -22,11 +22,16 @@ export class ObservationService {
     } });
     const gaps = ['Financial reconciliation is unavailable: fees, product costs, shipping, taxes and refunds are not fully imported.',
       'Order totals are not settled revenue. No real DRE or net profit can be inferred.',
+      'Synchronization completeness refers only to the closed date_closed window, not all account history or the selected report period.',
       'Financial coverage is not certified; observed order totals must not be treated as settled revenue.'];
     if (accounts.some(a => a.source === 'SIMULATED')) gaps.push('Simulated fixture data: not real marketplace activity.');
     if (!accounts.length || accounts.some(a => a.lastSyncState !== 'COMPLETE' || !a.lastSyncedAt)) gaps.push('At least one source has not completed synchronization.');
     if (accounts.some(a => a.syncStates[0]?.status === 'PARTIAL')) gaps.push('At least one source has partial coverage; the continuation job is still pending.');
     if (accounts.some(a => a.syncStates[0]?.status === 'FAILED')) gaps.push('At least one source has a failed synchronization that requires retry or review.');
+    if (accounts.some(a => a.lastSyncState === 'FAILED')) gaps.push('A synchronization failed. Previously imported data may be stale; lastSyncedAt only records a successful batch.');
+    const minorTotal = orders.reduce((n, o) => n + BigInt(Math.round(o.totalAmount * 100)), 0n);
+    const total = minorTotal <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(minorTotal) / 100 : null;
+    if (total === null) gaps.push('Observed order total exceeds the supported display precision.');
     return {
       mode: 'OBSERVATION', agent: { name: 'Observation analyst', version: '1', kind: 'deterministic' },
       generatedAt: new Date().toISOString(), period: { from: from.toISOString(), to: to.toISOString() },
@@ -49,7 +54,7 @@ export class ObservationService {
         };
       }),
       orderCount: orders.length, pendingOrderCount: orders.filter(o => o.status === 'PENDING').length,
-      observedOrderTotal: orders.length ? orders.reduce((n, o) => n + o.totalAmount, 0) : null,
+      observedOrderTotal: orders.length ? total : null,
       financial: { complete: false, grossRevenue: null, netProfit: null, netMarginPct: null },
       gaps, recommendations: ['Review pending orders manually.', 'Complete financial reconciliation before evaluating profitability.'],
     };

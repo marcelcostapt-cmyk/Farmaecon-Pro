@@ -2,7 +2,7 @@ import { MemoryPrisma } from '../../../test/memory-prisma';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
 
 describe('Marketplace order data integrity', () => {
-  const valid = { id: '123', status: 'paid', total_amount: 125.5, date_created: '2026-09-01T23:30:00-03:00' };
+  const valid = { id: '123', status: 'paid', currency_id: 'BRL', total_amount: 125.5, date_created: '2026-09-01T23:30:00-03:00' };
   let db: MemoryPrisma;
   const remote = { listSellerOrdersPageInWindow: jest.fn() };
   let service: MlOrdersSyncService;

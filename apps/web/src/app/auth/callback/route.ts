@@ -15,11 +15,8 @@ export async function GET(request: Request) {
 
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
-  const providerError = url.searchParams.get('error');
-
-  if (providerError) {
-    console.warn('[ML OAuth] provider error:', providerError);
-  }
+  // Provider-controlled query values must not be written to logs.
+  const providerError = url.searchParams.has('error');
 
   let success = false;
   if (code && state && !providerError) {

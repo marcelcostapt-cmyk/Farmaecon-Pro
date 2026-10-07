@@ -5,6 +5,7 @@ import { Queue } from 'bullmq';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
 import { MlApiService, MlOrderPage, MlOrderSearchResult } from './ml-api.service';
+import { validateOrder } from './order-validation';
 
 export const ORDER_SYNC_OPERATION = 'ORDERS';
 export const DEFAULT_ORDER_PAGE_SIZE = 50;
@@ -200,7 +201,7 @@ export class MlOrdersSyncService {
       }
 
       const result = await this.persistPage(account, state, page, attemptAt);
-      if (result.status === 'PARTIAL') await this.enqueueContinuation(accountId, tenantId, result.nextOffset);
+      if (result.status === 'PARTIAL') await this.enqueueContinuation(accountId, tenantId);
       return result;
     } catch (error) {
       const code = this.classifyError(error);
@@ -228,12 +229,18 @@ export class MlOrdersSyncService {
     // coverage and does not overstate progress when a worker replays a page.
     let importedCount = 0;
 
+    // Validate the entire page before any write. Keep production's BRL,
+    // identifier, cent precision and calendar checks in the resumable path.
+    const validated = page.results.map((order) => {
+      const id = order.id == null ? '' : String(order.id).trim();
+      if (!id) throw new Error('Empty external order id');
+      this.resolveTotalAmount(order, id);
+      this.resolveOrderDate(order, id);
+      return { order, ...validateOrder(order, account.source === 'SIMULATED') };
+    });
+
     await this.prisma.$transaction(async (tx: any) => {
-      for (const order of page.results) {
-        const externalOrderId = order.id == null ? '' : String(order.id).trim();
-        if (!externalOrderId) throw new Error('Empty external order id');
-        const totalAmount = this.resolveTotalAmount(order, externalOrderId);
-        const createdAt = this.resolveOrderDate(order, externalOrderId);
+      for (const { order, externalOrderId, totalAmount, createdAt } of validated) {
         const orderStatus = this.mapOrderStatus(order.status);
 
         await tx.order.upsert({
@@ -297,13 +304,14 @@ export class MlOrdersSyncService {
     };
   }
 
-  private async enqueueContinuation(accountId: string, tenantId: string, nextOffset: number) {
+  private async enqueueContinuation(accountId: string, tenantId: string) {
     if (!this.syncQueue) return;
     await this.syncQueue.add(
       'sync-account-orders',
       { tenantId, accountId },
       {
-        jobId: `orders:${tenantId}:${accountId}:${nextOffset}`,
+        // BullMQ allocates a fresh ID: retained jobs from an earlier window
+        // must not suppress this continuation. The database owns the cursor.
         attempts: 5,
         backoff: { type: 'exponential', delay: 2000 },
         removeOnComplete: 100,
@@ -317,7 +325,11 @@ export class MlOrdersSyncService {
     if (
       message === 'Empty external order id' ||
       message.startsWith('Invalid total_amount') ||
-      message.startsWith('Invalid date_created')
+      message.startsWith('Invalid date_created') ||
+      message === 'Invalid marketplace order identifier' ||
+      message === 'Unsupported or missing order currency' ||
+      message === 'Missing or invalid order amount' ||
+      message === 'Missing or invalid order date'
     ) return 'INVALID_ORDER_DATA';
     if (message.includes('pagination total changed')) return 'PAGINATION_TOTAL_CHANGED';
     if (message.includes('pagination')) return 'PAGINATION_INCOMPLETE';
@@ -331,7 +343,8 @@ export class MlOrdersSyncService {
     order: { total_amount?: number; total_amount_with_shipping?: number },
     orderId: string,
   ) {
-    const amount = order.total_amount_with_shipping ?? order.total_amount;
+    // total_amount is the production contract; shipping is not a replacement.
+    const amount = order.total_amount;
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
       throw new Error(`Invalid total_amount for order ${orderId}`);
     }

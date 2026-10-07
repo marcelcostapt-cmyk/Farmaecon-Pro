@@ -1,84 +1,25 @@
-version: '3.8'
-
+# Overlay: always combine with docker-compose.prod.yml.
+# Resolve the network and ACME resolver from the existing Traefik first.
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: farmaecon-db
-    restart: always
-    environment:
-      POSTGRES_USER: ${DB_USER:-farmaecon}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secretpassword}
-      POSTGRES_DB: ${DB_NAME:-farmaecon_db}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - farmaecon-internal
-
-  redis:
-    image: redis:7-alpine
-    container_name: farmaecon-redis
-    restart: always
-    volumes:
-      - redisdata:/data
-    networks:
-      - farmaecon-internal
-
   api:
-    image: ghcr.io/marcelcostapt-cmyk/farmaecon/api:latest
-    container_name: farmaecon-api
-    restart: always
-    depends_on:
-      - db
-      - redis
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-farmaecon}:${DB_PASSWORD:-secretpassword}@db:5432/${DB_NAME:-farmaecon_db}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: 3001
-      NODE_ENV: production
-      FRONTEND_URL: https://app.farmaecon.com.br
-      ML_APP_ID: ${ML_APP_ID}
-      ML_SECRET_KEY: ${ML_SECRET_KEY}
-      ML_REDIRECT_URI: https://app.farmaecon.com.br/auth/callback
-    networks:
-      - farmaecon-internal
-      - web
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.farmaecon-api.rule=Host(`api.farmaecon.com.br`)"
-      - "traefik.http.routers.farmaecon-api.entrypoints=websecure"
-      - "traefik.http.routers.farmaecon-api.tls=true"
-      - "traefik.http.routers.farmaecon-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.farmaecon-api.loadbalancer.server.port=3001"
-
+      traefik.enable: 'true'
+      traefik.docker.network: ${TRAEFIK_NETWORK:?Set the verified Docker network}
+      traefik.http.routers.farmaecon-api.rule: Host(`${API_DOMAIN:?Set API_DOMAIN}`)
+      traefik.http.routers.farmaecon-api.entrypoints: websecure
+      traefik.http.routers.farmaecon-api.tls: 'true'
+      traefik.http.routers.farmaecon-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:?Set the existing ACME resolver}
+      traefik.http.services.farmaecon-api.loadbalancer.server.port: '3001'
   web:
-    image: ghcr.io/marcelcostapt-cmyk/farmaecon/web:latest
-    container_name: farmaecon-web
-    restart: always
-    depends_on:
-      - api
-    environment:
-      NEXT_PUBLIC_API_URL: https://api.farmaecon.com.br/api/v1
-      NEXT_PUBLIC_ML_APP_ID: ${ML_APP_ID}
-      NODE_ENV: production
-    networks:
-      - farmaecon-internal
-      - web
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.farmaecon-web.rule=Host(`app.farmaecon.com.br`)"
-      - "traefik.http.routers.farmaecon-web.entrypoints=websecure"
-      - "traefik.http.routers.farmaecon-web.tls=true"
-      - "traefik.http.routers.farmaecon-web.tls.certresolver=letsencrypt"
-      - "traefik.http.services.farmaecon-web.loadbalancer.server.port=3000"
-
+      traefik.enable: 'true'
+      traefik.docker.network: ${TRAEFIK_NETWORK:?Set the verified Docker network}
+      traefik.http.routers.farmaecon-web.rule: Host(`${APP_DOMAIN:?Set APP_DOMAIN}`)
+      traefik.http.routers.farmaecon-web.entrypoints: websecure
+      traefik.http.routers.farmaecon-web.tls: 'true'
+      traefik.http.routers.farmaecon-web.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:?Set the existing ACME resolver}
+      traefik.http.services.farmaecon-web.loadbalancer.server.port: '3000'
 networks:
-  farmaecon-internal:
-    driver: bridge
   web:
     external: true
-
-volumes:
-  pgdata:
-  redisdata:
+    name: ${TRAEFIK_NETWORK:?Set the verified Docker network}
