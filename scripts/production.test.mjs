@@ -14,6 +14,93 @@ import { auditStage, captureProcess, OUTPUT_TAIL_CHARS, runCommand, withCleanup 
 import { collectRestoreDiagnostics, waitForRestoreDatabase } from './production-backup.mjs';
 
 const fixture = () => ({ ...productionDefaults(), API_IMAGE: 'farmaecon-api:tested-commit', WEB_IMAGE: 'farmaecon-web:tested-commit', TRAEFIK_NETWORK: 'proxy', TRAEFIK_CERT_RESOLVER: 'acme' });
+
+// Run the actual migration entrypoint, replacing only the external CLI/database.
+// Synthetic secrets are generated at runtime and assertions never print them.
+function migrationFixture(result, { databaseError = false } = {}) {
+  const databasePassword = randomBytes(24).toString('base64') + '/+"';
+  const encodedPassword = encodeURIComponent(databasePassword).replace(/%[0-9A-F]{2}/g, part => part.toLowerCase());
+  const env = { DATABASE_URL: `postgresql://owner:${encodedPassword}@localhost/isolated`,
+    RUNTIME_DB_PASSWORD: randomBytes(32).toString('base64url'), JWT_ACCESS_SECRET: randomBytes(32).toString('hex'),
+    PRISMA_DATABASE_PASSWORD: randomBytes(32).toString('hex') };
+  const childResult = typeof result === 'function' ? result({ ...env, databasePassword, encodedPassword }) : result;
+  const program = `
+    import { createRequire, syncBuiltinESMExports } from 'node:module';
+    const require = createRequire(import.meta.url);
+    require('node:child_process').spawnSync = () => (${JSON.stringify(childResult)});
+    syncBuiltinESMExports();
+    const calls = [];
+    require('pg').Client = class {
+      async connect() { calls.push('connect'); }
+      async query() {
+        calls.push('query');
+        if (${databaseError}) throw new Error('private SQL: ' + process.env.RUNTIME_DB_PASSWORD);
+        return { rows: [{ rolsuper: false, rolbypassrls: false, rolcreatedb: false, rolcreaterole: false }] };
+      }
+      async end() { calls.push('end'); }
+    };
+    await import(${JSON.stringify(new URL('./database-migrate.mjs', import.meta.url).href)});
+    console.log('__DATABASE_CALLS__' + JSON.stringify(calls));
+  `;
+  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)), env: { ...process.env, ...env },
+    encoding: 'utf8', timeout: 60000,
+  });
+  assert.equal(Boolean(child.error), false, 'Migration fixture must finish without a spawn error');
+  const output = child.stdout + child.stderr;
+  for (const secret of [...Object.values(env), databasePassword, encodedPassword]) {
+    for (const form of [secret, encodeURIComponent(secret), JSON.stringify(secret).slice(1, -1)]) {
+      assert(!output.includes(form), 'Migration output exposed a synthetic secret');
+    }
+  }
+  const marker = child.stdout.split('\n').find(line => line.startsWith('__DATABASE_CALLS__'));
+  assert(Boolean(marker), 'Migration entrypoint must finish database cleanup');
+  return { ...child, calls: JSON.parse(marker.slice('__DATABASE_CALLS__'.length)),
+    stdout: child.stdout.replace(marker + '\n', '') };
+}
+
+test('migration success preserves role preparation and the existing success output', () => {
+  const result = migrationFixture({ status: 0, stdout: 'Prisma success output stays private', stderr: '' });
+  assert.equal(result.status, 0);
+  assert.deepEqual(result.calls, ['connect', 'query', 'query', 'query', 'query', 'query', 'end']);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout, 'PASS: migrations applied and restricted runtime role configured. No credentials printed.\n');
+});
+
+test('migration failure preserves complete Prisma stdout and stderr with known secrets redacted', () => {
+  const result = migrationFixture(({ DATABASE_URL, RUNTIME_DB_PASSWORD, JWT_ACCESS_SECRET, PRISMA_DATABASE_PASSWORD, databasePassword, encodedPassword }) => ({
+    status: 1, signal: null,
+    stdout: `Applying migration 20260921_tenant_rls\n${DATABASE_URL}\n` + 'context '.repeat(700),
+    stderr: `Error: P3018\nDatabase error code: 42710\nERROR: policy "tenant_isolation" already exists\npassword=${databasePassword}\nencoded=${encodeURIComponent(databasePassword)}\noriginalEncoded=${encodedPassword}\nquoted=${JSON.stringify(databasePassword)}\nruntime=${RUNTIME_DB_PASSWORD}\naccess=${JWT_ACCESS_SECRET}\nexisting=${PRISMA_DATABASE_PASSWORD}`,
+  }));
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.calls, ['end'], 'Failed migrations must not prepare the runtime role');
+  const diagnostic = result.stderr.split('\n').filter(Boolean).find(line => line.startsWith('{'));
+  assert(Boolean(diagnostic), 'Expected the original Prisma failure diagnostic');
+  const event = JSON.parse(diagnostic);
+  assert.equal(event.status, 1);
+  assert.equal(event.stdout, 'Applying migration 20260921_tenant_rls\n[REDACTED]\n' + 'context '.repeat(700));
+  assert.equal(event.stderr, 'Error: P3018\nDatabase error code: 42710\nERROR: policy "tenant_isolation" already exists\npassword=[REDACTED]\nencoded=[REDACTED]\noriginalEncoded=[REDACTED]\nquoted="[REDACTED]"\nruntime=[REDACTED]\naccess=[REDACTED]\nexisting=[REDACTED]');
+});
+
+test('migration spawn failures retain their sanitized cause and signal', () => {
+  const result = migrationFixture(({ DATABASE_URL }) => ({ status: null, signal: 'SIGTERM', stdout: '', stderr: '',
+    error: { name: 'Error', code: 'ETIMEDOUT', message: `Prisma timeout at ${DATABASE_URL}` } }));
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.calls, ['end']);
+  assert(result.stderr.includes('ETIMEDOUT'), 'Spawn error code must survive');
+  assert(result.stderr.includes('Prisma timeout at [REDACTED]'), 'Sanitized spawn cause must survive');
+  assert(result.stderr.includes('SIGTERM'), 'Termination signal must survive');
+});
+
+test('runtime role failures keep private SQL out of migration diagnostics', () => {
+  const result = migrationFixture({ status: 0, stdout: '', stderr: '' }, { databaseError: true });
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.calls, ['connect', 'query', 'end']);
+  assert.equal(result.stderr, 'Migration/runtime-role preparation failed. Review the isolated database without printing environment values.\n');
+  assert(!result.stderr.includes('private SQL'));
+});
+
 test('new production secrets are independent and external marketplace access starts disabled', () => {
   const a = fixture(), b = fixture();
   assert.equal(validateProduction(a, { traefik: true }), true);

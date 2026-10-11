@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
+import { logEvent } from './production-diagnostics.mjs';
 
 // Executed by the migration container only. Runtime never receives this URL.
 const password = process.env.RUNTIME_DB_PASSWORD;
@@ -10,7 +11,26 @@ try {
   const result = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy', '--config', 'apps/api/prisma.config.ts'], {
     env: process.env, encoding: 'utf8', timeout: 120000,
   });
-  if (result.status !== 0) throw new Error('Database migrations failed');
+  if (result.error || result.status !== 0) {
+    // Prisma may echo the URL password separately. Reuse the existing redactor
+    // with the original and decoded components; keep all other output.
+    const diagnosticEnv = { ...process.env };
+    try {
+      const encoded = new URL(process.env.DATABASE_URL).password;
+      for (const secret of [encoded, decodeURIComponent(encoded)]) {
+        let name = 'PRISMA_DATABASE_PASSWORD';
+        while (Object.hasOwn(diagnosticEnv, name)) name += '_';
+        diagnosticEnv[name] = secret;
+      }
+    }
+    catch { /* The complete DATABASE_URL is still a known secret. */ }
+    logEvent({
+      event: 'migration.failure', status: result.status ?? null, signal: result.signal ?? null,
+      stdout: result.stdout ?? '', stderr: result.stderr ?? '',
+      spawnError: result.error ? { name: result.error.name, code: result.error.code, message: result.error.message } : null,
+    }, { env: diagnosticEnv, logger: console.error });
+    throw new Error('Database migrations failed');
+  }
   await database.connect();
   const role = (await database.query("SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname='farmaecon_runtime'")).rows[0];
   if (!role || role.rolsuper || role.rolbypassrls || role.rolcreatedb || role.rolcreaterole) throw new Error('Unsafe runtime database role');
