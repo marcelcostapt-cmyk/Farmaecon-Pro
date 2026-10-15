@@ -1,10 +1,10 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { MarketplacePlatform, OrderStatus } from '@prisma/client';
-import { Queue } from 'bullmq';
+import { MarketplacePlatform, MarketplaceSyncState, OrderStatus } from '@prisma/client';
+import { Queue, UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
-import { MlApiService, MlOrderPage, MlOrderSearchResult } from './ml-api.service';
+import { MlApiService, MlOrderPage, MlOrderSearchResult, MlOrderPaginationTotalChangedError } from './ml-api.service';
 import { validateOrder } from './order-validation';
 
 export const ORDER_SYNC_OPERATION = 'ORDERS';
@@ -13,6 +13,10 @@ export const DEFAULT_ORDER_PAGE_SIZE = 50;
 export const INITIAL_SYNC_WINDOW_DAYS = 90;
 /** Re-read this overlap on every completed pass to reconcile late updates. */
 export const SYNC_WINDOW_OVERLAP_HOURS = 2;
+
+const MAX_PAGINATION_RESTARTS = 3;
+const RESTART_LIMIT_MESSAGE = 'Order pagination total changed during synchronization; restart limit reached';
+class SyncCheckpointChangedError extends Error {}
 
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 
@@ -114,6 +118,7 @@ export class MlOrdersSyncService {
           expectedTotal: null,
           importedCount: 0,
           completedPages: 0,
+          paginationRestartCount: 0,
           lastError: null,
           windowFrom: createOrderSyncWindow(currentWindowTo).from,
           windowTo: currentWindowTo,
@@ -127,20 +132,22 @@ export class MlOrdersSyncService {
         currentWindowTo,
         state.lastSyncedWindowTo ?? state.windowTo ?? account.lastSyncedAt,
       );
-      await this.prisma.marketplaceSyncState.updateMany({
-        where: { id: state.id, tenantId, marketplaceAccountId: accountId },
+      const opened = await this.prisma.marketplaceSyncState.updateMany({
+        where: this.checkpointWhere(account, state),
         data: {
           status: 'PARTIAL',
           nextOffset: 0,
           expectedTotal: null,
           importedCount: 0,
           completedPages: 0,
+          paginationRestartCount: 0,
           lastError: null,
           completedAt: null,
           windowFrom: window.from,
           windowTo: window.to,
         },
       });
+      if (opened.count !== 1) return this.currentResult(account);
       state = {
         ...state,
         status: 'PARTIAL',
@@ -148,6 +155,7 @@ export class MlOrdersSyncService {
         expectedTotal: null,
         importedCount: 0,
         completedPages: 0,
+        paginationRestartCount: 0,
         lastError: null,
         completedAt: null,
         windowFrom: window.from,
@@ -160,10 +168,11 @@ export class MlOrdersSyncService {
         currentWindowTo,
         state.lastSyncedWindowTo ?? account.lastSyncedAt,
       );
-      await this.prisma.marketplaceSyncState.updateMany({
-        where: { id: state.id, tenantId, marketplaceAccountId: accountId },
+      const initialized = await this.prisma.marketplaceSyncState.updateMany({
+        where: this.checkpointWhere(account, state),
         data: { windowFrom: window.from, windowTo: window.to },
       });
+      if (initialized.count !== 1) return this.currentResult(account);
       state = { ...state, windowFrom: window.from, windowTo: window.to };
     }
 
@@ -172,6 +181,14 @@ export class MlOrdersSyncService {
       ? { from: state.windowFrom as Date, to: state.windowTo as Date }
       : null;
 
+    // Exhausted windows require manual intervention, including after a worker
+    // restart. The third restart itself is still allowed to finish.
+    if (state.status === 'FAILED' && state.lastError === 'PAGINATION_TOTAL_CHANGED'
+      && state.paginationRestartCount >= MAX_PAGINATION_RESTARTS) {
+      throw new UnrecoverableError(RESTART_LIMIT_MESSAGE);
+    }
+
+    let result: SyncOrdersResult;
     try {
       if (account.source === 'SIMULATED') {
         const simulatedOrders: MlOrderSearchResult[] = [
@@ -189,37 +206,89 @@ export class MlOrdersSyncService {
       }
 
       if (!syncWindow) throw new Error('Order synchronization window is not initialized');
-      const page = await this.mlApi.listSellerOrdersPageInWindow(accountId, tenantId, {
-        limit: state.pageSize,
-        offset: state.nextOffset,
-        windowFrom: syncWindow.from,
-        windowTo: syncWindow.to,
-      });
-
-      if (state.expectedTotal !== null && state.expectedTotal !== page.total) {
-        throw new Error('Order pagination total changed during synchronization');
+      try {
+        const page = await this.mlApi.listSellerOrdersPageInWindow(accountId, tenantId, {
+          limit: state.pageSize,
+          offset: state.nextOffset,
+          windowFrom: syncWindow.from,
+          windowTo: syncWindow.to,
+        });
+        if (state.expectedTotal !== null && state.expectedTotal !== page.total) {
+          throw new MlOrderPaginationTotalChangedError(page.total);
+        }
+        result = await this.persistPage(account, state, page, attemptAt);
+      } catch (error) {
+        if (!(error instanceof MlOrderPaginationTotalChangedError)) throw error;
+        if (state.paginationRestartCount >= MAX_PAGINATION_RESTARTS) {
+          throw new UnrecoverableError(RESTART_LIMIT_MESSAGE);
+        }
+        result = await this.restartWindow(account, state, error.total, attemptAt);
       }
-
-      const result = await this.persistPage(account, state, page, attemptAt);
-      if (result.status === 'PARTIAL') await this.enqueueContinuation(accountId, tenantId);
-      return result;
     } catch (error) {
+      if (error instanceof SyncCheckpointChangedError) return this.currentResult(account);
       const code = this.classifyError(error);
-      await this.prisma.marketplaceSyncState.updateMany({
-        where: { id: state.id, tenantId, marketplaceAccountId: accountId },
-        data: { status: 'FAILED', lastError: code },
+      const failed = await this.prisma.$transaction(async tx => {
+        const updated = await tx.marketplaceSyncState.updateMany({
+          where: this.checkpointWhere(account, state),
+          data: { status: 'FAILED', lastError: code },
+        });
+        if (updated.count !== 1) return false;
+        await tx.marketplaceAccount.updateMany({
+          where: { id: accountId, tenantId },
+          data: { lastSyncState: 'FAILED', lastSyncAttemptAt: attemptAt, lastSyncError: code },
+        });
+        return true;
       });
-      await this.prisma.marketplaceAccount.updateMany({
-        where: { id: accountId, tenantId },
-        data: { lastSyncState: 'FAILED', lastSyncAttemptAt: attemptAt, lastSyncError: code },
-      });
+      if (!failed) return this.currentResult(account);
       throw error;
     }
+
+    // Queue failures must retry the committed checkpoint, not undo its reset.
+    if (result.status === 'PARTIAL') await this.enqueueContinuation(accountId, tenantId);
+    return result;
+  }
+
+  private checkpointWhere(account: AccountForSync, state: MarketplaceSyncState) {
+    return {
+      id: state.id, tenantId: account.tenantId, marketplaceAccountId: account.id,
+      status: state.status, lastError: state.lastError, nextOffset: state.nextOffset, expectedTotal: state.expectedTotal,
+      completedPages: state.completedPages, paginationRestartCount: state.paginationRestartCount,
+      windowFrom: state.windowFrom, windowTo: state.windowTo,
+    };
+  }
+
+  private async currentResult(account: AccountForSync): Promise<SyncOrdersResult> {
+    const state = await this.prisma.marketplaceSyncState.findUniqueOrThrow({ where: {
+      tenantId_marketplaceAccountId_operation: {
+        tenantId: account.tenantId, marketplaceAccountId: account.id, operation: ORDER_SYNC_OPERATION,
+      },
+    } });
+    return { accountId: account.id, importedCount: state.importedCount, expectedTotal: state.expectedTotal,
+      nextOffset: state.nextOffset, status: state.status as OrderSyncStatus };
+  }
+
+  private async restartWindow(account: AccountForSync, state: MarketplaceSyncState, total: number, attemptAt: Date): Promise<SyncOrdersResult> {
+    await this.prisma.$transaction(async tx => {
+      const updated = await tx.marketplaceSyncState.updateMany({
+        where: this.checkpointWhere(account, state),
+        data: {
+          status: 'PARTIAL', nextOffset: 0, expectedTotal: total, completedPages: 0,
+          paginationRestartCount: { increment: 1 }, lastError: 'PAGINATION_TOTAL_CHANGED', completedAt: null,
+        },
+      });
+      if (updated.count !== 1) throw new SyncCheckpointChangedError();
+      await tx.marketplaceAccount.updateMany({
+        where: { id: account.id, tenantId: account.tenantId },
+        data: { lastSyncState: 'PARTIAL', lastSyncAttemptAt: attemptAt, lastSyncError: 'PAGINATION_TOTAL_CHANGED' },
+      });
+    });
+    this.logger.warn(`Restarting order window for account ${account.id}: total ${state.expectedTotal} -> ${total}, restart ${state.paginationRestartCount + 1}/${MAX_PAGINATION_RESTARTS}`);
+    return { accountId: account.id, importedCount: state.importedCount, expectedTotal: total, nextOffset: 0, status: 'PARTIAL' };
   }
 
   private async persistPage(
     account: AccountForSync,
-    state: any,
+    state: MarketplaceSyncState,
     page: MlOrderPage,
     attemptAt: Date,
   ): Promise<SyncOrdersResult> {
@@ -240,6 +309,17 @@ export class MlOrdersSyncService {
     });
 
     await this.prisma.$transaction(async (tx: any) => {
+      // Claim the observed checkpoint before any upsert. A late response from
+      // before a restart cannot advance the cursor or overwrite confirmed data.
+      const updated = await tx.marketplaceSyncState.updateMany({
+        where: this.checkpointWhere(account, state),
+        data: {
+          status, nextOffset: page.nextOffset, expectedTotal: page.total,
+          completedPages: { increment: 1 }, lastError: null, completedAt,
+          ...(page.complete ? { lastSyncedWindowTo: state.windowTo } : {}),
+        },
+      });
+      if (updated.count !== 1) throw new SyncCheckpointChangedError();
       for (const { order, externalOrderId, totalAmount, createdAt } of validated) {
         const orderStatus = this.mapOrderStatus(order.status);
 
@@ -269,16 +349,7 @@ export class MlOrdersSyncService {
 
       await tx.marketplaceSyncState.updateMany({
         where: { id: state.id, tenantId: account.tenantId, marketplaceAccountId: account.id },
-        data: {
-          status,
-          nextOffset: page.nextOffset,
-          expectedTotal: page.total,
-          importedCount,
-          completedPages: { increment: 1 },
-          lastError: null,
-          completedAt,
-          ...(page.complete ? { lastSyncedWindowTo: state.windowTo } : {}),
-        },
+        data: { importedCount },
       });
 
       await tx.marketplaceAccount.updateMany({

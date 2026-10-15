@@ -1,4 +1,6 @@
 // In-memory test double; never wired into the application. HTTP/SQL smoke tests cover the real adapter separately.
+import { types } from 'node:util';
+
 export class MemoryPrisma {
   rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], financialTransaction: [] };
   user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; financialTransaction: any;
@@ -8,7 +10,8 @@ export class MemoryPrisma {
   matches(row: any, where: any = {}): boolean {
     return Object.entries(where).every(([key, value]: [string, any]) => {
       if (value === undefined) return true;
-      if (value && typeof value === 'object' && !(value instanceof Date)) {
+      if (types.isDate(value)) return types.isDate(row[key]) && row[key].getTime() === value.getTime();
+      if (value && typeof value === 'object') {
         if ('gt' in value && !(row[key] > value.gt)) return false;
         if ('gte' in value && !(row[key] >= value.gte)) return false;
         if ('lte' in value && !(row[key] <= value.lte)) return false;

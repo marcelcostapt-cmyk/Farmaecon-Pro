@@ -8,6 +8,7 @@ import { pipeline } from 'node:stream/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { encryptBackup, decryptBackup } from './backup-crypto.mjs';
+import { runtimeGrantsSql } from './runtime-grants.mjs';
 import { auditStage, captureProcess, logEvent, runCommand, withCleanup } from './production-diagnostics.mjs';
 
 // Run on the host that owns Docker. No SSH, marketplace or Hostinger API calls.
@@ -118,6 +119,7 @@ async function verifyRestore(source) {
         if (processExit.status === 'rejected') throw processExit.reason;
         if (input.status === 'rejected') throw input.reason;
       });
+      await stage('runtime-grants.reconcile', () => restoreRun(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-v', 'ON_ERROR_STOP=1', '-c', runtimeGrantsSql()]));
       await stage('restore.verify', () => {
         const migrations = restoreRun(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', 'SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NOT NULL']);
         if (!/^\d+$/.test(migrations) || Number(migrations) < 1) throw new Error('Restored database lacks completed migrations');
