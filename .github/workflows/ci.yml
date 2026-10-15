@@ -35,6 +35,7 @@ jobs:
       - run: node --env-file=.local/observation.env scripts/local-smoke.mjs
       - run: npm run test:postgres-security
       - run: npm run test:postgres
+      - run: npm run test:restore-grants
       - run: npm run test:migration-upgrade
       - run: npm run test:browser
       - run: npm run test:production-stack

@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
 import { logEvent } from './production-diagnostics.mjs';
+import { runtimeGrantsSql } from './runtime-grants.mjs';
 
 // Executed by the migration container only. Runtime never receives this URL.
 const password = process.env.RUNTIME_DB_PASSWORD;
@@ -37,9 +38,8 @@ try {
   // PostgreSQL does not parameterize ALTER ROLE. The strict base64url grammar
   // above excludes quotes and SQL syntax. Never log this statement or the error.
   await database.query(`ALTER ROLE farmaecon_runtime LOGIN PASSWORD '${password}'`);
-  await database.query('GRANT USAGE ON SCHEMA public TO farmaecon_runtime');
-  await database.query('GRANT SELECT, INSERT, UPDATE, DELETE ON tenants, users, marketplace_accounts, orders, products, financial_transactions, auth_sessions, oauth_states TO farmaecon_runtime');
-  await database.query('GRANT EXECUTE ON FUNCTION public.farmaecon_login_lookup(text) TO farmaecon_runtime');
+  // Runs even when Prisma reports no pending migrations, including after restore.
+  await database.query(runtimeGrantsSql());
   console.log('PASS: migrations applied and restricted runtime role configured. No credentials printed.');
 } catch {
   console.error('Migration/runtime-role preparation failed. Review the isolated database without printing environment values.');

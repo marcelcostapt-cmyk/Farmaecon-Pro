@@ -29,11 +29,12 @@ function migrationFixture(result, { databaseError = false } = {}) {
     const require = createRequire(import.meta.url);
     require('node:child_process').spawnSync = () => (${JSON.stringify(childResult)});
     syncBuiltinESMExports();
-    const calls = [];
+    const calls = [], queries = [];
     require('pg').Client = class {
       async connect() { calls.push('connect'); }
-      async query() {
+      async query(sql) {
         calls.push('query');
+        queries.push(sql.startsWith('ALTER ROLE') ? '<private runtime password setup>' : sql);
         if (${databaseError}) throw new Error('private SQL: ' + process.env.RUNTIME_DB_PASSWORD);
         return { rows: [{ rolsuper: false, rolbypassrls: false, rolcreatedb: false, rolcreaterole: false }] };
       }
@@ -41,6 +42,7 @@ function migrationFixture(result, { databaseError = false } = {}) {
     };
     await import(${JSON.stringify(new URL('./database-migrate.mjs', import.meta.url).href)});
     console.log('__DATABASE_CALLS__' + JSON.stringify(calls));
+    console.log('__DATABASE_QUERIES__' + JSON.stringify(queries));
   `;
   const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
     cwd: fileURLToPath(new URL('..', import.meta.url)), env: { ...process.env, ...env },
@@ -54,15 +56,26 @@ function migrationFixture(result, { databaseError = false } = {}) {
     }
   }
   const marker = child.stdout.split('\n').find(line => line.startsWith('__DATABASE_CALLS__'));
+  const queriesMarker = child.stdout.split('\n').find(line => line.startsWith('__DATABASE_QUERIES__'));
   assert(Boolean(marker), 'Migration entrypoint must finish database cleanup');
   return { ...child, calls: JSON.parse(marker.slice('__DATABASE_CALLS__'.length)),
-    stdout: child.stdout.replace(marker + '\n', '') };
+    queries: JSON.parse(queriesMarker.slice('__DATABASE_QUERIES__'.length)),
+    stdout: child.stdout.replace(marker + '\n', '').replace(queriesMarker + '\n', '') };
 }
+
+test('migration deploy reconciles restored ACLs even when Prisma has no pending migrations', () => {
+  const result = migrationFixture({ status: 0, stdout: 'No pending migrations to apply.', stderr: '' });
+  assert.equal(result.status, 0);
+  assert(result.queries.some(sql => sql.includes('marketplace_sync_states')),
+    'Runtime grants must cover sync checkpoints independently of migration history');
+  assert(result.queries.some(sql => sql.includes('REVOKE ALL ON FUNCTION public.farmaecon_login_lookup(text) FROM PUBLIC')),
+    'A restore without ACLs must not expose the login lookup to PUBLIC');
+});
 
 test('migration success preserves role preparation and the existing success output', () => {
   const result = migrationFixture({ status: 0, stdout: 'Prisma success output stays private', stderr: '' });
   assert.equal(result.status, 0);
-  assert.deepEqual(result.calls, ['connect', 'query', 'query', 'query', 'query', 'query', 'end']);
+  assert.deepEqual(result.calls, ['connect', 'query', 'query', 'query', 'end']);
   assert.equal(result.stderr, '');
   assert.equal(result.stdout, 'PASS: migrations applied and restricted runtime role configured. No credentials printed.\n');
 });

@@ -153,6 +153,7 @@ model MarketplaceSyncState {
   expectedTotal        Int?      @map("expected_total")
   importedCount        Int       @default(0) @map("imported_count")
   completedPages       Int       @default(0) @map("completed_pages")
+  paginationRestartCount Int     @default(0) @map("pagination_restart_count")
   lastError            String?   @map("last_error")
   startedAt            DateTime  @default(now()) @map("started_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")

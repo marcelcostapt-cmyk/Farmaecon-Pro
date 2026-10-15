@@ -9,6 +9,7 @@ COPY scripts/production-bootstrap.mjs scripts/production-bootstrap.mjs
 COPY scripts/clear-marketplace-credentials.mjs scripts/clear-marketplace-credentials.mjs
 COPY scripts/database-migrate.mjs scripts/database-migrate.mjs
 COPY scripts/production-diagnostics.mjs scripts/production-diagnostics.mjs
+COPY scripts/runtime-grants.mjs scripts/runtime-grants.mjs
 RUN npm exec --workspace api -- prisma generate
 RUN npm run build --workspace api
 

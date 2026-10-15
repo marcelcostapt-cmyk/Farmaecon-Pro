@@ -1,3 +1,4 @@
+import { UnrecoverableError } from 'bullmq';
 import { MemoryPrisma } from '../../../test/memory-prisma';
 import { INITIAL_SYNC_WINDOW_DAYS, MlOrdersSyncService } from './ml-orders-sync.service';
 
@@ -18,6 +19,15 @@ function makePage(offset: number, total: number, pageSize = 50) {
     complete: offset + count >= total,
   };
 }
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+
+const restartLimitMessage = 'Order pagination total changed during synchronization; restart limit reached';
 
 describe('resumable read-only order synchronization', () => {
   afterEach(() => jest.useRealTimers());
@@ -49,7 +59,7 @@ describe('resumable read-only order synchronization', () => {
     expect(first.status).toBe('PARTIAL');
     expect(first.nextOffset).toBe(50);
     expect(db.rows.order).toHaveLength(50);
-    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ status: 'PARTIAL', nextOffset: 50, expectedTotal: 120 });
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ status: 'PARTIAL', nextOffset: 50, expectedTotal: 120, paginationRestartCount: 0 });
 
     const second = await service.syncRecentOrders('account-a', 'tenant-a');
     expect(second.status).toBe('PARTIAL');
@@ -109,28 +119,307 @@ describe('resumable read-only order synchronization', () => {
     });
   });
 
-  it('keeps PAGINATION_TOTAL_CHANGED as a second safety guard inside the window', async () => {
+  it.each([121, 80, 40, 0])('restarts the same window when its total changes from 120 to %i without writing the divergent page', async (changedTotal) => {
     jest.useFakeTimers().setSystemTime(new Date('2026-10-03T22:47:30.000Z'));
-    const { db, mlApi, service } = setup(120);
-    mlApi.listSellerOrdersPageInWindow.mockImplementation(async (_accountId: string, _tenantId: string, options: { offset?: number; windowFrom: Date; windowTo: Date }) => {
-      const offset = options.offset ?? 0;
-      return offset === 50 ? makePage(offset, 121) : makePage(offset, 120);
-    });
-
+    const { db, mlApi, queue, service } = setup(120);
     await service.syncRecentOrders('account-a', 'tenant-a');
-    await expect(service.syncRecentOrders('account-a', 'tenant-a')).rejects.toThrow(
-      'Order pagination total changed during synchronization',
-    );
+    const lastCompletedWindow = new Date('2026-10-02T22:00:00.000Z');
+    db.rows.marketplaceSyncState[0].lastSyncedWindowTo = lastCompletedWindow;
+    const committedOrders = structuredClone(db.rows.order);
+    mlApi.listSellerOrdersPageInWindow.mockResolvedValueOnce(makePage(50, changedTotal));
 
-    expect(db.rows.order).toHaveLength(50);
+    const result = await service.syncRecentOrders('account-a', 'tenant-a');
+
+    expect(result).toEqual({ accountId: 'account-a', status: 'PARTIAL', nextOffset: 0, expectedTotal: changedTotal, importedCount: 50 });
+    expect(db.rows.order).toEqual(committedOrders);
     expect(db.rows.marketplaceSyncState[0]).toMatchObject({
-      status: 'FAILED',
-      nextOffset: 50,
+      status: 'PARTIAL',
+      nextOffset: 0,
+      expectedTotal: changedTotal,
+      importedCount: 50,
+      completedPages: 0,
+      paginationRestartCount: 1,
       lastError: 'PAGINATION_TOTAL_CHANGED',
+      lastSyncedWindowTo: lastCompletedWindow,
+      windowFrom: new Date('2026-07-05T22:00:00.000Z'),
+      windowTo: new Date('2026-10-03T22:00:00.000Z'),
     });
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({ lastSyncState: 'PARTIAL', lastSyncedAt: null });
+    expect(mlApi.listSellerOrdersPageInWindow).toHaveBeenCalledTimes(2);
+    expect(queue.add).toHaveBeenCalledTimes(2);
     const secondOptions = mlApi.listSellerOrdersPageInWindow.mock.calls[1][2];
     expect(secondOptions.windowFrom).toEqual(new Date('2026-07-05T22:00:00.000Z'));
     expect(secondOptions.windowTo).toEqual(new Date('2026-10-03T22:00:00.000Z'));
+  });
+
+  it('counts a second total change before a successful replay and completes idempotently', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-03T22:47:30.000Z'));
+    const { db, mlApi, queue, service } = setup(120);
+    let total = 120;
+    mlApi.listSellerOrdersPageInWindow.mockImplementation(async (_accountId, _tenantId, options) => makePage(options.offset ?? 0, total));
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    const lastCompletedWindow = new Date('2026-10-02T22:00:00.000Z');
+    db.rows.marketplaceSyncState[0].lastSyncedWindowTo = lastCompletedWindow;
+    const committedOrders = structuredClone(db.rows.order);
+
+    total = 121;
+    const firstRestart = await service.syncRecentOrders('account-a', 'tenant-a');
+    const firstCheckpoint = structuredClone(db.rows.marketplaceSyncState[0]);
+    expect(firstCheckpoint).toMatchObject({ paginationRestartCount: 1, nextOffset: 0, completedPages: 0 });
+    expect(db.rows.order).toEqual(committedOrders);
+
+    // The next response changes again before any replay page has been committed.
+    total = 122;
+    const restoredService = new MlOrdersSyncService(db as any, mlApi as any, queue as any);
+    const secondRestart = await restoredService.syncRecentOrders('account-a', 'tenant-a');
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({
+      status: 'PARTIAL', paginationRestartCount: 2, nextOffset: 0, expectedTotal: 122,
+      importedCount: 50, completedPages: 0, lastError: 'PAGINATION_TOTAL_CHANGED',
+      windowFrom: new Date('2026-07-05T22:00:00.000Z'),
+      windowTo: new Date('2026-10-03T22:00:00.000Z'), lastSyncedWindowTo: lastCompletedWindow,
+    });
+    expect(secondRestart).toMatchObject({ status: 'PARTIAL', nextOffset: 0, expectedTotal: 122, importedCount: 50 });
+    expect(db.rows.order).toEqual(committedOrders);
+    expect(firstRestart).toMatchObject({ status: 'PARTIAL', nextOffset: 0, expectedTotal: 121, importedCount: 50 });
+    expect(firstCheckpoint).toMatchObject({ expectedTotal: 121 });
+
+    expect(await restoredService.syncRecentOrders('account-a', 'tenant-a')).toMatchObject({ status: 'PARTIAL', nextOffset: 50, importedCount: 50 });
+    expect(await restoredService.syncRecentOrders('account-a', 'tenant-a')).toMatchObject({ status: 'PARTIAL', nextOffset: 100, importedCount: 100 });
+    expect(await restoredService.syncRecentOrders('account-a', 'tenant-a')).toMatchObject({ status: 'COMPLETE', nextOffset: 122, expectedTotal: 122, importedCount: 122 });
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({
+      paginationRestartCount: 2, completedPages: 3, lastError: null,
+      lastSyncedWindowTo: new Date('2026-10-03T22:00:00.000Z'),
+    });
+    expect(db.rows.order).toHaveLength(122);
+    expect(new Set(db.rows.order.map(order => order.externalOrderId)).size).toBe(122);
+    expect(mlApi.listSellerOrdersPageInWindow.mock.calls.map(call => call[2].offset)).toEqual([0, 50, 0, 0, 50, 100]);
+  });
+
+  it('replays from offset zero idempotently and completes after a total change', async () => {
+    const { db, mlApi, queue, service } = setup(120);
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    mlApi.listSellerOrdersPageInWindow.mockImplementation(async (_accountId, _tenantId, options) => makePage(options.offset ?? 0, 80));
+
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    const replay = await service.syncRecentOrders('account-a', 'tenant-a');
+    expect(replay).toMatchObject({ status: 'PARTIAL', nextOffset: 50, expectedTotal: 80, importedCount: 50 });
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ paginationRestartCount: 1, completedPages: 1, lastError: null });
+    expect(db.rows.order).toHaveLength(50);
+
+    const completed = await service.syncRecentOrders('account-a', 'tenant-a');
+    expect(completed).toMatchObject({ status: 'COMPLETE', nextOffset: 80, expectedTotal: 80, importedCount: 80 });
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ paginationRestartCount: 1, completedPages: 2, lastError: null });
+    expect(db.rows.order).toHaveLength(80);
+    expect(new Set(db.rows.order.map((order) => order.externalOrderId)).size).toBe(80);
+    expect(mlApi.listSellerOrdersPageInWindow.mock.calls.map((call) => call[2].offset)).toEqual([0, 50, 0, 50]);
+    expect(queue.add).toHaveBeenCalledTimes(3);
+  });
+
+  it('allows the third restart to finish before resetting its budget for the next completed window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-03T22:47:30.000Z'));
+    const { db, mlApi, service } = setup(120);
+    let total = 120;
+    mlApi.listSellerOrdersPageInWindow.mockImplementation(async (_accountId, _tenantId, options) => makePage(options.offset ?? 0, total));
+    await service.syncRecentOrders('account-a', 'tenant-a');
+
+    for (let restart = 1; restart <= 3; restart += 1) {
+      total += 1;
+      expect(await service.syncRecentOrders('account-a', 'tenant-a')).toMatchObject({ status: 'PARTIAL', nextOffset: 0, expectedTotal: total });
+      expect(db.rows.marketplaceSyncState[0]).toMatchObject({ paginationRestartCount: restart, completedPages: 0 });
+      await service.syncRecentOrders('account-a', 'tenant-a');
+    }
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ paginationRestartCount: 3, nextOffset: 50, expectedTotal: 123, lastError: null });
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    expect(await service.syncRecentOrders('account-a', 'tenant-a')).toMatchObject({ status: 'COMPLETE', importedCount: 123 });
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ paginationRestartCount: 3, lastSyncedWindowTo: new Date('2026-10-03T22:00:00.000Z') });
+
+    jest.setSystemTime(new Date('2026-10-04T03:47:30.000Z'));
+    expect(await service.syncRecentOrders('account-a', 'tenant-a')).toMatchObject({ status: 'PARTIAL', nextOffset: 50 });
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({
+      paginationRestartCount: 0,
+      windowFrom: new Date('2026-10-03T20:00:00.000Z'),
+      windowTo: new Date('2026-10-04T03:00:00.000Z'),
+      lastSyncedWindowTo: new Date('2026-10-03T22:00:00.000Z'),
+    });
+    expect(db.rows.order).toHaveLength(123);
+  });
+
+  it('fails the fourth total change permanently and keeps the exhausted budget across service instances', async () => {
+    const { db, mlApi, queue, service } = setup(120);
+    let total = 120;
+    mlApi.listSellerOrdersPageInWindow.mockImplementation(async (_accountId, _tenantId, options) => makePage(options.offset ?? 0, total));
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    for (let restart = 0; restart < 3; restart += 1) {
+      total += 1;
+      await service.syncRecentOrders('account-a', 'tenant-a');
+      await service.syncRecentOrders('account-a', 'tenant-a');
+    }
+    total += 1;
+    const committedOrders = structuredClone(db.rows.order);
+    const queuedBeforeFailure = queue.add.mock.calls.length;
+    const terminal = service.syncRecentOrders('account-a', 'tenant-a');
+    await expect(terminal).rejects.toBeInstanceOf(UnrecoverableError);
+    await expect(terminal).rejects.toThrow(restartLimitMessage);
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ status: 'FAILED', paginationRestartCount: 3, nextOffset: 50, expectedTotal: 123, lastError: 'PAGINATION_TOTAL_CHANGED' });
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({ lastSyncState: 'FAILED', lastSyncError: 'PAGINATION_TOTAL_CHANGED', lastSyncedAt: null });
+    expect(db.rows.order).toEqual(committedOrders);
+    expect(queue.add).toHaveBeenCalledTimes(queuedBeforeFailure);
+
+    const callsBeforeRetry = mlApi.listSellerOrdersPageInWindow.mock.calls.length;
+    const restoredService = new MlOrdersSyncService(db as any, mlApi as any, queue as any);
+    for (const retryService of [service, restoredService]) {
+      const retry = retryService.syncRecentOrders('account-a', 'tenant-a');
+      await expect(retry).rejects.toBeInstanceOf(UnrecoverableError);
+      await expect(retry).rejects.toThrow(restartLimitMessage);
+    }
+    expect(mlApi.listSellerOrdersPageInWindow).toHaveBeenCalledTimes(callsBeforeRetry);
+    expect(queue.add).toHaveBeenCalledTimes(queuedBeforeFailure);
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ status: 'FAILED', paginationRestartCount: 3, lastError: 'PAGINATION_TOTAL_CHANGED' });
+  });
+
+  it('keeps a committed restart resumable when scheduling its continuation fails', async () => {
+    const { db, mlApi, queue, service } = setup(120);
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    mlApi.listSellerOrdersPageInWindow.mockImplementation(async (_accountId, _tenantId, options) => makePage(options.offset ?? 0, 80));
+    queue.add.mockRejectedValueOnce(new Error('Continuation queue unavailable'));
+
+    await expect(service.syncRecentOrders('account-a', 'tenant-a')).rejects.toThrow('Continuation queue unavailable');
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ status: 'PARTIAL', nextOffset: 0, expectedTotal: 80, paginationRestartCount: 1, importedCount: 50, completedPages: 0, lastError: 'PAGINATION_TOTAL_CHANGED' });
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({ lastSyncState: 'PARTIAL', lastSyncedAt: null });
+    expect(db.rows.order).toHaveLength(50);
+
+    const restoredService = new MlOrdersSyncService(db as any, mlApi as any, queue as any);
+    expect(await restoredService.syncRecentOrders('account-a', 'tenant-a')).toMatchObject({ status: 'PARTIAL', nextOffset: 50, expectedTotal: 80, importedCount: 50 });
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ paginationRestartCount: 1, lastError: null });
+    expect(mlApi.listSellerOrdersPageInWindow.mock.calls.map((call) => call[2].offset)).toEqual([0, 50, 0]);
+  });
+
+  it.each(['restart', 'terminal', 'terminal-after-failure', 'terminal-before-late-error'] as const)('discards an in-flight old page after another worker commits a %s', async (outcome) => {
+    const { db, mlApi, queue, service } = setup(120);
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    const terminal = outcome !== 'restart';
+    if (terminal) db.rows.marketplaceSyncState[0].paginationRestartCount = 3;
+    if (outcome === 'terminal-after-failure' || outcome === 'terminal-before-late-error') {
+      Object.assign(db.rows.marketplaceSyncState[0], { status: 'FAILED', lastError: 'RATE_LIMITED' });
+    }
+    const requestStarted = deferred<void>();
+    const response = deferred<ReturnType<typeof makePage>>();
+    mlApi.listSellerOrdersPageInWindow.mockImplementationOnce(async () => {
+      requestStarted.resolve();
+      return response.promise;
+    });
+    const oldAttempt = service.syncRecentOrders('account-a', 'tenant-a');
+    void oldAttempt.catch(() => undefined);
+    await requestStarted.promise;
+    mlApi.listSellerOrdersPageInWindow.mockResolvedValueOnce(makePage(50, 121));
+    let savedRows: typeof db.rows;
+    let queued: number;
+    try {
+      const concurrent = service.syncRecentOrders('account-a', 'tenant-a');
+      if (terminal) await expect(concurrent).rejects.toBeInstanceOf(UnrecoverableError);
+      else await expect(concurrent).resolves.toMatchObject({ status: 'PARTIAL', nextOffset: 0 });
+      savedRows = structuredClone(db.rows);
+      queued = queue.add.mock.calls.length;
+    } finally {
+      if (outcome === 'terminal-before-late-error') response.reject(new Error('Mercado Livre API error 429'));
+      else response.resolve(makePage(50, 120));
+    }
+    const result = await oldAttempt;
+    expect(result).toEqual({
+      accountId: 'account-a', importedCount: 50,
+      expectedTotal: terminal ? 120 : 121,
+      nextOffset: terminal ? 50 : 0,
+      status: terminal ? 'FAILED' : 'PARTIAL',
+    });
+    expect(db.rows).toEqual(savedRows!);
+    expect(queue.add).toHaveBeenCalledTimes(queued!);
+  });
+
+  it.each([
+    ['window', { windowTo: new Date('2026-10-04T23:00:00.000Z') }],
+    ['offset', { nextOffset: 100 }],
+    ['total', { expectedTotal: 121 }],
+    ['restart count', { paginationRestartCount: 1 }],
+    ['status', { status: 'FAILED', lastError: 'RATE_LIMITED' }],
+    ['completed pages', { completedPages: 2 }],
+  ] as const)('returns the current checkpoint without writes when the %s changes during a fetch', async (_field, changedCheckpoint) => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-03T22:47:30.000Z'));
+    const { db, mlApi, queue, service } = setup(120);
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    const requestStarted = deferred<void>();
+    const response = deferred<ReturnType<typeof makePage>>();
+    mlApi.listSellerOrdersPageInWindow.mockImplementationOnce(async () => {
+      requestStarted.resolve();
+      return response.promise;
+    });
+    const pending = service.syncRecentOrders('account-a', 'tenant-a');
+    await requestStarted.promise;
+    Object.assign(db.rows.marketplaceSyncState[0], changedCheckpoint);
+    const current = structuredClone(db.rows.marketplaceSyncState[0]);
+    const savedRows = structuredClone(db.rows);
+    const queued = queue.add.mock.calls.length;
+    const upserts = db.order.upsert.mock.calls.length;
+    const accountUpdates = db.marketplaceAccount.updateMany.mock.calls.length;
+    response.resolve(makePage(50, 120));
+
+    expect(await pending).toEqual({ accountId: 'account-a', importedCount: current.importedCount, expectedTotal: current.expectedTotal, nextOffset: current.nextOffset, status: current.status });
+    expect(db.rows).toEqual(savedRows);
+    expect(queue.add).toHaveBeenCalledTimes(queued);
+    expect(db.order.upsert).toHaveBeenCalledTimes(upserts);
+    expect(db.marketplaceAccount.updateMany).toHaveBeenCalledTimes(accountUpdates);
+  });
+
+  it('does not restart another tenant account or contact the marketplace for a wrong tenant', async () => {
+    const { db, mlApi, queue, service } = setup(120);
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    const savedRows = structuredClone(db.rows);
+    const calls = mlApi.listSellerOrdersPageInWindow.mock.calls.length;
+    const queued = queue.add.mock.calls.length;
+
+    await expect(service.syncRecentOrders('account-a', 'tenant-b')).rejects.toThrow();
+    expect(db.rows).toEqual(savedRows);
+    expect(mlApi.listSellerOrdersPageInWindow).toHaveBeenCalledTimes(calls);
+    expect(queue.add).toHaveBeenCalledTimes(queued);
+  });
+
+  it.each(['completed', 'legacy'] as const)('cannot overwrite a newer recovery while opening a %s window', async kind => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-03T22:47:30Z'));
+    const { db, mlApi, queue, service } = setup(1);
+    await service.syncRecentOrders('account-a', 'tenant-a');
+    if (kind === 'legacy') Object.assign(db.rows.marketplaceSyncState[0], {
+      status: 'PARTIAL', nextOffset: 0, expectedTotal: null, completedPages: 0, windowFrom: null, windowTo: null,
+    });
+    let total = 120;
+    mlApi.listSellerOrdersPageInWindow.mockImplementation(async (_id, _tenant, options) => makePage(options.offset ?? 0, total));
+    const updateStarted = deferred<void>();
+    const releaseUpdate = deferred<void>();
+    const update = db.marketplaceSyncState.updateMany.getMockImplementation()!;
+    db.marketplaceSyncState.updateMany.mockImplementationOnce(async (args: any) => {
+      updateStarted.resolve();
+      await releaseUpdate.promise;
+      return update(args);
+    });
+    const stale = service.syncRecentOrders('account-a', 'tenant-a');
+    await updateStarted.promise;
+    jest.setSystemTime(new Date('2026-10-04T03:47:30Z'));
+    let savedRows: typeof db.rows;
+    let calls: number;
+    let queued: number;
+    try {
+      await service.syncRecentOrders('account-a', 'tenant-a');
+      total = 121;
+      await service.syncRecentOrders('account-a', 'tenant-a');
+      savedRows = structuredClone(db.rows);
+      calls = mlApi.listSellerOrdersPageInWindow.mock.calls.length;
+      queued = queue.add.mock.calls.length;
+    } finally {
+      releaseUpdate.resolve();
+    }
+    expect(await stale).toMatchObject({ status: 'PARTIAL', nextOffset: 0, expectedTotal: 121 });
+    expect(db.rows).toEqual(savedRows!);
+    expect(db.rows.marketplaceSyncState[0]).toMatchObject({ paginationRestartCount: 1 });
+    expect(mlApi.listSellerOrdersPageInWindow).toHaveBeenCalledTimes(calls!);
+    expect(queue.add).toHaveBeenCalledTimes(queued!);
   });
 
   it('uses a fixed UTC-hour window and persists its completed boundary', async () => {
