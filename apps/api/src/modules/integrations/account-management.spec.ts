@@ -14,10 +14,11 @@ function setup(rows: Record<string, unknown>[] = [account()]) {
   const db = new MemoryPrisma();
   db.rows.marketplaceAccount.push(...rows);
   const syncQueue = { add: jest.fn(), getJobs: jest.fn().mockResolvedValue([]) };
+  const tokenQueue = { getJobs: jest.fn().mockResolvedValue([]) };
   const ordersSync = { syncRecentOrders: jest.fn() };
   const scheduler = { removeRecurring: jest.fn(), ensureRecurring: jest.fn(), nextRunAt: jest.fn().mockResolvedValue(null) };
-  const service = new IntegrationsService(db as never, syncQueue as never, ordersSync as never, scheduler as never);
-  return { db, service, syncQueue, scheduler };
+  const service = new IntegrationsService(db as never, syncQueue as never, tokenQueue as never, ordersSync as never, scheduler as never);
+  return { db, service, syncQueue, tokenQueue, scheduler };
 }
 
 describe('IntegrationsService.rename', () => {
@@ -50,5 +51,35 @@ describe('IntegrationsService.rename', () => {
     const { db, service } = setup();
     await expect(service.rename('b', 'acc-a', 'X')).rejects.toBeInstanceOf(NotFoundException);
     expect(db.rows.marketplaceAccount[0].displayName).toBeNull();
+  });
+});
+
+const job = (accountId: string) => ({ id: `job-${accountId}`, data: { tenantId: 'a', accountId }, remove: jest.fn().mockResolvedValue(undefined) });
+
+describe('IntegrationsService.disconnect', () => {
+  it('clears tokens, marks DISCONNECTED and removes schedule and token refresh jobs', async () => {
+    const { db, service, scheduler, tokenQueue } = setup([account(), account({ id: 'acc-b', externalSellerId: '2' })]);
+    const own = job('acc-a'), other = job('acc-b');
+    tokenQueue.getJobs.mockResolvedValue([own, other]);
+    await service.disconnect('a', 'acc-a');
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({ status: 'DISCONNECTED', accessToken: null, refreshToken: null, expiresAt: null });
+    expect(db.rows.marketplaceAccount[1].status).toBe('ACTIVE');
+    expect(scheduler.removeRecurring).toHaveBeenCalledWith('acc-a');
+    expect(own.remove).toHaveBeenCalled();
+    expect(other.remove).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op the second time', async () => {
+    const { db, service } = setup();
+    await service.disconnect('a', 'acc-a');
+    await expect(service.disconnect('a', 'acc-a')).resolves.toBeUndefined();
+    expect(db.rows.marketplaceAccount[0].status).toBe('DISCONNECTED');
+  });
+
+  it('returns 404 for another tenant', async () => {
+    const { db, service, scheduler } = setup();
+    await expect(service.disconnect('b', 'acc-a')).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.rows.marketplaceAccount[0].status).toBe('ACTIVE');
+    expect(scheduler.removeRecurring).not.toHaveBeenCalled();
   });
 });

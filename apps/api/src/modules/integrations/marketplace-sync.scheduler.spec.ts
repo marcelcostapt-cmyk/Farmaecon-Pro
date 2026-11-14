@@ -154,9 +154,10 @@ describe('MarketplaceSyncProcessor recurring integration', () => {
 
 describe('IntegrationsService.disconnect', () => {
   it('removes the recurring schedule of a disconnected account', async () => {
-    const prisma = { marketplaceAccount: { findFirstOrThrow: jest.fn().mockResolvedValue({}), updateMany: jest.fn() } };
+    const prisma = { marketplaceAccount: { findFirst: jest.fn().mockResolvedValue({ id: 'account-a' }), updateMany: jest.fn() } };
     const scheduler = { removeRecurring: jest.fn() };
-    const service = new IntegrationsService(prisma as never, {} as never, {} as never, scheduler as never);
+    const tokenQueue = { getJobs: jest.fn().mockResolvedValue([]) };
+    const service = new IntegrationsService(prisma as never, {} as never, tokenQueue as never, {} as never, scheduler as never);
     await service.disconnect('tenant-a', 'account-a');
     expect(scheduler.removeRecurring).toHaveBeenCalledWith('account-a');
   });

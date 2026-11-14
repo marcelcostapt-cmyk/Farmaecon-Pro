@@ -101,7 +101,7 @@ describe('PostgreSQL HTTP security boundaries', () => {
       const report = await request(app.getHttpServer()).get('/observation/report').set('Authorization', bearer(session.accessToken)).expect(200);
       expect(report.body.data.sources.map((s: { id: string }) => s.id)).toEqual([tenant]);
       expect(report.body.data.financial.netProfit).toBeNull(); safe(report.body);
-      safe(await inTenant(tenant, () => new IntegrationsService(db, {} as never, {} as never).findAll(tenant)));
+      safe(await inTenant(tenant, () => new IntegrationsService(db, {} as never, {} as never, {} as never).findAll(tenant)));
     }
     await request(app.getHttpServer()).get(`/orders/${tenantB}`).set('Authorization', bearer(a.accessToken)).expect(404);
   });

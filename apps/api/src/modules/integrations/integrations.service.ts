@@ -3,7 +3,8 @@ import { BadRequestException, Injectable, Logger, NotFoundException, Optional } 
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
+import { QUEUE_MARKETPLACE_SYNC, QUEUE_TOKEN_REFRESH } from '../../shared/queue/queue.module';
+import { findPendingAccountJobs } from './account-jobs';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
 import { MarketplaceSyncScheduler } from './marketplace-sync.scheduler';
 
@@ -16,6 +17,7 @@ export class IntegrationsService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_MARKETPLACE_SYNC) private readonly syncQueue: Queue,
+    @InjectQueue(QUEUE_TOKEN_REFRESH) private readonly tokenQueue: Queue,
     private readonly ordersSync: MlOrdersSyncService,
     @Optional() private readonly scheduler?: MarketplaceSyncScheduler,
   ) {}
@@ -61,12 +63,20 @@ export class IntegrationsService {
   }
 
   async disconnect(tenantId: string, accountId: string) {
-    // Verify ownership before deleting
-    await this.prisma.marketplaceAccount.findFirstOrThrow({
-      where: { id: accountId, tenantId },
-    });
+    const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { id: true } });
+    if (!account) throw new NotFoundException('Account not found');
     await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { status: 'DISCONNECTED', accessToken: null, refreshToken: null, expiresAt: null } });
     await this.scheduler?.removeRecurring(accountId);
+    await this.removeTokenRefreshJobs(accountId);
+  }
+
+  /** A refresh job for a disconnected account would only fail; drop it. */
+  private async removeTokenRefreshJobs(accountId: string) {
+    try {
+      for (const job of await findPendingAccountJobs(this.tokenQueue, accountId)) await job.remove();
+    } catch {
+      this.logger.warn(`Could not remove pending token refresh jobs for account ${accountId}`);
+    }
   }
 
   async scheduleInitialSync(accountId: string, tenantId: string) {

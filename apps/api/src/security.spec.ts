@@ -49,7 +49,7 @@ describe('Authenticated HTTP security boundaries', () => {
       const r=await request(app.getHttpServer()).get(path).set('Authorization',bearer(a.accessToken)).expect(200);
       expect(JSON.stringify(r.body)).not.toMatch(/sensitive-|accessToken|refreshToken|password|tenantId/);
     }
-    const integrations=new IntegrationsService(db as any,{} as any,{} as any);
+    const integrations=new IntegrationsService(db as any,{} as any,{} as any,{} as any);
     const accounts=await integrations.findAll('a');
     expect(accounts).toHaveLength(1);expect(JSON.stringify(accounts)).not.toMatch(/sensitive-|accessToken|refreshToken|password/);
   });
