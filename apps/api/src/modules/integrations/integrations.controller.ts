@@ -14,6 +14,7 @@ class CallbackDto { @IsString() @MinLength(1) @MaxLength(2048) code: string; @Is
 export class IntegrationsController {
   constructor(private readonly integrations: IntegrationsService, private readonly oauth: MlOAuthService) {}
   @Get() findAll(@CurrentTenant() tenantId: string) { return this.integrations.findAll(tenantId).then(ok); }
+  @Get('ml/config') config() { return ok(this.oauth.oauthConfig()); }
   @UseGuards(AdminGuard)
   @Get('ml/connect') async connect(@CurrentUser() actor: AuthPrincipal) { return ok(await this.oauth.buildAuthorizationUrl(actor)); }
   @UseGuards(AdminGuard)

@@ -42,8 +42,10 @@ export class IntegrationsService {
       orderBy: { createdAt: 'asc' },
     });
 
-    return accounts.map((acc) => ({
+    const nextRuns = await Promise.all(accounts.map((acc) => this.nextSyncAt(acc.id)));
+    return accounts.map((acc, index) => ({
       ...acc,
+      nextSyncAt: nextRuns[index],
       orderCount: acc._count.orders,
       status: acc.status,
       syncStatus: acc.syncStates[0]?.status ?? acc.lastSyncState ?? 'NOT_STARTED',
@@ -53,6 +55,14 @@ export class IntegrationsService {
       lastSyncAttemptAt: acc.lastSyncAttemptAt,
       syncError: acc.syncStates[0]?.lastError ?? acc.lastSyncError ?? null,
     }));
+  }
+
+  private async nextSyncAt(accountId: string): Promise<string | null> {
+    try {
+      return (await this.scheduler?.nextRunAt(accountId))?.toISOString() ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Blank or null clears the friendly name, so the UI falls back to the technical `name`. */

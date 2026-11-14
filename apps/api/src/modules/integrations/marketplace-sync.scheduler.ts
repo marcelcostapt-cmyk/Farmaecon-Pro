@@ -60,6 +60,17 @@ export class MarketplaceSyncScheduler {
     );
   }
 
+  /** Next scheduled tick, or null when there is none or Redis cannot answer. */
+  async nextRunAt(accountId: string): Promise<Date | null> {
+    try {
+      const scheduler = await this.queue.getJobScheduler(MarketplaceSyncScheduler.schedulerId(accountId));
+      return scheduler?.next ? new Date(scheduler.next) : null;
+    } catch {
+      this.logger.warn(`Could not read next sync for account ${accountId}`);
+      return null;
+    }
+  }
+
   async removeRecurring(accountId: string): Promise<void> {
     await this.queue.removeJobScheduler(MarketplaceSyncScheduler.schedulerId(accountId));
   }

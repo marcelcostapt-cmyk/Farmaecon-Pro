@@ -126,3 +126,20 @@ describe('IntegrationsService.remove', () => {
     expect(db.rows.marketplaceAccount).toHaveLength(1);
   });
 });
+
+describe('IntegrationsService.findAll', () => {
+  it('findAll includes displayName and nextSyncAt', async () => {
+    const { service, scheduler } = setup([account({ displayName: 'Farmashop' })]);
+    scheduler.nextRunAt.mockResolvedValue(new Date('2026-11-14T19:45:11.000Z'));
+    const [row] = await service.findAll('a');
+    expect(row).toMatchObject({ id: 'acc-a', displayName: 'Farmashop', nextSyncAt: '2026-11-14T19:45:11.000Z' });
+    expect(scheduler.nextRunAt).toHaveBeenCalledWith('acc-a');
+  });
+
+  it('findAll returns nextSyncAt null when Redis fails', async () => {
+    const { service, scheduler } = setup();
+    scheduler.nextRunAt.mockRejectedValue(new Error('redis down'));
+    const [row] = await service.findAll('a');
+    expect(row.nextSyncAt).toBeNull();
+  });
+});
