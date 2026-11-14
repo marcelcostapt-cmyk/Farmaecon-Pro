@@ -1,11 +1,13 @@
 import { publicAccountSelect } from '../../shared/security/public-selects';
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
 import { MarketplaceSyncScheduler } from './marketplace-sync.scheduler';
+
+export const DISPLAY_NAME_MAX = 60;
 
 @Injectable()
 export class IntegrationsService {
@@ -45,6 +47,17 @@ export class IntegrationsService {
       lastSyncAttemptAt: acc.lastSyncAttemptAt,
       syncError: acc.syncStates[0]?.lastError ?? acc.lastSyncError ?? null,
     }));
+  }
+
+  /** Blank or null clears the friendly name, so the UI falls back to the technical `name`. */
+  async rename(tenantId: string, accountId: string, displayName: string | null) {
+    const value = displayName?.trim() || null;
+    if (value && [...value].length > DISPLAY_NAME_MAX) {
+      throw new BadRequestException(`O nome pode ter no máximo ${DISPLAY_NAME_MAX} caracteres.`);
+    }
+    const updated = await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { displayName: value } });
+    if (updated.count === 0) throw new NotFoundException('Account not found');
+    return this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
   }
 
   async disconnect(tenantId: string, accountId: string) {

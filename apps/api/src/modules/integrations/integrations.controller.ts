@@ -1,12 +1,13 @@
-import { Controller, Get, UseGuards, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, UseGuards, Post, Patch, Param, Body } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { IntegrationsService } from './integrations.service';
 import { MlOAuthService } from './ml-oauth.service';
 import { CurrentTenant, CurrentUser } from '../../shared/decorators/tenant.decorator';
 import { AdminGuard } from '../../shared/security/admin.guard';
 import type { AuthPrincipal } from '../auth/auth.service';
 import { ok } from '../../shared/types/api-response.type';
+class RenameAccountDto { @IsOptional() @IsString() @MaxLength(240) displayName: string | null; }
 class CallbackDto { @IsString() @MinLength(1) @MaxLength(2048) code: string; @IsString() @MaxLength(128) state: string; }
 @UseGuards(AuthGuard('jwt'))
 @Controller('integrations')
@@ -24,6 +25,10 @@ export class IntegrationsController {
   @UseGuards(AdminGuard)
   @Post(':id/disconnect') async disconnect(@CurrentTenant() tenantId: string, @Param('id') id: string) {
     await this.integrations.disconnect(tenantId, id); return ok({ disconnected: true });
+  }
+  @UseGuards(AdminGuard)
+  @Patch(':id') async rename(@CurrentTenant() tenantId: string, @Param('id') id: string, @Body() dto: RenameAccountDto) {
+    return ok(await this.integrations.rename(tenantId, id, dto.displayName ?? null));
   }
   @Post(':id/sync') async sync(@CurrentTenant() tenantId: string, @Param('id') id: string) {
     await this.integrations.triggerOrdersSync(tenantId, id); return ok({ scheduled: true });
