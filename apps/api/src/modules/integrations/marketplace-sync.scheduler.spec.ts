@@ -37,6 +37,12 @@ describe('MarketplaceSyncScheduler', () => {
     await expect(scheduler.nextRunAt('account-a')).resolves.toBeNull();
   });
 
+  it('nextRunAt resolves null when Redis hangs instead of rejecting', async () => {
+    const { queue, scheduler } = setup();
+    queue.getJobScheduler.mockReturnValue(new Promise(() => {})); // never settles (ioredis offline queue)
+    await expect(scheduler.nextRunAt('account-a')).resolves.toBeNull();
+  }, 2500);
+
   it('keeps the recurring interval at 15 minutes and never below 10', () => {
     expect(RECURRING_SYNC_INTERVAL_MS).toBe(15 * 60 * 1000);
     expect(RECURRING_SYNC_INTERVAL_MS).toBeGreaterThanOrEqual(10 * 60 * 1000);

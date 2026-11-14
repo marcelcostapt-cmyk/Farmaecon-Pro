@@ -129,6 +129,14 @@ describe('IntegrationsService.remove', () => {
     await expect(service.remove('b', 'acc-a')).rejects.toBeInstanceOf(NotFoundException);
     expect(db.rows.marketplaceAccount).toHaveLength(1);
   });
+
+  it('refuses and keeps the schedule when the row stops being DISCONNECTED before the delete', async () => {
+    const { db, service, scheduler } = setup([account({ status: 'DISCONNECTED' })]);
+    db.marketplaceAccount.deleteMany.mockResolvedValueOnce({ count: 0 }); // reconnect reactivated it mid-call
+    const error = await service.remove('a', 'acc-a').catch((e) => e);
+    expect(conflictCode(error).code).toBe('ACCOUNT_NOT_DISCONNECTED');
+    expect(scheduler.removeRecurring).not.toHaveBeenCalled();
+  });
 });
 
 describe('IntegrationsService.findAll', () => {

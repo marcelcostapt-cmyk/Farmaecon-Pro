@@ -114,8 +114,10 @@ export class IntegrationsService {
       findPendingAccountJobs(this.tokenQueue, accountId),
     ]);
     if (syncJobs.length + tokenJobs.length > 0) throw accountConflict('ACCOUNT_HAS_PENDING_JOBS');
+    // A reconnect may have re-activated the account between the checks and here; only delete while still disconnected.
+    const deleted = await this.prisma.marketplaceAccount.deleteMany({ where: { id: accountId, tenantId, status: 'DISCONNECTED' } });
+    if (deleted.count === 0) throw accountConflict('ACCOUNT_NOT_DISCONNECTED');
     await this.scheduler?.removeRecurring(accountId);
-    await this.prisma.marketplaceAccount.deleteMany({ where: { id: accountId, tenantId, status: 'DISCONNECTED' } });
   }
 
   async scheduleInitialSync(accountId: string, tenantId: string) {
