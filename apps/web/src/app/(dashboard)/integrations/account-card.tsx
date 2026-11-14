@@ -94,6 +94,7 @@ export default function AccountCard({ account, isAdmin }: { account: Account; is
   }
 
   function startEditing() {
+    skipBlurSave.current = false; // a previous Enter/Esc may have left it set; a fresh edit must save on blur
     setDraft(account.displayName ?? '');
     setEditing(true);
   }

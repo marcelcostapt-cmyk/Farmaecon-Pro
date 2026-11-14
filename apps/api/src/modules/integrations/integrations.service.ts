@@ -76,7 +76,7 @@ export class IntegrationsService {
     return this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
   }
 
-  async disconnect(tenantId: string, accountId: string) {
+  async disconnect(tenantId: string, accountId: string): Promise<void> {
     const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { id: true } });
     if (!account) throw new NotFoundException('Account not found');
     await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { status: 'DISCONNECTED', accessToken: null, refreshToken: null, expiresAt: null } });
@@ -94,7 +94,7 @@ export class IntegrationsService {
   }
 
   /** Starts OAuth bound to this account; the callback rejects any other seller. */
-  async startReconnect(actor: AuthPrincipal, accountId: string) {
+  async startReconnect(actor: AuthPrincipal, accountId: string): Promise<{ url: string }> {
     const account = await this.prisma.marketplaceAccount.findFirst({
       where: { id: accountId, tenantId: actor.tenantId }, select: { status: true, externalSellerId: true },
     });
@@ -104,7 +104,7 @@ export class IntegrationsService {
   }
 
   /** Hard delete, only for disconnected accounts with no order history and nothing queued. */
-  async remove(tenantId: string, accountId: string) {
+  async remove(tenantId: string, accountId: string): Promise<void> {
     const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { status: true } });
     if (!account) throw new NotFoundException('Account not found');
     if (account.status !== 'DISCONNECTED') throw accountConflict('ACCOUNT_NOT_DISCONNECTED');
