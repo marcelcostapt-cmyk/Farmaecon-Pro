@@ -93,6 +93,21 @@ export class IntegrationsService {
     return this.oauth.buildAuthorizationUrl(actor, accountId);
   }
 
+  /** Hard delete, only for disconnected accounts with no order history and nothing queued. */
+  async remove(tenantId: string, accountId: string) {
+    const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { status: true } });
+    if (!account) throw new NotFoundException('Account not found');
+    if (account.status !== 'DISCONNECTED') throw accountConflict('ACCOUNT_NOT_DISCONNECTED');
+    if (await this.prisma.order.count({ where: { tenantId, marketplaceAccountId: accountId } }) > 0) throw accountConflict('ACCOUNT_HAS_ORDERS');
+    const [syncJobs, tokenJobs] = await Promise.all([
+      findPendingAccountJobs(this.syncQueue, accountId),
+      findPendingAccountJobs(this.tokenQueue, accountId),
+    ]);
+    if (syncJobs.length + tokenJobs.length > 0) throw accountConflict('ACCOUNT_HAS_PENDING_JOBS');
+    await this.scheduler?.removeRecurring(accountId);
+    await this.prisma.marketplaceAccount.deleteMany({ where: { id: accountId, tenantId, status: 'DISCONNECTED' } });
+  }
+
   async scheduleInitialSync(accountId: string, tenantId: string) {
     await this.scheduleOrdersSync(accountId, tenantId, 'initial-sync');
   }

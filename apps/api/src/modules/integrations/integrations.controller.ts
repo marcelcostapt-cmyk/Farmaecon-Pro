@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Post, Patch, Param, Body } from '@nestjs/common';
+import { Controller, Get, UseGuards, Post, Patch, Delete, Param, Body } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { IntegrationsService } from './integrations.service';
@@ -33,6 +33,10 @@ export class IntegrationsController {
   @UseGuards(AdminGuard)
   @Post(':id/reconnect') async reconnect(@CurrentUser() actor: AuthPrincipal, @Param('id') id: string) {
     return ok(await this.integrations.startReconnect(actor, id));
+  }
+  @UseGuards(AdminGuard)
+  @Delete(':id') async remove(@CurrentTenant() tenantId: string, @Param('id') id: string) {
+    await this.integrations.remove(tenantId, id); return ok({ removed: true });
   }
   @Post(':id/sync') async sync(@CurrentTenant() tenantId: string, @Param('id') id: string) {
     await this.integrations.triggerOrdersSync(tenantId, id); return ok({ scheduled: true });

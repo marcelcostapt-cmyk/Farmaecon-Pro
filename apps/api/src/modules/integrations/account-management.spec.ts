@@ -1,6 +1,7 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { MemoryPrisma } from '../../../test/memory-prisma';
 import { IntegrationsService } from './integrations.service';
+import { AccountErrors } from './account-errors';
 
 function account(overrides: Record<string, unknown> = {}) {
   return {
@@ -81,5 +82,47 @@ describe('IntegrationsService.disconnect', () => {
     await expect(service.disconnect('b', 'acc-a')).rejects.toBeInstanceOf(NotFoundException);
     expect(db.rows.marketplaceAccount[0].status).toBe('ACTIVE');
     expect(scheduler.removeRecurring).not.toHaveBeenCalled();
+  });
+});
+
+describe('IntegrationsService.remove', () => {
+  const conflictCode = (error: unknown) => (error as ConflictException).getResponse() as { code: string; message: string };
+
+  it('deletes a disconnected account without orders or pending jobs', async () => {
+    const { db, service, scheduler } = setup([account({ status: 'DISCONNECTED', accessToken: null, refreshToken: null })]);
+    await service.remove('a', 'acc-a');
+    expect(db.rows.marketplaceAccount).toHaveLength(0);
+    expect(scheduler.removeRecurring).toHaveBeenCalledWith('acc-a');
+  });
+
+  it('refuses ACTIVE accounts', async () => {
+    const { db, service } = setup();
+    const error = await service.remove('a', 'acc-a').catch((e) => e);
+    expect(error).toBeInstanceOf(ConflictException);
+    expect(conflictCode(error).code).toBe('ACCOUNT_NOT_DISCONNECTED');
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+  });
+
+  it('refuses accounts with orders', async () => {
+    const { db, service } = setup([account({ status: 'DISCONNECTED' })]);
+    db.rows.order.push({ id: 'order-1', tenantId: 'a', marketplaceAccountId: 'acc-a' });
+    const error = await service.remove('a', 'acc-a').catch((e) => e);
+    expect(conflictCode(error)).toEqual({ code: 'ACCOUNT_HAS_ORDERS', message: AccountErrors.ACCOUNT_HAS_ORDERS });
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+    expect(db.rows.order).toHaveLength(1);
+  });
+
+  it.each(['sync', 'token'])('refuses accounts with pending jobs in the %s queue', async (which) => {
+    const { db, service, syncQueue, tokenQueue } = setup([account({ status: 'DISCONNECTED' })]);
+    (which === 'sync' ? syncQueue : tokenQueue).getJobs.mockResolvedValue([job('acc-a')]);
+    const error = await service.remove('a', 'acc-a').catch((e) => e);
+    expect(conflictCode(error).code).toBe('ACCOUNT_HAS_PENDING_JOBS');
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+  });
+
+  it('returns 404 for another tenant even if it would conflict', async () => {
+    const { db, service } = setup();
+    await expect(service.remove('b', 'acc-a')).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
   });
 });
