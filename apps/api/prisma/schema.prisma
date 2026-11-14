@@ -83,6 +83,7 @@ model MarketplaceAccount {
   status           MarketplaceAccountStatus @default(ACTIVE)
   externalSellerId String?                  @map("external_seller_id")
   name             String
+  displayName      String?                  @map("display_name")
   accessToken      String?                  @map("access_token")
   refreshToken     String?                  @map("refresh_token")
   expiresAt        DateTime?                @map("expires_at")
@@ -199,13 +200,14 @@ model AuthSession {
 }
 
 model OAuthState {
-  stateHash  String    @id @map("state_hash")
-  userId     String    @map("user_id")
-  tenantId   String    @map("tenant_id")
-  sessionId  String    @map("session_id")
-  verifier   String
-  expiresAt  DateTime  @map("expires_at")
-  consumedAt DateTime? @map("consumed_at")
+  stateHash         String    @id @map("state_hash")
+  userId            String    @map("user_id")
+  tenantId          String    @map("tenant_id")
+  sessionId         String    @map("session_id")
+  verifier          String
+  expiresAt         DateTime  @map("expires_at")
+  consumedAt        DateTime? @map("consumed_at")
+  expectedAccountId String?   @map("expected_account_id")
 
   @@index([expiresAt])
   @@map("oauth_states")
