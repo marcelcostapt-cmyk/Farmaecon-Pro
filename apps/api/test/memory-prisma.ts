@@ -1,7 +1,7 @@
 // In-memory test double; never wired into the application. HTTP/SQL smoke tests cover the real adapter separately.
 export class MemoryPrisma {
-  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], financialTransaction: [] };
-  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; financialTransaction: any;
+  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], orderItem: [], financialTransaction: [] };
+  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; orderItem: any; financialTransaction: any;
   constructor() {
     for (const model of Object.keys(this.rows)) (this as any)[model] = this.model(model);
   }

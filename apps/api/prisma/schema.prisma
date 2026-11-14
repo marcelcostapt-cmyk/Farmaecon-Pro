@@ -102,6 +102,7 @@ model MarketplaceAccount {
   @@unique([tenantId, platform, externalSellerId])
   @@index([tenantId, status])
   @@map("marketplace_accounts")
+  orderItems        OrderItem[]
 }
 
 model Product {
@@ -121,6 +122,7 @@ model Product {
   @@unique([tenantId, sku])
   @@index([tenantId, stockQuantity])
   @@map("products")
+  orderItems       OrderItem[]
 }
 
 model Order {
@@ -132,10 +134,17 @@ model Order {
   status               OrderStatus
   createdAt            DateTime    @default(now()) @map("created_at")
   updatedAt            DateTime    @updatedAt @map("updated_at")
+  paidAmount           Decimal?    @map("paid_amount")
+  mlDateCreated        DateTime?   @map("ml_date_created")
+  mlDateClosed         DateTime?   @map("ml_date_closed")
+  packId               String?     @map("pack_id")
+  statusDetail         String?     @map("status_detail")
+  mlPaymentsRaw        Json?       @map("ml_payments_raw")
 
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   marketplaceAccount    MarketplaceAccount     @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
   financialTransactions FinancialTransaction[]
+  items                 OrderItem[]
 
   @@unique([tenantId, marketplaceAccountId, externalOrderId])
   @@index([tenantId, status, createdAt])
@@ -211,4 +220,36 @@ model OAuthState {
 
   @@index([expiresAt])
   @@map("oauth_states")
+}
+
+model OrderItem {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  marketplaceAccountId String   @map("marketplace_account_id")
+  orderId              String   @map("order_id")
+  mlItemId             String?  @map("ml_item_id")
+  mlElementId          String   @map("ml_element_id")
+  sellerSkuRaw         String?  @map("seller_sku_raw")
+  title                String?
+  categoryId           String?  @map("category_id")
+  variationId          String?  @map("variation_id")
+  variationAttributes  Json?    @map("variation_attributes")
+  quantity             Int
+  unitPrice            Decimal  @map("unit_price")
+  grossPrice           Decimal? @map("gross_price")
+  saleFee              Decimal? @map("sale_fee")
+  listingTypeId        String?  @map("listing_type_id")
+  currencyId           String?  @map("currency_id")
+  productId            String?  @map("product_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  order              Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+  product            Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, orderId, mlElementId])
+  @@index([tenantId, marketplaceAccountId])
+  @@index([tenantId, productId])
+  @@map("order_items")
 }
