@@ -1,4 +1,4 @@
-import { proxyToApi } from '../proxy';
+import { proxyToApi } from '../api-bridge';
 
 type Context = { params: Promise<{ id: string }> };
 
