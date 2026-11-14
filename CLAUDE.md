@@ -71,6 +71,12 @@ Nota: `up api` corre antes o serviço `migrate` (mesma imagem da API).
 - Web: componentes cliente → route handlers JSON (`apps/web/src/app/api/integrations/api-bridge.ts`); sem Server Actions novas.
   A web é Next 16 / React 19 (params de route handlers são Promise; `proxy.ts` na raiz é o middleware — não usar esse nome noutros sítios).
 - Migration `20261114_integrations_account_management` (aditiva: display_name, expected_account_id).
+- Revisão final: subagente Opus → 2 importantes corrigidos (timeout no nextRunAt; remove verifica deleteMany.count). 6 menores adiados no ledger.
+- VALIDADO NO ENSAIO (2026-11-14 ~20:37 UTC) com farmaecon-api/web:integrations-a63fd93-20261114: migration aplicada (10/10),
+  endpoints exercitados contra Postgres real com RLS — ml/config=SIMULATED_SOURCE, listagem só do próprio tenant (+displayName/nextSyncAt),
+  rename (trim/null), disconnect (tokens null + DISCONNECTED), delete 409 (NOT_DISCONNECTED/HAS_ORDERS), cross-tenant 404, OPERATOR 403.
+  Dados de teste limpos; ensaio de volta à base vazia, agora a correr a imagem do branch. OAuth real não testável (MOCK).
+  Backup pré-validação: /opt/farmaecon/backups/pre-rehearsal-integrations-20261114-203158/
 
 ## Pendências / próximos passos
 - Monitorizar nas próximas horas: jobs falhados em bull:marketplace-sync, acumulação na fila, erros ML/tokens
