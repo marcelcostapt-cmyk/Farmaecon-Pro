@@ -1,9 +1,15 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { proxyToApi } from '../../proxy';
 
 const API_URL = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 
-export async function POST(request: Request) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // fetch() from the account card gets JSON; the legacy <form> post keeps its redirect.
+  if (request.headers.get('accept')?.includes('application/json')) {
+    const { id } = await params;
+    return proxyToApi(request, 'POST', `/integrations/${encodeURIComponent(id)}/sync`);
+  }
   const cookieStore = await cookies();
   const token = cookieStore.get('access_token')?.value;
   const baseUrl = new URL(request.url);
