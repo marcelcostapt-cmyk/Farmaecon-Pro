@@ -77,6 +77,11 @@ Nota: `up api` corre antes o serviço `migrate` (mesma imagem da API).
   rename (trim/null), disconnect (tokens null + DISCONNECTED), delete 409 (NOT_DISCONNECTED/HAS_ORDERS), cross-tenant 404, OPERATOR 403.
   Dados de teste limpos; ensaio de volta à base vazia, agora a correr a imagem do branch. OAuth real não testável (MOCK).
   Backup pré-validação: /opt/farmaecon/backups/pre-rehearsal-integrations-20261114-203158/
+- Revisão TypeScript (estilo Pocock) aplicada: 0 `any`/casts forçados no diff; corrigido bug de edição (Enter) + retornos explícitos.
+  DECISÕES DE DESIGN (recusadas de propósito, não reabrir sem motivo): mantém class-validator (não Zod — evita dep nova);
+  state OAuth continua opaco + lookup na BD (NÃO decodificar tenantId/accountId do state — seria regressão de segurança);
+  erros via ConflictException/NotFoundException (sem filtro global); display_name é TEXT + check de 60 code points (não varchar);
+  DELETE devolve 200 {removed:true} (envelope `ok()` consistente, não 204); AccountCard é self-contained (page é Server Component).
 
 ## Pendências / próximos passos
 - Monitorizar nas próximas horas: jobs falhados em bull:marketplace-sync, acumulação na fila, erros ML/tokens
