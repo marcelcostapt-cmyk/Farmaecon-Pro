@@ -7,6 +7,9 @@ import { QUEUE_MARKETPLACE_SYNC, QUEUE_TOKEN_REFRESH } from '../../shared/queue/
 import { findPendingAccountJobs } from './account-jobs';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
 import { MarketplaceSyncScheduler } from './marketplace-sync.scheduler';
+import { MlOAuthService } from './ml-oauth.service';
+import { accountConflict } from './account-errors';
+import type { AuthPrincipal } from '../auth/auth.service';
 
 export const DISPLAY_NAME_MAX = 60;
 
@@ -19,6 +22,7 @@ export class IntegrationsService {
     @InjectQueue(QUEUE_MARKETPLACE_SYNC) private readonly syncQueue: Queue,
     @InjectQueue(QUEUE_TOKEN_REFRESH) private readonly tokenQueue: Queue,
     private readonly ordersSync: MlOrdersSyncService,
+    private readonly oauth: MlOAuthService,
     @Optional() private readonly scheduler?: MarketplaceSyncScheduler,
   ) {}
 
@@ -77,6 +81,16 @@ export class IntegrationsService {
     } catch {
       this.logger.warn(`Could not remove pending token refresh jobs for account ${accountId}`);
     }
+  }
+
+  /** Starts OAuth bound to this account; the callback rejects any other seller. */
+  async startReconnect(actor: AuthPrincipal, accountId: string) {
+    const account = await this.prisma.marketplaceAccount.findFirst({
+      where: { id: accountId, tenantId: actor.tenantId }, select: { status: true, externalSellerId: true },
+    });
+    if (!account) throw new NotFoundException('Account not found');
+    if (account.status !== 'DISCONNECTED' || !account.externalSellerId) throw accountConflict('RECONNECT_NOT_ALLOWED');
+    return this.oauth.buildAuthorizationUrl(actor, accountId);
   }
 
   async scheduleInitialSync(accountId: string, tenantId: string) {

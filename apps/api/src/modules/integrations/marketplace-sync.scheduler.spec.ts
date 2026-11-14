@@ -157,7 +157,7 @@ describe('IntegrationsService.disconnect', () => {
     const prisma = { marketplaceAccount: { findFirst: jest.fn().mockResolvedValue({ id: 'account-a' }), updateMany: jest.fn() } };
     const scheduler = { removeRecurring: jest.fn() };
     const tokenQueue = { getJobs: jest.fn().mockResolvedValue([]) };
-    const service = new IntegrationsService(prisma as never, {} as never, tokenQueue as never, {} as never, scheduler as never);
+    const service = new IntegrationsService(prisma as never, {} as never, tokenQueue as never, {} as never, {} as never, scheduler as never);
     await service.disconnect('tenant-a', 'account-a');
     expect(scheduler.removeRecurring).toHaveBeenCalledWith('account-a');
   });

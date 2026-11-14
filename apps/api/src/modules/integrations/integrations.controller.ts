@@ -20,7 +20,7 @@ export class IntegrationsController {
   @Post('ml/callback') async callback(@CurrentUser() actor: AuthPrincipal, @Body() dto: CallbackDto) {
     const result = await this.oauth.exchangeCode(dto.code, dto.state, actor);
     await this.integrations.scheduleInitialSync(result.accountId, actor.tenantId);
-    return ok({ connected: true });
+    return ok({ connected: true, reconnected: result.reconnected });
   }
   @UseGuards(AdminGuard)
   @Post(':id/disconnect') async disconnect(@CurrentTenant() tenantId: string, @Param('id') id: string) {
@@ -29,6 +29,10 @@ export class IntegrationsController {
   @UseGuards(AdminGuard)
   @Patch(':id') async rename(@CurrentTenant() tenantId: string, @Param('id') id: string, @Body() dto: RenameAccountDto) {
     return ok(await this.integrations.rename(tenantId, id, dto.displayName ?? null));
+  }
+  @UseGuards(AdminGuard)
+  @Post(':id/reconnect') async reconnect(@CurrentUser() actor: AuthPrincipal, @Param('id') id: string) {
+    return ok(await this.integrations.startReconnect(actor, id));
   }
   @Post(':id/sync') async sync(@CurrentTenant() tenantId: string, @Param('id') id: string) {
     await this.integrations.triggerOrdersSync(tenantId, id); return ok({ scheduled: true });

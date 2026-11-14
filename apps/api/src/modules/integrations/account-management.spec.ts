@@ -17,7 +17,7 @@ function setup(rows: Record<string, unknown>[] = [account()]) {
   const tokenQueue = { getJobs: jest.fn().mockResolvedValue([]) };
   const ordersSync = { syncRecentOrders: jest.fn() };
   const scheduler = { removeRecurring: jest.fn(), ensureRecurring: jest.fn(), nextRunAt: jest.fn().mockResolvedValue(null) };
-  const service = new IntegrationsService(db as never, syncQueue as never, tokenQueue as never, ordersSync as never, scheduler as never);
+  const service = new IntegrationsService(db as never, syncQueue as never, tokenQueue as never, ordersSync as never, {} as never, scheduler as never);
   return { db, service, syncQueue, tokenQueue, scheduler };
 }
 
