@@ -1,10 +1,11 @@
 import { publicAccountSelect } from '../../shared/security/public-selects';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
+import { MarketplaceSyncScheduler } from './marketplace-sync.scheduler';
 
 @Injectable()
 export class IntegrationsService {
@@ -14,6 +15,7 @@ export class IntegrationsService {
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_MARKETPLACE_SYNC) private readonly syncQueue: Queue,
     private readonly ordersSync: MlOrdersSyncService,
+    @Optional() private readonly scheduler?: MarketplaceSyncScheduler,
   ) {}
 
   async findAll(tenantId: string) {
@@ -51,6 +53,7 @@ export class IntegrationsService {
       where: { id: accountId, tenantId },
     });
     await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { status: 'DISCONNECTED', accessToken: null, refreshToken: null, expiresAt: null } });
+    await this.scheduler?.removeRecurring(accountId);
   }
 
   async scheduleInitialSync(accountId: string, tenantId: string) {
