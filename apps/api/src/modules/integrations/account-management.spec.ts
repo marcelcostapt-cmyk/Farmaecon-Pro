@@ -1,6 +1,10 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { MemoryPrisma } from '../../../test/memory-prisma';
+import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
 import { IntegrationsService } from './integrations.service';
+import { MlOAuthService } from './ml-oauth.service';
+import { TokenVault } from '../../shared/security/token-vault.service';
 import { AccountErrors } from './account-errors';
 
 function account(overrides: Record<string, unknown> = {}) {
@@ -141,5 +145,43 @@ describe('IntegrationsService.findAll', () => {
     scheduler.nextRunAt.mockRejectedValue(new Error('redis down'));
     const [row] = await service.findAll('a');
     expect(row.nextSyncAt).toBeNull();
+  });
+});
+
+describe('disconnect → reconnect flow', () => {
+  it('disconnect, reconnect with wrong seller is rejected, then the right seller restores the same account', async () => {
+    const actor = { sub: 'user-a', tenantId: 'a', role: 'ADMIN', sid: 'session-a', email: 'a@test.local' };
+    const config = new ConfigService({
+      MARKETPLACE_SOURCE: 'MERCADO_LIVRE', ML_PKCE_ENABLED: 'true', ML_APP_ID: 'test-only', ML_SECRET_KEY: 's'.repeat(64),
+      ML_REDIRECT_URI: 'http://localhost:3000/auth/callback', TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+    });
+    const vault = new TokenVault(config);
+    const tokens = (userId: number) => ({ ok: true, json: async () => ({ access_token: `access-${userId}`, refresh_token: `refresh-${userId}`, user_id: userId, expires_in: 3600 }) });
+    const http = { request: jest.fn() };
+    const db = new MemoryPrisma();
+    db.rows.marketplaceAccount.push(account({ externalSellerId: '123', name: 'ML #123', displayName: 'Farmashop', source: 'MERCADO_LIVRE' }));
+    const oauth = new MlOAuthService(config, db as never, { add: jest.fn() } as never, vault, http as never);
+    const scheduler = { removeRecurring: jest.fn(), nextRunAt: jest.fn() };
+    const service = new IntegrationsService(db as never, { getJobs: jest.fn().mockResolvedValue([]) } as never,
+      { getJobs: jest.fn().mockResolvedValue([]) } as never, {} as never, oauth, scheduler as never);
+    const stateOf = (url: string) => new URL(url).searchParams.get('state')!;
+
+    await service.disconnect('a', 'acc-a');
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({ status: 'DISCONNECTED', accessToken: null, refreshToken: null });
+
+    http.request.mockResolvedValueOnce(tokens(999));
+    const wrong = await service.startReconnect(actor, 'acc-a');
+    const error = await oauth.exchangeCode('code', stateOf(wrong.url), actor).catch((e) => e);
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SELLER_MISMATCH' });
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({ status: 'DISCONNECTED', accessToken: null });
+
+    http.request.mockResolvedValueOnce(tokens(123));
+    const right = await service.startReconnect(actor, 'acc-a');
+    await expect(oauth.exchangeCode('code', stateOf(right.url), actor)).resolves.toEqual({ accountId: 'acc-a', reconnected: true });
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+    const restored = db.rows.marketplaceAccount[0];
+    expect(restored).toMatchObject({ id: 'acc-a', status: 'ACTIVE', displayName: 'Farmashop' });
+    expect(vault.decrypt(restored.accessToken, 'a:123')).toBe('access-123');
   });
 });
