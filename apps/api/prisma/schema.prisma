@@ -253,3 +253,128 @@ model OrderItem {
   @@index([tenantId, productId])
   @@map("order_items")
 }
+
+enum PurchaseDocumentSource {
+  XML
+  PDF
+  EXCEL
+}
+
+enum CostLifecycle {
+  EXTRACTED
+  PENDING_REVIEW
+  APPROVED
+  ARCHIVED
+  REJECTED
+}
+
+enum AllocationRuleType {
+  ZERO_BONUS
+  PROPORTIONAL_SPREAD
+  INCLUDE_EXPENSES
+  MANUAL
+}
+
+model PurchaseInvoice {
+  id                      String                 @id @default(uuid())
+  tenantId                String                 @map("tenant_id")
+  marketplaceAccountId    String?                @map("marketplace_account_id")
+  source                  PurchaseDocumentSource
+  originalFilename        String                 @map("original_filename")
+  fileHashSha256          String                 @map("file_hash_sha256")
+  invoiceNumber           String?                @map("invoice_number")
+  invoiceSeries           String?                @map("invoice_series")
+  invoiceKey              String?                @map("invoice_key")
+  issuerCnpj              String?                @map("issuer_cnpj")
+  recipientCnpj           String?                @map("recipient_cnpj")
+  issuedAt                DateTime?              @map("issued_at")
+  productsTotal           Decimal?               @map("products_total")
+  otherExpenses           Decimal?               @map("other_expenses")
+  documentTotal           Decimal?               @map("document_total")
+  paymentAmountInDocument Decimal?               @map("payment_amount_in_document")
+  status                  CostLifecycle          @default(EXTRACTED)
+  extractionWarnings      Json?                  @map("extraction_warnings")
+  createdBy               String?                @map("created_by")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
+
+  items           PurchaseInvoiceItem[]
+  allocationRules CostAllocationRule[]
+
+  @@unique([tenantId, fileHashSha256])
+  @@index([tenantId, status])
+  @@map("purchase_invoices")
+}
+
+model CostAllocationRule {
+  id                String             @id @default(uuid())
+  tenantId          String             @map("tenant_id")
+  purchaseInvoiceId String             @map("purchase_invoice_id")
+  ruleType          AllocationRuleType @map("rule_type")
+  parameters        Json?
+  approvedBy        String?            @map("approved_by")
+  approvedAt        DateTime?          @map("approved_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  purchaseInvoice PurchaseInvoice       @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  items           PurchaseInvoiceItem[]
+  productCosts    ProductCost[]
+
+  @@index([tenantId, purchaseInvoiceId])
+  @@map("cost_allocation_rules")
+}
+
+model PurchaseInvoiceItem {
+  id                  String    @id @default(uuid())
+  tenantId            String    @map("tenant_id")
+  purchaseInvoiceId   String    @map("purchase_invoice_id")
+  lineNumber          String    @map("line_number")
+  sourceRef           String    @map("source_ref")
+  supplierProductCode String?   @map("supplier_product_code")
+  ean                 String?
+  marketplaceSku      String?   @map("marketplace_sku")
+  description         String?
+  quantity            Decimal?
+  unitCostExtracted   Decimal?  @map("unit_cost_extracted")
+  unitCostApproved    Decimal?  @map("unit_cost_approved")
+  totalLine           Decimal?  @map("total_line")
+  cfop                String?
+  lotNumber           String?   @map("lot_number")
+  allocationRuleId    String?   @map("allocation_rule_id")
+  warnings            Json?
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  purchaseInvoice PurchaseInvoice     @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  allocationRule  CostAllocationRule? @relation(fields: [allocationRuleId], references: [id], onDelete: SetNull)
+  productCosts    ProductCost[]
+
+  @@unique([tenantId, purchaseInvoiceId, lineNumber])
+  @@index([tenantId, ean])
+  @@map("purchase_invoice_items")
+}
+
+model ProductCost {
+  id                   String        @id @default(uuid())
+  tenantId             String        @map("tenant_id")
+  marketplaceAccountId String?       @map("marketplace_account_id")
+  ean                  String?
+  sku                  String?
+  supplierCode         String?       @map("supplier_code")
+  description          String?
+  unitCost             Decimal       @map("unit_cost")
+  isEstimate           Boolean       @default(false) @map("is_estimate")
+  sourceInvoiceItemId  String?       @map("source_invoice_item_id")
+  costAllocationRuleId String?       @map("cost_allocation_rule_id")
+  validFrom            DateTime      @map("valid_from")
+  validUntil           DateTime?     @map("valid_until")
+  status               CostLifecycle @default(EXTRACTED)
+  createdBy            String?       @map("created_by")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  sourceInvoiceItem PurchaseInvoiceItem? @relation(fields: [sourceInvoiceItemId], references: [id], onDelete: SetNull)
+  allocationRule    CostAllocationRule?  @relation(fields: [costAllocationRuleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, marketplaceAccountId, ean, validFrom])
+  @@map("product_costs")
+}
