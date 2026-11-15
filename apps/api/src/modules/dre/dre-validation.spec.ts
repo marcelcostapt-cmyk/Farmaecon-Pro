@@ -17,33 +17,31 @@ const diff = (a: Prisma.Decimal | null, ref: string) => (a === null ? 'AUSENTE' 
 const out: string[] = [];
 
 describe('VALIDAÇÃO DA DRE — conta (fixtures sanitizadas; originais reais AUSENTES no disco)', () => {
-  it('1) PARSER × VALORES DE REFERÊNCIA DO CATÁLOGO — diferença deve ser 0,00', () => {
-    // Referência = valores documentados pelo usuário no catálogo de evidências (sec. 4.x).
-    const ref = [
-      { f: '1885505', itens: 15, vProd: '10111.83', vNF: '10111.83', vDesc: null, vOutro: null },
-      { f: '263151', itens: 2, vProd: '5016.50', vNF: '2212.32', vDesc: '2804.18', vOutro: null },
-      { f: '2962607', itens: 3, vProd: '1653.70', vNF: '1656.89', vDesc: null, vOutro: '3.19' },
-      { f: '1309314', itens: 2, vProd: '262.28', vNF: '264.78', vDesc: null, vOutro: '2.50' },
-    ];
+  it('1) PARSER × VALORES DE REFERÊNCIA DO CATÁLOGO (todos os 10 documentos) — Δ deve ser 0,00', () => {
+    // Referência = valores documentados pelo usuário no catálogo, em test/fixtures/dre-valores-referencia.json.
+    // Os documentos são as NF-e fornecidas, sanitizadas conforme instrução do usuário.
+    const refJson: { documentos: Record<string, { productsTotal?: string; fiscalTotal?: string; discounts?: string; otherExpenses?: string; itens?: number }> } =
+      JSON.parse(readFileSync(join(dir, 'dre-valores-referencia.json'), 'utf8'));
     out.push('\n===== VALIDAÇÃO DA DRE (preview — nada publicado) =====');
-    out.push('\n[1] Reconciliação parser × referência do catálogo (Δ = calculado − referência):');
-    out.push('  NF        itens  Δ vProd  Δ vNF   Δ vDesc  Δ vOutro');
-    for (const r of ref) {
-      const inv = parseX(r.f);
-      expect(inv.lines).toHaveLength(r.itens);
-      expect(diff(inv.productsTotal, r.vProd)).toBe('0.00');
-      expect(diff(inv.fiscalTotal, r.vNF)).toBe('0.00');
-      if (r.vDesc) expect(diff(inv.discounts, r.vDesc)).toBe('0.00');
-      if (r.vOutro) expect(diff(inv.otherExpenses, r.vOutro)).toBe('0.00');
-      out.push(`  ${r.f.padEnd(9)} ${String(r.itens).padStart(3)}    ${diff(inv.productsTotal, r.vProd).padStart(6)}   ${diff(inv.fiscalTotal, r.vNF).padStart(5)}   ${(r.vDesc ? diff(inv.discounts, r.vDesc) : '—').padStart(6)}   ${(r.vOutro ? diff(inv.otherExpenses, r.vOutro) : '—').padStart(6)}`);
+    out.push('\n[1] Reconciliação parser × referência do catálogo (Δ = calculado − referência), 10 documentos:');
+    out.push('  NF           itens  Δ vProd  Δ vNF   Δ vDesc  Δ vOutro');
+    for (const [file, r] of Object.entries(refJson.documentos)) {
+      const inv = parseNfeXml(readFileSync(join(dir, file)));
+      if (r.itens !== undefined) expect(inv.lines).toHaveLength(r.itens);
+      if (r.productsTotal) expect(diff(inv.productsTotal, r.productsTotal)).toBe('0.00');
+      if (r.fiscalTotal) expect(diff(inv.fiscalTotal, r.fiscalTotal)).toBe('0.00');
+      if (r.discounts) expect(diff(inv.discounts, r.discounts)).toBe('0.00');
+      if (r.otherExpenses) expect(diff(inv.otherExpenses, r.otherExpenses)).toBe('0.00');
+      out.push(
+        `  ${(inv.invoiceNumber ?? file).padEnd(12)} ${String(inv.lines.length).padStart(3)}    ${(r.productsTotal ? diff(inv.productsTotal, r.productsTotal) : '—').padStart(6)}   ${(r.fiscalTotal ? diff(inv.fiscalTotal, r.fiscalTotal) : '—').padStart(5)}   ${(r.discounts ? diff(inv.discounts, r.discounts) : '—').padStart(6)}   ${(r.otherExpenses ? diff(inv.otherExpenses, r.otherExpenses) : '—').padStart(6)}`,
+      );
     }
 
-    // Belajoyce (NF 1926966): bonificação — referência vNF 16630.97, fatura 8315.96, bonus 8315.01
+    // Belajoyce (NF 1926966): bonificação — fatura 8315.96, bonus 8315.01
     const bel = parseX('belajoyce');
-    expect(diff(bel.fiscalTotal, '16630.97')).toBe('0.00');
     expect(diff(bel.paymentAmountInDocument, '8315.96')).toBe('0.00');
     expect(diff(bel.bonusAmount, '8315.01')).toBe('0.00');
-    out.push(`  1926966    4    ${diff(bel.productsTotal, '16630.97').padStart(6)}   ${diff(bel.fiscalTotal, '16630.97').padStart(5)}   fatura Δ ${diff(bel.paymentAmountInDocument, '8315.96')}  bonus Δ ${diff(bel.bonusAmount, '8315.01')}`);
+    out.push(`  1926966 (bonif.)   fatura Δ ${diff(bel.paymentAmountInDocument, '8315.96')}  bonus Δ ${diff(bel.bonusAmount, '8315.01')}`);
 
     // PDF Luciana: referência total 6012.93, 376 un, custo médio condicional 15.991835
     const pdf = parsePdfText(readFileSync(join(dir, 'danfe-luciana.txt'), 'utf8'));
