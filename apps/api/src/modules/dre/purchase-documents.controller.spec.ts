@@ -37,6 +37,20 @@ describe('PurchaseDocumentsController.preview — prévia sem persistência', ()
     expect(res.data.totals.withEan).toBe(4);
   });
 
+  it('expõe bonificação na prévia (hasBonus, paidAmount/bonusAmount, bonusCalculations) sem gravar', async () => {
+    const res = await controller.preview(file({ originalname: 'NFe_Belajoyce.xml', buffer: xmlBuf, size: xmlBuf.length }));
+    expect(res.data.hasBonus).toBe(true);
+    expect(res.data.fiscalTotal).toBe('16630.97');
+    expect(res.data.paidAmount).toBe('8315.96');
+    expect(res.data.bonusAmount).toBe('8315.01');
+    expect(res.data.totals.bonusLines).toBe(1);
+    const g = res.data.bonusCalculations.find((c) => c.ean === '7897947607996');
+    expect(g).toBeDefined();
+    expect(g!.status).toBe('estimado / pendente de aprovação');
+    expect(g!.candidates).toHaveLength(3);
+    expect(res.data.extractionWarnings.some((w) => /difere do total da NF-e/i.test(w))).toBe(true);
+  });
+
   it('transforma erro de parsing em 400, não 500', async () => {
     await expect(
       controller.preview(file({ originalname: 'nf.xml', buffer: Buffer.from('<nao-e-nfe/>'), size: 11 })),

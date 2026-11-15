@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { parseNfeXml } from './nfe-xml-parser';
 import { parsePdfText, extrairTextoPdf } from './nfe-pdf-parser';
 import { parseCostsSpreadsheet } from './excel-cost-parser';
+import { computeBonusCalculations, type BonusCalculation } from './bonus-calc';
 
 export type DocumentSource = 'xml' | 'pdf' | 'xlsx';
 
@@ -13,11 +14,17 @@ export interface UnifiedInvoiceLine {
   ean: string | null;
   marketplaceSku: string | null;
   description: string | null;
+  ncm: string | null;
+  unit: string | null;
   quantity: Prisma.Decimal | null;
   unitCostExtracted: Prisma.Decimal | null;
+  unitCostPaid: Prisma.Decimal | null;
   totalLine: Prisma.Decimal | null;
+  discount: Prisma.Decimal | null;
+  otherExpense: Prisma.Decimal | null;
   cfop: string | null;
   lotNumber: string | null;
+  isBonus: boolean;
   approvedAcquisitionCost: null; // sempre nulo na extração; só após regra aprovada
   warnings: string[];
 }
@@ -34,8 +41,14 @@ export interface UnifiedInvoice {
   issuedAt: Date | null;
   productsTotal: Prisma.Decimal | null;
   otherExpenses: Prisma.Decimal | null;
+  discounts: Prisma.Decimal | null;
   documentTotal: Prisma.Decimal | null;
+  fiscalTotal: Prisma.Decimal | null;
   paymentAmountInDocument: Prisma.Decimal | null;
+  hasBonus: boolean;
+  bonusAmount: Prisma.Decimal | null;
+  paidAmount: Prisma.Decimal | null;
+  bonusCalculations: BonusCalculation[];
   lines: UnifiedInvoiceLine[];
   warnings: string[];
 }
@@ -62,15 +75,19 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
     return {
       ...base, invoiceNumber: nf.invoiceNumber, invoiceSeries: nf.invoiceSeries, invoiceKey: nf.invoiceKey,
       issuerCnpj: nf.issuerCnpj, recipientCnpj: nf.recipientCnpj, issuedAt: nf.issuedAt,
-      productsTotal: nf.productsTotal, otherExpenses: null, documentTotal: null, paymentAmountInDocument: nf.paymentAmountInDocument,
+      productsTotal: nf.productsTotal, otherExpenses: nf.otherExpenses, discounts: nf.discounts,
+      documentTotal: nf.fiscalTotal, fiscalTotal: nf.fiscalTotal, paymentAmountInDocument: nf.paymentAmountInDocument,
+      hasBonus: nf.hasBonus, bonusAmount: nf.bonusAmount, paidAmount: nf.paidAmount,
+      bonusCalculations: computeBonusCalculations(nf),
       warnings: nf.warnings,
       lines: nf.lines.map((l) => ({
         lineNumber: l.lineNumber, sourceRef: `det[${l.lineNumber}]`,
         supplierProductCode: l.supplierProductCode, ean: l.ean, marketplaceSku: null, description: l.description,
-        quantity: l.quantity, unitCostExtracted: l.unitCostExtracted,
-        totalLine: l.totalLine ?? l.productsValue, cfop: l.cfop,
+        ncm: l.ncm, unit: l.unit,
+        quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, unitCostPaid: l.unitCostPaid,
+        totalLine: l.totalLine ?? l.productsValue, discount: l.discount, otherExpense: l.otherExpense, cfop: l.cfop,
         lotNumber: l.lots.length === 1 ? l.lots[0].lot : l.lots.length ? l.lots.map((x) => x.lot).join('+') : null,
-        approvedAcquisitionCost: null,
+        isBonus: l.isBonus, approvedAcquisitionCost: null,
         warnings: l.lots.length > 1 ? [...l.warnings, `Linha com ${l.lots.length} lotes`] : l.warnings,
       })),
     };
@@ -81,13 +98,17 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
     return {
       ...base, invoiceNumber: nf.invoiceNumber, invoiceSeries: nf.invoiceSeries, invoiceKey: nf.invoiceKey,
       issuerCnpj: null, recipientCnpj: null, issuedAt: nf.issuedAt,
-      productsTotal: nf.productsTotal, otherExpenses: nf.otherExpenses, documentTotal: nf.documentTotal, paymentAmountInDocument: null,
+      productsTotal: nf.productsTotal, otherExpenses: nf.otherExpenses, discounts: null,
+      documentTotal: nf.documentTotal, fiscalTotal: nf.documentTotal, paymentAmountInDocument: null,
+      hasBonus: false, bonusAmount: null, paidAmount: null, bonusCalculations: [],
       warnings: nf.warnings,
       lines: nf.lines.map((l) => ({
         lineNumber: l.lineNumber, sourceRef: `linha ${l.lineNumber}`,
         supplierProductCode: l.supplierProductCode, ean: l.ean, marketplaceSku: l.marketplaceSku, description: l.description,
-        quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, totalLine: l.totalLine, cfop: null, lotNumber: l.lot,
-        approvedAcquisitionCost: null, warnings: l.warnings,
+        ncm: null, unit: null,
+        quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, unitCostPaid: l.unitCostExtracted,
+        totalLine: l.totalLine, discount: null, otherExpense: null, cfop: null, lotNumber: l.lot,
+        isBonus: false, approvedAcquisitionCost: null, warnings: l.warnings,
       })),
     };
   }
@@ -99,13 +120,16 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
   return {
     ...base, invoiceNumber: null, invoiceSeries: null, invoiceKey: null,
     issuerCnpj: null, recipientCnpj: null, issuedAt: null,
-    productsTotal: null, otherExpenses: null, documentTotal: null, paymentAmountInDocument: null,
+    productsTotal: null, otherExpenses: null, discounts: null, documentTotal: null, fiscalTotal: null, paymentAmountInDocument: null,
+    hasBonus: false, bonusAmount: null, paidAmount: null, bonusCalculations: [],
     warnings,
     lines: planilha.costRows.map((r, i) => ({
       lineNumber: String(i + 1), sourceRef: `${r.sheet}!${r.sourceCell}`,
       supplierProductCode: null, ean: r.ean, marketplaceSku: null, description: r.description,
-      quantity: null, unitCostExtracted: r.unitCost, totalLine: null, cfop: null, lotNumber: null,
-      approvedAcquisitionCost: null, warnings: r.warnings,
+      ncm: null, unit: null,
+      quantity: null, unitCostExtracted: r.unitCost, unitCostPaid: null, totalLine: null,
+      discount: null, otherExpense: null, cfop: null, lotNumber: null,
+      isBonus: false, approvedAcquisitionCost: null, warnings: r.warnings,
     })),
   };
 }

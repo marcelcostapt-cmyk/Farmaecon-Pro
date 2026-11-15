@@ -11,6 +11,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Prisma } from '@prisma/client';
 import { ok } from '../../shared/types/api-response.type';
 import { parseDocument, type UnifiedInvoice } from '../costs/document-parser';
+import type { BonusCalculation } from '../costs/bonus-calc';
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ACCEPTED = /\.(xml|pdf|xlsx|xls)$/i;
@@ -25,6 +26,27 @@ export interface UploadedDocument {
 
 const dec = (value: Prisma.Decimal | null): string | null => (value === null ? null : value.toString());
 
+function toBonusCalc(c: BonusCalculation) {
+  return {
+    ean: c.ean,
+    supplierCode: c.supplierCode,
+    sourceRefs: c.sourceRefs,
+    paidQuantity: c.paidQuantity.toString(),
+    bonusQuantity: c.bonusQuantity.toString(),
+    totalUnits: c.totalUnits.toString(),
+    totalPaid: c.totalPaid.toString(),
+    totalBonus: c.totalBonus.toString(),
+    approvedOtherExpenses: c.approvedOtherExpenses.toString(),
+    status: c.status,
+    candidates: c.candidates.map((k) => ({
+      rule: k.rule,
+      description: k.description,
+      formula: k.formula,
+      unitCost: dec(k.unitCost),
+    })),
+  };
+}
+
 function toPreview(doc: UnifiedInvoice) {
   const lines = doc.lines.map((l) => ({
     lineNumber: l.lineNumber,
@@ -33,11 +55,17 @@ function toPreview(doc: UnifiedInvoice) {
     ean: l.ean,
     marketplaceSku: l.marketplaceSku,
     description: l.description,
+    ncm: l.ncm,
+    unit: l.unit,
     quantity: dec(l.quantity),
     unitCostExtracted: dec(l.unitCostExtracted),
+    unitCostPaid: dec(l.unitCostPaid),
     totalLine: dec(l.totalLine),
+    discount: dec(l.discount),
+    otherExpense: dec(l.otherExpense),
     cfop: l.cfop,
     lotNumber: l.lotNumber,
+    isBonus: l.isBonus,
     approvedAcquisitionCost: null as null,
     warnings: l.warnings,
   }));
@@ -53,13 +81,21 @@ function toPreview(doc: UnifiedInvoice) {
     issuedAt: doc.issuedAt ? doc.issuedAt.toISOString() : null,
     productsTotal: dec(doc.productsTotal),
     otherExpenses: dec(doc.otherExpenses),
+    discounts: dec(doc.discounts),
     documentTotal: dec(doc.documentTotal),
+    fiscalTotal: dec(doc.fiscalTotal),
     paymentAmountInDocument: dec(doc.paymentAmountInDocument),
+    paidAmount: dec(doc.paidAmount),
+    bonusAmount: dec(doc.bonusAmount),
+    hasBonus: doc.hasBonus,
+    bonusCalculations: doc.bonusCalculations.map(toBonusCalc),
     warnings: doc.warnings,
+    extractionWarnings: doc.warnings,
     totals: {
       lines: lines.length,
       withEan: lines.filter((l) => l.ean !== null).length,
       withWarnings: lines.filter((l) => l.warnings.length > 0).length,
+      bonusLines: lines.filter((l) => l.isBonus).length,
     },
     lines,
   };
