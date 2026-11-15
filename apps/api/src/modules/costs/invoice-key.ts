@@ -1,4 +1,5 @@
 import type { UnifiedInvoice } from './document-parser';
+import { isStructurallyValidInvoiceKey } from './invoice-key-validation';
 
 /** Remove tudo o que não é dígito de um CNPJ (aceita formatado "02.543.945/0003-47"). */
 export function normalizeCnpj(cnpj?: string | null): string {
@@ -19,7 +20,9 @@ export function normalizeCnpj(cnpj?: string | null): string {
  * Para exibição, prefira o número da NF-e ou o sha256 do conteúdo.
  */
 export function invoiceBusinessKey(inv: UnifiedInvoice): string {
-  if (inv.invoiceKey) return `chave:${inv.invoiceKey}`;
+  // Só deduplica pela chave se ela for estruturalmente válida (44 díg + DV mod-11).
+  // Comprimento certo sozinho não basta; chave inválida cai na composição (não dedup ambíguo).
+  if (inv.invoiceKey && isStructurallyValidInvoiceKey(inv.invoiceKey)) return `chave:${inv.invoiceKey}`;
 
   const issuer = normalizeCnpj(inv.issuerCnpj);
   const recipient = normalizeCnpj(inv.recipientCnpj);

@@ -28,14 +28,21 @@ const base = (over: Partial<UnifiedInvoice>): UnifiedInvoice =>
 
 describe('invoiceBusinessKey', () => {
   it('usa a chave de acesso quando presente (prefixo chave:)', () => {
-    const inv = base({ invoiceKey: '35261116619378000108550200019269661800465907', invoiceNumber: '1926966' });
-    expect(invoiceBusinessKey(inv)).toBe('chave:35261116619378000108550200019269661800465907');
+    const inv = base({ invoiceKey: '35261111222333000181550010000123451000000018', invoiceNumber: '1926966' });
+    expect(invoiceBusinessKey(inv)).toBe('chave:35261111222333000181550010000123451000000018');
   });
 
   it('dois documentos com a mesma chave produzem a mesma business key (dedup)', () => {
-    const a = base({ invoiceKey: '352611...907'.padEnd(44, '0'), originalFilename: 'Belajoyce.xml' });
-    const b = base({ invoiceKey: '352611...907'.padEnd(44, '0'), originalFilename: 'NFE-352611.xml' });
+    const CHAVE = '35261111222333000181550010000123451000000018'; // sintética, DV válido
+    const a = base({ invoiceKey: CHAVE, originalFilename: 'Belajoyce.xml' });
+    const b = base({ invoiceKey: CHAVE, originalFilename: 'NFE-352611.xml' });
     expect(invoiceBusinessKey(a)).toBe(invoiceBusinessKey(b));
+  });
+
+  it('chave presente mas com DV inválido NÃO é usada para dedup (cai na composição)', () => {
+    // último dígito trocado (8→9) → DV inválido; usa número+emitente em vez de dedup por chave ambígua
+    const inv = base({ invoiceKey: '35261111222333000181550010000123451000000019', invoiceNumber: '12345', issuerCnpj: '11222333000181', issuedAt: new Date('2026-11-02T00:00:00Z') });
+    expect(invoiceBusinessKey(inv)).toBe('nf:12345:0:11222333000181::2026-11-02');
   });
 
   it('sem chave, compõe nf:numero:serie:emitente:destinatario:data (CNPJ normalizado)', () => {

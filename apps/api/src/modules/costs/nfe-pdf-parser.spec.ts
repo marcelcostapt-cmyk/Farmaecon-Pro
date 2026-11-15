@@ -46,7 +46,7 @@ describe('parsePdfText — DANFE Luciana (valores documentados)', () => {
   });
 
   it('extrai a chave de acesso de 44 dígitos mesmo formatada com espaços', () => {
-    expect(nota.invoiceKey).toBe('35261003711070000146550030023253451364969270');
+    expect(nota.invoiceKey).toBe('35261011222333000181550030023253451000000024');
   });
 });
 
