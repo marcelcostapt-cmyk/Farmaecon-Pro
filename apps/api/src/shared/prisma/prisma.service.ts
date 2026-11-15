@@ -16,8 +16,13 @@ const models = new Set([
   'marketplaceAccount',
   'marketplaceSyncState',
   'order',
+  'orderItem',
   'product',
   'financialTransaction',
+  'purchaseInvoice',
+  'purchaseInvoiceItem',
+  'costAllocationRule',
+  'productCost',
 ]);
 interface LoginRecord {
   id: string;

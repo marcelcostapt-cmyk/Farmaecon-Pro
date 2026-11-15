@@ -9,8 +9,8 @@ function safeClone(v: any): any {
 }
 
 export class MemoryPrisma {
-  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], orderItem: [], financialTransaction: [] };
-  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; orderItem: any; financialTransaction: any;
+  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], orderItem: [], financialTransaction: [], purchaseInvoice: [], purchaseInvoiceItem: [], costAllocationRule: [], productCost: [] };
+  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; orderItem: any; financialTransaction: any; purchaseInvoice: any; purchaseInvoiceItem: any; costAllocationRule: any; productCost: any;
   constructor() {
     for (const model of Object.keys(this.rows)) (this as any)[model] = this.model(model);
   }
