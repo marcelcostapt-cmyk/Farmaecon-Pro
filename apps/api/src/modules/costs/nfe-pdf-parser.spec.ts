@@ -44,4 +44,32 @@ describe('parsePdfText — DANFE Luciana (valores documentados)', () => {
     expect(nota.conditionalAverageCost!.toFixed(6)).toBe('15.991835');
     expect(nota.approvedAverageCost ?? null).toBeNull();
   });
+
+  it('extrai a chave de acesso de 44 dígitos mesmo formatada com espaços', () => {
+    expect(nota.invoiceKey).toBe('35261003711070000146550030023253451364969270');
+  });
+});
+
+describe('parsePdfText — salvaguarda 5.2 (documento com produtos mas 0 linhas)', () => {
+  it('marca extractionIncomplete e avisa, sem assumir custo zero', () => {
+    // Tem total de produtos, mas nenhuma linha no formato esperado → não pode concluir com custo zero.
+    const texto = [
+      'DADOS DOS PRODUTOS / SERVIÇOS',
+      'V. TOTAL PRODUTOS',
+      '6.010,44',
+      'V. TOTAL DA NOTA',
+      '6.012,93',
+    ].join('\n');
+    const nota = parsePdfText(texto);
+    expect(nota.lines).toHaveLength(0);
+    expect(nota.extractionIncomplete).toBe(true);
+    expect(nota.conditionalAverageCost).toBeNull(); // nunca custo zero
+    expect(nota.warnings.some((w) => /0 linhas|nenhuma linha|revis[ãa]o/i.test(w))).toBe(true);
+  });
+
+  it('documento sem produtos e sem linhas não é marcado como incompleto', () => {
+    const nota = parsePdfText('DOCUMENTO SEM TABELA DE PRODUTOS');
+    expect(nota.lines).toHaveLength(0);
+    expect(nota.extractionIncomplete).toBe(false);
+  });
 });
