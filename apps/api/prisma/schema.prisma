@@ -290,8 +290,12 @@ model PurchaseInvoice {
   issuedAt                DateTime?              @map("issued_at")
   productsTotal           Decimal?               @map("products_total")
   otherExpenses           Decimal?               @map("other_expenses")
+  discounts               Decimal?
   documentTotal           Decimal?               @map("document_total")
   paymentAmountInDocument Decimal?               @map("payment_amount_in_document")
+  hasBonus                Boolean                @default(false) @map("has_bonus")
+  bonusAmount             Decimal?               @map("bonus_amount")
+  paidAmount              Decimal?               @map("paid_amount")
   status                  CostLifecycle          @default(EXTRACTED)
   extractionWarnings      Json?                  @map("extraction_warnings")
   createdBy               String?                @map("created_by")
@@ -336,10 +340,18 @@ model PurchaseInvoiceItem {
   description         String?
   quantity            Decimal?
   unitCostExtracted   Decimal?  @map("unit_cost_extracted")
+  unitCostPaid        Decimal?  @map("unit_cost_paid")
   unitCostApproved    Decimal?  @map("unit_cost_approved")
   totalLine           Decimal?  @map("total_line")
+  discount            Decimal?
+  otherExpense        Decimal?  @map("other_expense")
+  ncm                 String?
+  unit                String?
   cfop                String?
   lotNumber           String?   @map("lot_number")
+  isBonus             Boolean   @default(false) @map("is_bonus")
+  paidQuantity        Decimal?  @map("paid_quantity")
+  bonusQuantity       Decimal?  @map("bonus_quantity")
   allocationRuleId    String?   @map("allocation_rule_id")
   warnings            Json?
   createdAt           DateTime  @default(now()) @map("created_at")
