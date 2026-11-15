@@ -83,10 +83,43 @@ Nota: `up api` corre antes o serviço `migrate` (mesma imagem da API).
   erros via ConflictException/NotFoundException (sem filtro global); display_name é TEXT + check de 60 code points (não varchar);
   DELETE devolve 200 {removed:true} (envelope `ok()` consistente, não 204); AccountCard é self-contained (page é Server Component).
 
+## DRE inc 1 — importação de custos (branch feature/dre-increment-1, NÃO em produção)
+- Pipeline extração→normalização→modelo→prévia (commits 04f5e86, dcff5c2, ed02321) + expansão catálogo/bonificação (caec5e0, d339d1f, bonus-calc, fa866a9, 24a1873). Suite 196/196, tsc limpo. Sem deploy.
+- Parser XML (`nfe-xml-parser.ts`): extrai vNF(fiscalTotal)/vProd/vDesc/vOutro, fatura vOrig (cobr/fat) distinta do vNF, por linha ncm/uCom/vDesc/vOutro/unitCostPaid/lots. Deteta bonificação por CFOP 5910, texto FORNEC BONIFIC, fatura≠NF-e e vItem AUSENTE (tag) com vProd>0. `bonusAmount`=Σ vProd bonific.; `paidAmount`=fiscal−bonus. vItem PRESENTE=0,00 usa vProd com aviso (NÃO é bonificação).
+- `bonus-calc.ts`: para grupos (EAN/cProd) com bonificação, 3 regras CANDIDATAS com fórmula legível e `status: 'estimado / pendente de aprovação'` — `rateio_proporcional_valor_nominal` (pago+bonificado ÷ unidades), `bonificacao_dilui_custo` (pago ÷ unidades), `bonificacao_sem_custo` (pago ÷ só pagas; bonificadas indisponível). NUNCA custo zero: sem base paga → `null`.
+- ⚠️ INCONSISTÊNCIA NA SPEC do utilizador: secção F (fórmula geral) usa "pago+despesas"; secção H (exemplo 1926966) usa "pago+bonificado". É exatamente a decisão de negócio #2 — NÃO resolvida; os 3 candidatos ficam lado a lado para o utilizador escolher.
+- Modelo (migrations 20261114_dre_purchase_documents + 20261115_dre_bonus_and_fiscal_fields): purchase_invoices / purchase_invoice_items / cost_allocation_rules / product_costs, NUMERIC/Decimal, RLS por tenant (filhas verificam posse do documento), CHECK: custo APROVADO exige regra de rateio; +has_bonus/bonus_amount/paid_amount/discounts e is_bonus/paid_quantity/bonus_quantity/ncm/unit/… Boot RLS check 10→14 tabelas. Idempotência (tenant, sha256).
+- Endpoint `POST /dre/purchase-documents/preview` (AuthGuard jwt, FileInterceptor 10MB, XML/PDF/XLSX): devolve estrutura normalizada + hash + totais + bonusCalculations + extractionWarnings. NÃO grava nada.
+- Catálogo de evidências: 10 documentos descritos pelo utilizador. ⚠️ PRIVACIDADE: os XMLs reais contêm CNPJs/endereços/valores reais — NÃO versionar originais. Fixtures em `apps/api/test/fixtures/nfe-*.xml` são SANITIZADAS (CNPJs/nomes/chaves fictícios) e reproduzem só estrutura+valores documentados. Os ficheiros reais NÃO estão no disco (verificado) → validação byte-a-byte PENDENTE.
+- 7 DECISÕES DE NEGÓCIO BLOQUEIAM publicação de custos (NÃO resolver sem o Marcio): (1) doc→conta ML; (2) regra de bonificação (1926966/1885505); (3) tratamento vOutro; (4) vProd bruto vs vItem líquido com desconto; (5) vigência planilha ML GERAL; (6) código fornecedor 5080↔SKU; (7) quantidade "dd" de abril. Até lá: tudo `extracted/pending_review`, sem CMV final, sem deploy.
+- Falta: persistência (ligar modelos ao Set tenant-guard do PrismaService + MemoryPrisma), CMV por pedido, demonstração DRE, UI (produtos/prévia), Task D (idempotência/isolamento e2e), parser PDF→ParsedInvoice unificado, revisão final de branch (revisor fresco).
+- Bug report do incidente de containers: JÁ em fila (SendFeedback); envio pelo utilizador via /feedback. Regras kill/pt-BR em memória.
+
 ## Pendências / próximos passos
 - Monitorizar nas próximas horas: jobs falhados em bull:marketplace-sync, acumulação na fila, erros ML/tokens
   (1º refresh de token relevante: conta 3fb4ba8a expira ~21:47 UTC de 2026-11-14).
+  ✅ VERIFICADO 21:50 UTC: refresh do 3fb4ba8a OK (expires_at → 03:17), token-refresh failed=0, 6 contas SYNCED, marketplace-sync failed=0, API healthy restarts=0, orders=10143.
+  ✅ VALIDAÇÃO OBSERVATION (22:0x UTC): 6 contas reais (sellers 202152082/2919086523/2412166681/1354653882/1155197715/3750471879), todas COMPLETE, last_error vazio.
+     Sem duplicação (count==distinct external_order_id) nas 2 amostras (0072890c=8, b018bd8f=4554). Cobertura contínua (sem dias a zero). Orders=10143 (9771 PAID, 372 CANCELED).
+     Ressalva de dados: orders NÃO guarda data do pedido no ML (só created_at=importação) → comparação manual com painel ML é por external_order_id+valor+estado, não por data.
+     financial_transactions=0 (DRE não deriva transações). Modo mantém-se OBSERVATION (só leitura garantida por assertObservationRequest).
+  🔎 INVESTIGADO financial_transactions=0: POR DESIGN, não bug. Única escrita = FinanceService.createExpense (type EXPENSE, POST manual /finance/expenses); nenhuma derivação order→REVENUE/FEE/etc existe.
+     getDre devolve status INCOMPLETE, grossRevenue/fees/costs=null, grossProfit/netProfit=null — recusa tratar total_amount como receita sem reconciliação.
+     DRE real seria FEATURE NOVA: orders só guarda total_amount+status (sem fees/payments do ML) → precisaria sincronizar mais campos + derivação + reconciliação. Não bloqueia o sync em observação.
 - Reparo menor no scheduler: o 1º tick dispara logo após o registo (2 passagens seguidas à API ML).
 - Limpeza possível de imagens antigas sem uso (api:58dede46, web:oauth-redirect-…) — confirmar antes.
 - Ollama: adiado; se necessário, instalar localmente, não na VPS.
 - Ressalvas pré-deploy antigas: tamanho da imagem API reduzido (2,98 → 1,97 GB); Server Action ainda por rever.
+
+## Diagnóstico de conclusão (2026-11-14, branch de trabalho security/next-bump-16-4-x)
+Estado por dimensão:
+- Código/arquitetura 🟢: 9 módulos (auth, dashboard, finance, integrations, observation, orders, products, tenants, users), 0 TODO/FIXME, 138 testes verdes, sem simulação ativa em prod. Dívida: branches obsoletos por limpar, `main` desatualizado (0de434).
+- Integrações 🟢 ML / 🔴 resto: ML OAuth+refresh+sync em OBSERVATION (6 contas reais, 0 falhados). NF-e parser e gateways NÃO existem (desenhados no inc 1 do DRE).
+- Dados/relatórios 🟡: observação entrega valor; DRE gerencial com lucro real NÃO existe (financial_transactions=0 por design); custos não importados; receita/taxas ML vêm no /orders/search mas não persistidas.
+- Infra/deploy 🟡: CI abrangente, deploy+rollback documentados e testados; FALTA fixar imagens por digest, Dockerfile API produção-only (envia devDeps), testar restore BD end-to-end.
+- Segurança 🟡: RLS validada, tokens cifrados (AES-256-GCM), SSL Let's Encrypt OK; GAPS: UFW inativo, sem swap, 62 vulns npm (2 críticas, maioria dev; crítica do Next já corrigida), retenção LGPD por definir.
+- Testes 🟢 backend / 🟡 resto: 138 testes + CI; e2e Postgres não corre aqui (falta .local/observation.env), sem testes web, smoke pós-deploy não formalizado.
+
+Top 3 bloqueios: (1) DRE gerencial não existe (só desenhado, inc 1 pendente de aprovação); (2) dados financeiros do ML não persistidos; (3) hardening infra/segurança.
+Top 5 passos: (1) aprovar+executar inc 1 do DRE; (2) hardening rápido (UFW+swap+imagem produção-only); (3) fechar ciclo Git (PR #6, branches, main); (4) testar restore BD; (5) triar vulns + digests.
+Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por conta vs empresa (resolvi por conta)? prioridade DRE vs infra? alinhar main? alargar allowlist (ADS/billing) no inc 2?
