@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 
 export const publicAccountSelect = {
   id: true, name: true, displayName: true, platform: true, status: true, createdAt: true,
+  externalSellerId: true, businessName: true, cnpj: true,
 } satisfies Prisma.MarketplaceAccountSelect;
 export const publicOrderSelect = {
   id: true, externalOrderId: true, totalAmount: true, status: true, createdAt: true,

@@ -9,9 +9,18 @@ import { MlOrdersSyncService } from './ml-orders-sync.service';
 import { MarketplaceSyncScheduler } from './marketplace-sync.scheduler';
 import { MlOAuthService } from './ml-oauth.service';
 import { accountConflict } from './account-errors';
+import { normalizeCnpj, isValidCnpj, normalizeBusinessName } from '../../shared/fiscal/cnpj';
 import type { AuthPrincipal } from '../auth/auth.service';
 
 export const DISPLAY_NAME_MAX = 60;
+export const BUSINESS_NAME_MAX = 255;
+
+/** PATCH parcial da identidade: chave ausente = preservar; null = limpar (se opcional). */
+export interface AccountIdentityPatch {
+  displayName?: string | null;
+  businessName?: string | null;
+  cnpj?: string | null;
+}
 
 @Injectable()
 export class IntegrationsService {
@@ -73,6 +82,70 @@ export class IntegrationsService {
     }
     const updated = await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { displayName: value } });
     if (updated.count === 0) throw new NotFoundException('Account not found');
+    return this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
+  }
+
+  /**
+   * PATCH parcial da identidade da conta (nome no painel, razão social, CNPJ).
+   * Preserva campos não enviados (undefined); null explícito limpa um campo opcional;
+   * CNPJ inválido é rejeitado com 400 SEM gravar (nunca vira null+sucesso). A razão
+   * social normalizada é recalculada só quando a razão social é enviada. Não altera
+   * tenant, seller, credenciais, permissões ou status. Audita autor/data/campos (sem
+   * valores fiscais completos). Escopo por tenant na leitura e na escrita.
+   */
+  async updateIdentity(
+    tenantId: string,
+    accountId: string,
+    actor: AuthPrincipal | null,
+    patch: AccountIdentityPatch,
+  ) {
+    const data: Record<string, unknown> = {};
+    const changed: string[] = [];
+
+    if (patch.displayName !== undefined) {
+      const value = patch.displayName?.trim() || null;
+      if (value && [...value].length > DISPLAY_NAME_MAX) {
+        throw new BadRequestException(`O nome pode ter no máximo ${DISPLAY_NAME_MAX} caracteres.`);
+      }
+      data.displayName = value;
+      changed.push('displayName');
+    }
+
+    if (patch.businessName !== undefined) {
+      const value = patch.businessName?.trim() || null;
+      if (value && value.length > BUSINESS_NAME_MAX) {
+        throw new BadRequestException(`A razão social pode ter no máximo ${BUSINESS_NAME_MAX} caracteres.`);
+      }
+      data.businessName = value;
+      data.businessNameNormalized = normalizeBusinessName(value); // recalcula só quando enviada
+      changed.push('businessName');
+    }
+
+    if (patch.cnpj !== undefined) {
+      if (patch.cnpj === null || patch.cnpj.trim() === '') {
+        data.cnpj = null; // limpar campo opcional
+      } else if (!isValidCnpj(patch.cnpj)) {
+        throw new BadRequestException('CNPJ inválido.'); // nunca converte inválido em null
+      } else {
+        data.cnpj = normalizeCnpj(patch.cnpj);
+      }
+      changed.push('cnpj');
+    }
+
+    if (changed.length === 0) {
+      const current = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
+      if (!current) throw new NotFoundException('Account not found');
+      return current;
+    }
+
+    const updated = await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data });
+    if (updated.count === 0) throw new NotFoundException('Account not found');
+
+    // Auditoria protegida: autor, data e nomes dos campos alterados — sem valores fiscais completos.
+    this.logger.log(
+      JSON.stringify({ event: 'account.identity.updated', actor: actor?.sub ?? null, tenantId, accountId, fields: changed, at: new Date().toISOString() }),
+    );
+
     return this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
   }
 
