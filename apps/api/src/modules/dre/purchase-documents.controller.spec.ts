@@ -9,7 +9,7 @@ const file = (over: Partial<UploadedDocument>): UploadedDocument => ({
 });
 
 describe('PurchaseDocumentsController.preview — prévia sem persistência', () => {
-  const controller = new PurchaseDocumentsController();
+  const controller = new PurchaseDocumentsController(undefined as never);
 
   it('rejeita pedido sem ficheiro', async () => {
     await expect(controller.preview(undefined)).rejects.toBeInstanceOf(BadRequestException);

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  ForbiddenException,
   Post,
   UploadedFile,
   UseGuards,
@@ -10,8 +11,16 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import { Prisma } from '@prisma/client';
 import { ok } from '../../shared/types/api-response.type';
+import { CurrentUser } from '../../shared/decorators/tenant.decorator';
 import { parseDocument, type UnifiedInvoice } from '../costs/document-parser';
 import type { BonusCalculation } from '../costs/bonus-calc';
+import { PurchaseInvoiceService } from './purchase-invoice.service';
+
+interface RequestUser {
+  id: string;
+  tenantId: string;
+  role: string;
+}
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ACCEPTED = /\.(xml|pdf|xlsx|xls)$/i;
@@ -101,23 +110,36 @@ function toPreview(doc: UnifiedInvoice) {
   };
 }
 
+async function parseUpload(file?: UploadedDocument): Promise<UnifiedInvoice> {
+  if (!file) throw new BadRequestException('Nenhum ficheiro enviado no campo "file".');
+  if (file.size > MAX_BYTES) throw new BadRequestException('Ficheiro excede o limite de 10 MB.');
+  if (!ACCEPTED.test(file.originalname))
+    throw new BadRequestException('Formato não suportado: envie XML, PDF ou XLSX.');
+  try {
+    return await parseDocument(file.originalname, file.buffer);
+  } catch (error) {
+    throw new BadRequestException(`Falha ao ler o documento: ${(error as Error).message}`);
+  }
+}
+
 @UseGuards(AuthGuard('jwt'))
 @Controller('dre/purchase-documents')
 export class PurchaseDocumentsController {
+  constructor(private readonly purchaseInvoices: PurchaseInvoiceService) {}
+
   @Post('preview')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BYTES } }))
   async preview(@UploadedFile() file?: UploadedDocument) {
-    if (!file) throw new BadRequestException('Nenhum ficheiro enviado no campo "file".');
-    if (file.size > MAX_BYTES) throw new BadRequestException('Ficheiro excede o limite de 10 MB.');
-    if (!ACCEPTED.test(file.originalname))
-      throw new BadRequestException('Formato não suportado: envie XML, PDF ou XLSX.');
+    return ok(toPreview(await parseUpload(file)));
+  }
 
-    let doc: UnifiedInvoice;
-    try {
-      doc = await parseDocument(file.originalname, file.buffer);
-    } catch (error) {
-      throw new BadRequestException(`Falha ao ler o documento: ${(error as Error).message}`);
-    }
-    return ok(toPreview(doc));
+  // Persiste o documento em pending_review (ADMIN). NÃO publica custo nem calcula CMV final.
+  @Post()
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BYTES } }))
+  async ingest(@CurrentUser() user: RequestUser, @UploadedFile() file?: UploadedDocument) {
+    if (user.role !== 'ADMIN') throw new ForbiddenException('Apenas ADMIN pode importar documentos de custo.');
+    const doc = await parseUpload(file);
+    const res = await this.purchaseInvoices.ingest(user.tenantId, doc, user.id ?? null);
+    return ok(res);
   }
 }

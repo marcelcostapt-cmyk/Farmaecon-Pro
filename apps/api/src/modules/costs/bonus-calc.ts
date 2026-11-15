@@ -1,6 +1,13 @@
 import { Prisma } from '@prisma/client';
 import { money } from './cost-money';
-import type { ParsedInvoice, ParsedInvoiceLine } from './nfe-xml-parser';
+import type { ParsedInvoiceLine } from './nfe-xml-parser';
+
+// Entrada mínima que o cálculo de bonificação lê — compatível com ParsedInvoice e com
+// linhas reconstruídas da base de dados (tipagem estrutural, sem cast).
+export type BonusLineInput = Pick<
+  ParsedInvoiceLine,
+  'ean' | 'supplierProductCode' | 'isBonus' | 'quantity' | 'productsValue' | 'lineNumber'
+>;
 
 // Cada candidato é uma REGRA econômica possível para a bonificação. Qual vale é uma
 // decisão de negócio (ver pendência #2) — aqui apresentamos todas, sem escolher,
@@ -27,7 +34,7 @@ export interface BonusCalculation {
 }
 
 const ZERO = money('0');
-const keyOf = (l: ParsedInvoiceLine): string => l.ean ?? (l.supplierProductCode ? `cProd:${l.supplierProductCode}` : 'sem-identificador');
+const keyOf = (l: BonusLineInput): string => l.ean ?? (l.supplierProductCode ? `cProd:${l.supplierProductCode}` : 'sem-identificador');
 const divOrNull = (num: Prisma.Decimal, den: Prisma.Decimal): Prisma.Decimal | null =>
   den.gt(0) ? num.div(den) : null;
 
@@ -35,8 +42,8 @@ const divOrNull = (num: Prisma.Decimal, den: Prisma.Decimal): Prisma.Decimal | n
  * Agrupa linhas por EAN (ou código do fornecedor) e, para cada grupo com ao menos uma
  * linha de bonificação, devolve os custos médios candidatos — todos pendentes de aprovação.
  */
-export function computeBonusCalculations(invoice: ParsedInvoice): BonusCalculation[] {
-  const groups = new Map<string, ParsedInvoiceLine[]>();
+export function computeBonusCalculations(invoice: { lines: readonly BonusLineInput[] }): BonusCalculation[] {
+  const groups = new Map<string, BonusLineInput[]>();
   for (const line of invoice.lines) {
     const k = keyOf(line);
     (groups.get(k) ?? groups.set(k, []).get(k)!).push(line);
