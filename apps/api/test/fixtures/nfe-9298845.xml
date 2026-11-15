@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00"><NFe><infNFe Id="NFe000000000000000000000000000000000000009298845" versao="4.00">
+  <ide><nNF>9298845</nNF><serie>1</serie><dhEmi>2026-08-21T13:00:00-03:00</dhEmi><natOp>COMPRA</natOp></ide>
+  <emit><CNPJ>00000000000191</CNPJ><xNome>FORNECEDOR FICTICIO LTDA</xNome></emit>
+  <dest><CNPJ>00000000000272</CNPJ><xNome>DROGARIA FICTICIA LTDA</xNome></dest>
+  <det nItem="1"><nItem>1</nItem><prod><cProd>U1</cProd><cEAN>7892222200011</cEAN><xProd>MEDICAMENTO UNICO</xProd><NCM>30049099</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>20</qCom><vUnCom>142.83</vUnCom><vProd>2856.60</vProd><vDesc>1485.43</vDesc></prod><imposto><ICMS/></imposto><vItem>1371.17</vItem></det>
+  <total><ICMSTot><vProd>2856.60</vProd><vDesc>1485.43</vDesc><vNF>1371.17</vNF></ICMSTot></total>
+ </infNFe></NFe></nfeProc>
