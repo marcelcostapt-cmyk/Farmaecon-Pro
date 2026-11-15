@@ -34,12 +34,22 @@ interface Expected { documentos?: Record<string, ExpectedDoc>; porNumero?: Recor
       const doc = await parseDocument(f, buf); // XML/XLSX síncrono; PDF via pdf-parse (bytes reais)
 
       // Dedup por chave de negócio: o mesmo documento pode chegar com nomes de ficheiro diferentes.
-      const bizKey = invoiceBusinessKey(doc);
-      if (doc.source !== 'xlsx' && seen.has(bizKey)) {
-        log.push(`\n• ${f}  [${doc.source}]  sha256:${doc.fileHashSha256.slice(0, 16)}…  → DUPLICADO (mesma chave da NF) — ignorado`);
-        continue;
+      // A planilha (xlsx) não é uma NF e não tem chave de negócio; documentos sem dados mínimos lançam.
+      if (doc.source !== 'xlsx') {
+        let bizKey: string | null = null;
+        try {
+          bizKey = invoiceBusinessKey(doc);
+        } catch (e) {
+          log.push(`\n• ${f}  [${doc.source}]  sha256:${doc.fileHashSha256.slice(0, 16)}…  ⚠ sem chave de negócio (${(e as Error).message}) — não deduplicado`);
+        }
+        if (bizKey) {
+          if (seen.has(bizKey)) {
+            log.push(`\n• ${f}  [${doc.source}]  sha256:${doc.fileHashSha256.slice(0, 16)}…  → DUPLICADO (mesma chave da NF) — ignorado`);
+            continue;
+          }
+          seen.add(bizKey);
+        }
       }
-      seen.add(bizKey);
 
       log.push(`\n• ${f}  [${doc.source}]  sha256:${doc.fileHashSha256.slice(0, 16)}…`);
       log.push(`    NF ${doc.invoiceNumber ?? '—'}  itens=${doc.lines.length}  vProd=${dec(doc.productsTotal)}  vNF=${dec(doc.fiscalTotal)}  vDesc=${dec(doc.discounts)}  vOutro=${dec(doc.otherExpenses)}  bonus=${doc.hasBonus}`);
