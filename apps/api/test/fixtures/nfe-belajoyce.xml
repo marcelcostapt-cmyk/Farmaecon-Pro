@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00">
+ <NFe><infNFe Id="NFe00000000000000000000000000000001926966200000" versao="4.00">
+  <ide><nNF>1926966</nNF><serie>20</serie><dhEmi>2026-11-10T09:00:00-03:00</dhEmi><natOp>VENDA</natOp></ide>
+  <emit><CNPJ>00000000000191</CNPJ><xNome>FORNECEDOR FICTICIO LTDA</xNome></emit>
+  <dest><CNPJ>00000000000272</CNPJ><xNome>DROGARIA BELAJOYCE</xNome></dest>
+  <det><nItem>1</nItem><prod><cProd>100586</cProd><cEAN>7897947606517</cEAN><xProd>PRODUTO A</xProd><uCom>UN</uCom><qCom>250</qCom><vUnCom>16.57</vUnCom><vProd>4142.50</vProd><CFOP>5102</CFOP>
+    <rastro><nLote>L1</nLote><qLote>250</qLote></rastro></prod>
+    <imposto><IBS><vIBS>0.00</vIBS></IBS><CBS><vCBS>0.00</vCBS></CBS></imposto><vItem>4142.50</vItem></det>
+  <det><nItem>2</nItem><prod><cProd>100764</cProd><cEAN>7897947607996</cEAN><xProd>PRODUTO B</xProd><uCom>UN</uCom><qCom>1</qCom><vUnCom>13.46</vUnCom><vProd>13.46</vProd><CFOP>5102</CFOP>
+    <rastro><nLote>L2</nLote><qLote>1</qLote></rastro></prod>
+    <imposto><IBS><vIBS>0.00</vIBS></IBS></imposto><vItem>13.46</vItem></det>
+  <det><nItem>3</nItem><prod><cProd>100587</cProd><cEAN>7897947606500</cEAN><xProd>PRODUTO C</xProd><uCom>UN</uCom><qCom>250</qCom><vUnCom>16.64</vUnCom><vProd>4160.00</vProd><CFOP>5102</CFOP>
+    <rastro><nLote>L3A</nLote><qLote>58</qLote></rastro><rastro><nLote>L3B</nLote><qLote>192</qLote></rastro></prod>
+    <imposto><IBS><vIBS>0.00</vIBS></IBS></imposto><vItem>4160.00</vItem></det>
+  <det><nItem>4</nItem><prod><cProd>100764</cProd><cEAN>7897947607996</cEAN><xProd>PRODUTO B</xProd><uCom>UN</uCom><qCom>681</qCom><vUnCom>12.21</vUnCom><vProd>8315.01</vProd><CFOP>5910</CFOP>
+    <rastro><nLote>L4</nLote><qLote>681</qLote></rastro></prod>
+    <imposto><IBS><vIBS>0.00</vIBS></IBS><CBS><vCBS>0.00</vCBS></CBS></imposto></det>
+  <total><ICMSTot><vProd>16630.97</vProd><vNF>8315.96</vNF></ICMSTot></total>
+ </infNFe></NFe>
+</nfeProc>
