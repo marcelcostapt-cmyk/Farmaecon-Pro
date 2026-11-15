@@ -14,7 +14,18 @@ describe('parseNfeXml — NF-e Belajoyce (valores documentados)', () => {
     expect(inv.invoiceSeries).toBe('20');
     expect(inv.issuedAt?.toISOString().slice(0, 10)).toBe('2026-11-10');
     expect(inv.productsTotal!.equals(new Prisma.Decimal('16630.97'))).toBe(true);
-    expect(inv.paymentAmountInDocument!.equals(new Prisma.Decimal('8315.96'))).toBe(true);
+    expect(inv.fiscalTotal!.equals(new Prisma.Decimal('16630.97'))).toBe(true); // vNF
+    expect(inv.paymentAmountInDocument!.equals(new Prisma.Decimal('8315.96'))).toBe(true); // vOrig da fatura
+  });
+
+  it('detecta bonificação: fatura ≠ total, linha CFOP 5910, valor pago vs bonificado', () => {
+    expect(inv.hasBonus).toBe(true);
+    expect(inv.bonusAmount!.equals(new Prisma.Decimal('8315.01'))).toBe(true); // vProd do item 4
+    expect(inv.paidAmount!.equals(new Prisma.Decimal('8315.96'))).toBe(true); // fiscal - bonificação
+    expect(inv.lines[3].isBonus).toBe(true);
+    expect(inv.lines[0].isBonus).toBe(false);
+    expect(inv.warnings.some((w) => /difere do total da NF-e/i.test(w))).toBe(true);
+    expect(inv.lines[3].warnings.some((w) => /CFOP 5910/.test(w))).toBe(true);
   });
 
   it('extracts 4 lines, 3 distinct EANs, 1182 commercial units', () => {

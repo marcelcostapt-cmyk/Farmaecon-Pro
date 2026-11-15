@@ -16,6 +16,8 @@
   <det><nItem>4</nItem><prod><cProd>100764</cProd><cEAN>7897947607996</cEAN><xProd>PRODUTO B</xProd><uCom>UN</uCom><qCom>681</qCom><vUnCom>12.21</vUnCom><vProd>8315.01</vProd><CFOP>5910</CFOP>
     <rastro><nLote>L4</nLote><qLote>681</qLote></rastro></prod>
     <imposto><IBS><vIBS>0.00</vIBS></IBS><CBS><vCBS>0.00</vCBS></CBS></imposto></det>
-  <total><ICMSTot><vProd>16630.97</vProd><vNF>8315.96</vNF></ICMSTot></total>
+  <total><ICMSTot><vProd>16630.97</vProd><vDesc>0.00</vDesc><vOutro>0.00</vOutro><vNF>16630.97</vNF></ICMSTot></total>
+  <cobr><fat><nFat>1926966</nFat><vOrig>8315.96</vOrig><vLiq>8315.96</vLiq></fat></cobr>
+  <infAdic><infCpl>FORNEC BONIFIC CONFORME ACORDO COMERCIAL</infCpl></infAdic>
  </infNFe></NFe>
 </nfeProc>
