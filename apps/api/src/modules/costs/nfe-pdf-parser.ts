@@ -34,14 +34,19 @@ export interface ParsedPdfInvoice {
 const brMoney = (s: string): Prisma.Decimal => money(s.replace(/\./g, '').replace(',', '.'));
 const fmtBr = (d: Prisma.Decimal): string => d.toFixed(2).replace('.', ',');
 
-/** Extrai o texto de um PDF com texto selecionável (sem OCR). A validação com o PDF real
- *  está PENDENTE enquanto o documento não estiver no ambiente. */
+/** Extrai o texto de um PDF com texto selecionável (sem OCR). Usa a API v2 do pdf-parse
+ *  (classe PDFParse); PDFs só com imagem caem no erro de "OCR necessário". */
 export async function extrairTextoPdf(buffer: Buffer): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pdf = require('pdf-parse/lib/pdf-parse.js');
-  const resultado = await pdf(buffer);
-  if (!resultado?.text?.trim()) throw new Error('PDF sem texto selecionável; OCR necessário');
-  return resultado.text as string;
+  const { PDFParse } = require('pdf-parse') as typeof import('pdf-parse');
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const resultado = await parser.getText();
+    if (!resultado?.text?.trim()) throw new Error('PDF sem texto selecionável; OCR necessário');
+    return resultado.text;
+  } finally {
+    await parser.destroy();
+  }
 }
 
 /** Lógica pura de parsing do texto de um DANFE. Determinística e testável sem OCR. */
