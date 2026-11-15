@@ -49,6 +49,9 @@ export interface UnifiedInvoice {
   bonusAmount: Prisma.Decimal | null;
   paidAmount: Prisma.Decimal | null;
   bonusCalculations: BonusCalculation[];
+  // true quando há indícios de itens mas nenhuma linha foi extraída (regra 5.2):
+  // o documento deve ficar PENDING_REVIEW e não contribuir custo.
+  extractionIncomplete: boolean;
   lines: UnifiedInvoiceLine[];
   warnings: string[];
 }
@@ -78,7 +81,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
       productsTotal: nf.productsTotal, otherExpenses: nf.otherExpenses, discounts: nf.discounts,
       documentTotal: nf.fiscalTotal, fiscalTotal: nf.fiscalTotal, paymentAmountInDocument: nf.paymentAmountInDocument,
       hasBonus: nf.hasBonus, bonusAmount: nf.bonusAmount, paidAmount: nf.paidAmount,
-      bonusCalculations: computeBonusCalculations(nf),
+      bonusCalculations: computeBonusCalculations(nf), extractionIncomplete: false,
       warnings: nf.warnings,
       lines: nf.lines.map((l) => ({
         lineNumber: l.lineNumber, sourceRef: `det[${l.lineNumber}]`,
@@ -100,7 +103,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
       issuerCnpj: null, recipientCnpj: null, issuedAt: nf.issuedAt,
       productsTotal: nf.productsTotal, otherExpenses: nf.otherExpenses, discounts: null,
       documentTotal: nf.documentTotal, fiscalTotal: nf.documentTotal, paymentAmountInDocument: null,
-      hasBonus: false, bonusAmount: null, paidAmount: null, bonusCalculations: [],
+      hasBonus: false, bonusAmount: null, paidAmount: null, bonusCalculations: [], extractionIncomplete: nf.extractionIncomplete,
       warnings: nf.warnings,
       lines: nf.lines.map((l) => ({
         lineNumber: l.lineNumber, sourceRef: `linha ${l.lineNumber}`,
@@ -121,7 +124,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
     ...base, invoiceNumber: null, invoiceSeries: null, invoiceKey: null,
     issuerCnpj: null, recipientCnpj: null, issuedAt: null,
     productsTotal: null, otherExpenses: null, discounts: null, documentTotal: null, fiscalTotal: null, paymentAmountInDocument: null,
-    hasBonus: false, bonusAmount: null, paidAmount: null, bonusCalculations: [],
+    hasBonus: false, bonusAmount: null, paidAmount: null, bonusCalculations: [], extractionIncomplete: false,
     warnings,
     lines: planilha.costRows.map((r, i) => ({
       lineNumber: String(i + 1), sourceRef: `${r.sheet}!${r.sourceCell}`,

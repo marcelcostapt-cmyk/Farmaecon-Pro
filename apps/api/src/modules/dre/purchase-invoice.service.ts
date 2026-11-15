@@ -13,6 +13,9 @@ export interface IngestResult {
   invoiceId: string;
   created: boolean;
   itemCount: number;
+  // true quando há indícios de itens mas nenhuma linha foi extraída (regra 5.2):
+  // o documento fica PENDING_REVIEW e não contribui custo. Nunca concluir com custo zero.
+  extractionIncomplete: boolean;
 }
 
 @Injectable()
@@ -32,7 +35,7 @@ export class PurchaseInvoiceService {
       const itemCount = await this.prisma.purchaseInvoiceItem.count({
         where: { tenantId, purchaseInvoiceId: existing.id },
       });
-      return { invoiceId: existing.id, created: false, itemCount };
+      return { invoiceId: existing.id, created: false, itemCount, extractionIncomplete: doc.extractionIncomplete };
     }
 
     const invoice = await this.prisma.purchaseInvoice.create({
@@ -91,6 +94,6 @@ export class PurchaseInvoiceService {
       });
     }
 
-    return { invoiceId: invoice.id, created: true, itemCount: doc.lines.length };
+    return { invoiceId: invoice.id, created: true, itemCount: doc.lines.length, extractionIncomplete: doc.extractionIncomplete };
   }
 }

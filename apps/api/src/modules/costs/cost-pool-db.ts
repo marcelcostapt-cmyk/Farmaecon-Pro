@@ -85,6 +85,8 @@ export function dbToUnifiedInvoice(inv: DbPurchaseInvoice, items: DbPurchaseInvo
     source: SRC[inv.source],
     originalFilename: inv.originalFilename,
     fileHashSha256: inv.fileHashSha256,
+    extractionIncomplete: false, // reconstruído da BD: itens já persistidos existem
+
     invoiceNumber: inv.invoiceNumber,
     invoiceSeries: inv.invoiceSeries,
     invoiceKey: inv.invoiceKey,

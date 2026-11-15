@@ -30,6 +30,7 @@ describe('buildCostPoolFromInvoice', () => {
 
   it('propaga aviso de outras despesas não alocadas (ex.: PDF com vOutro)', () => {
     const doc: UnifiedInvoice = {
+      extractionIncomplete: false,
       source: 'pdf', originalFilename: 'danfe-luciana.pdf', fileHashSha256: 'f'.repeat(64),
       invoiceNumber: '2325345', invoiceSeries: '003', invoiceKey: null,
       issuerCnpj: null, recipientCnpj: null, issuedAt: new Date('2026-10-28'),

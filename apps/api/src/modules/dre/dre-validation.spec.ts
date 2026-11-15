@@ -140,6 +140,7 @@ describe('VALIDAÇÃO DA DRE — conta (fixtures sanitizadas; originais reais AU
 function pdfUnified(): UnifiedInvoice {
   const nf = parsePdfText(readFileSync(join(dir, 'danfe-luciana.txt'), 'utf8'));
   return {
+    extractionIncomplete: false,
     source: 'pdf', originalFilename: 'danfe-luciana.pdf', fileHashSha256: 'a'.repeat(64),
     invoiceNumber: nf.invoiceNumber, invoiceSeries: nf.invoiceSeries, invoiceKey: null,
     issuerCnpj: null, recipientCnpj: null, issuedAt: nf.issuedAt,

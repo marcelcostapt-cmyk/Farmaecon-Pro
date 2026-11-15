@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parsePdfText } from './nfe-pdf-parser';
+import { parsePdfText, hasEvidenceOfItems } from './nfe-pdf-parser';
 
 const texto = readFileSync(join(__dirname, '../../../test/fixtures/danfe-luciana.txt'), 'utf8');
 
@@ -71,5 +71,18 @@ describe('parsePdfText — salvaguarda 5.2 (documento com produtos mas 0 linhas)
     const nota = parsePdfText('DOCUMENTO SEM TABELA DE PRODUTOS');
     expect(nota.lines).toHaveLength(0);
     expect(nota.extractionIncomplete).toBe(false);
+  });
+});
+
+describe('hasEvidenceOfItems', () => {
+  it('reconhece indícios de tabela de produtos', () => {
+    expect(hasEvidenceOfItems('DADOS DOS PRODUTOS / SERVIÇOS')).toBe(true);
+    expect(hasEvidenceOfItems('CÓDIGO PRODUTO DESCRIÇÃO DO PRODUTO / SERVIÇO')).toBe(true);
+    expect(hasEvidenceOfItems('V. TOTAL PRODUTOS\n6.010,44')).toBe(true);
+  });
+
+  it('não acusa indícios em texto sem tabela de produtos', () => {
+    expect(hasEvidenceOfItems('DOCUMENTO SEM TABELA DE PRODUTOS')).toBe(false);
+    expect(hasEvidenceOfItems('')).toBe(false);
   });
 });

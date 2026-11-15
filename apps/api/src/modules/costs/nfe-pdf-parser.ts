@@ -37,6 +37,21 @@ export interface ParsedPdfInvoice {
 const brMoney = (s: string): Prisma.Decimal => money(s.replace(/\./g, '').replace(',', '.'));
 const fmtBr = (d: Prisma.Decimal): string => d.toFixed(2).replace('.', ',');
 
+/**
+ * Indica se o texto do documento tem indícios de uma tabela de produtos.
+ * Usado pela salvaguarda 5.2: se há indícios mas nenhuma linha foi extraída, a
+ * importação fica PENDING_REVIEW — nunca é concluída com custo zero.
+ */
+export function hasEvidenceOfItems(rawText: string): boolean {
+  const t = rawText ?? '';
+  return (
+    /DADOS DOS PRODUTOS/i.test(t) ||
+    /C[ÓO]DIGO\s+PRODUTO/i.test(t) ||
+    /DESCRI[ÇC][ÃA]O DO PRODUTO/i.test(t) ||
+    /V\.?\s*TOTAL\s+PRODUTOS/i.test(t)
+  );
+}
+
 /** Extrai o texto de um PDF com texto selecionável (sem OCR). Usa a API v2 do pdf-parse
  *  (classe PDFParse); PDFs só com imagem caem no erro de "OCR necessário". */
 export async function extrairTextoPdf(buffer: Buffer): Promise<string> {
@@ -129,9 +144,8 @@ export function parsePdfText(texto: string): ParsedPdfInvoice {
   const totalUn = lines.reduce((s, l) => s.plus(l.quantity), new Prisma.Decimal(0));
   const conditionalAverageCost = documentTotal && totalUn.greaterThan(0) ? documentTotal.div(totalUn) : null;
 
-  // Salvaguarda 5.2: documento tem produtos mas nenhuma linha extraída → pendente, nunca custo zero.
-  const temProdutos = productsTotal !== null || /DADOS DOS PRODUTOS/i.test(joined);
-  const extractionIncomplete = temProdutos && lines.length === 0;
+  // Salvaguarda 5.2: documento tem indícios de itens mas nenhuma linha extraída → pendente, nunca custo zero.
+  const extractionIncomplete = hasEvidenceOfItems(joined) && lines.length === 0;
   if (extractionIncomplete) {
     warnings.push('Documento tem produtos mas 0 linhas foram extraídas — revisão manual necessária (não concluir com custo zero)');
   }
