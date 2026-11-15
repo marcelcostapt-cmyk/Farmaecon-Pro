@@ -266,8 +266,8 @@ export class MlOrdersSyncService {
           select: { id: true },
         });
 
-        // Persist the sold lines (idempotent by element_id); discard+reinsert keeps
-        // the set exact when a line disappears from a later read.
+        // Keep each order's persisted line set EXACT: upsert the lines the current
+        // read returns, then remove any stored line no longer present (cancelled/removed).
         const items = mapOrderItems(order as any, {
           tenantId: account.tenantId, marketplaceAccountId: account.id, orderId: saved.id,
         });
@@ -278,6 +278,9 @@ export class MlOrdersSyncService {
             create: item,
           });
         }
+        await tx.orderItem.deleteMany({
+          where: { tenantId: account.tenantId, orderId: saved.id, mlElementId: { notIn: items.map((i) => i.mlElementId) } },
+        });
       }
 
       importedCount = await tx.order.count({
