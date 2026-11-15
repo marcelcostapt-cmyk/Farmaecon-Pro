@@ -1,0 +1,11 @@
+DANFE - Documento Auxiliar da Nota Fiscal Eletronica
+NF-e No 2.325.345 Serie 003
+Data de Emissao 28/10/2026
+DADOS DOS PRODUTOS / SERVICOS
+Cod Descricao Un Qtde V.Unit V.Total Lote
+5080 VITAMINA B12 60 COMPRIMIDOS MASTIGAVEIS UN 316,0000 15,9852 5.051,33 518
+5080 VITAMINA B12 60 COMPRIMIDOS MASTIGAVEIS UN 60,0000 15,9852 959,11 519
+CALCULO DO IMPOSTO
+Valor Total dos Produtos 6.010,44
+Outras Despesas Acessorias 2,49
+Valor Total da Nota 6.012,93
