@@ -99,8 +99,17 @@ model MarketplaceAccount {
   lastSyncError     String?                @map("last_sync_error")
   syncStates        MarketplaceSyncState[]
 
+  /// Razão social da empresa COMPRADORA (destinatário da NF-e), para o vínculo fiscal. Origem/revisão registadas em auditoria.
+  businessName           String? @map("business_name") @db.VarChar(255)
+  /// businessName sem acentos, pontuação e sufixos societários — só para sugerir candidatos na busca; nunca confirma vínculo.
+  businessNameNormalized String? @map("business_name_normalized") @db.VarChar(255)
+  /// CNPJ da empresa compradora (não da Farmaecon), para matching exato com o destinatário. Sem unicidade: uma empresa pode ter várias contas.
+  cnpj                   String? @map("cnpj") @db.VarChar(18)
+
   @@unique([tenantId, platform, externalSellerId])
   @@index([tenantId, status])
+  @@index([tenantId, status, cnpj])
+  @@index([tenantId, status, businessNameNormalized])
   @@map("marketplace_accounts")
   orderItems        OrderItem[]
 }
