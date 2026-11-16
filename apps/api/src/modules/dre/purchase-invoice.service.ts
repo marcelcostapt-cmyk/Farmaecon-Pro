@@ -141,10 +141,12 @@ export class PurchaseInvoiceService {
   }
 
   /**
-   * Seleção MANUAL de conta para um documento. Exige autorização (controller com
-   * AdminGuard) e confirmação de compatibilidade fiscal: se o documento tem CNPJ de
-   * destinatário válido, a conta escolhida TEM de ter o mesmo CNPJ — um id enviado
-   * pelo cliente não contorna esta verificação. Escopo por tenant em leitura e escrita.
+   * Seleção MANUAL de conta para um documento. Método de serviço pronto para a UI de
+   * revisão (/dre/preview, P6 do DRE increment); o endpoint HTTP ainda NÃO existe —
+   * quando for criado TEM de aplicar AdminGuard (ação de gestão). Já aqui confirma a
+   * compatibilidade fiscal: se o documento tem CNPJ de destinatário válido, a conta
+   * escolhida TEM de ter o mesmo CNPJ — um id enviado pelo cliente não contorna esta
+   * verificação. Escopo por tenant em leitura e escrita.
    */
   async associateAccountManually(
     tenantId: string,
