@@ -23,6 +23,7 @@ const models = new Set([
   'purchaseInvoiceItem',
   'costAllocationRule',
   'productCost',
+  'marginRule',
 ]);
 interface LoginRecord {
   id: string;
