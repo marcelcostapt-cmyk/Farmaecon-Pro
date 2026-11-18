@@ -19,7 +19,7 @@ function seedInvoice(mem: MemoryPrisma, over: Record<string, unknown> = {}) {
 function seedItem(mem: MemoryPrisma, over: Record<string, unknown>) {
   const item = {
     id: `item-${mem.rows.purchaseInvoiceItem.length}`, tenantId: TENANT, purchaseInvoiceId: 'inv-1',
-    lineNumber: '1', ean: null, marketplaceSku: null, supplierCode: null, description: 'PROD',
+    lineNumber: '1', ean: null, marketplaceSku: null, supplierProductCode: null, description: 'PROD',
     quantity: money('10'), totalLine: money('100'), isBonus: false, bonusQuantity: money('0'),
     unitCostApproved: null, allocatedBonus: null, allocationRuleId: null, ...over,
   };
@@ -92,7 +92,7 @@ describe('CostPublicationService.publishCosts', () => {
   it('grava product_cost mesmo sem EAN/SKU, por supplierCode/description', async () => {
     const mem = new MemoryPrisma();
     seedInvoice(mem);
-    seedItem(mem, { lineNumber: '1', ean: null, marketplaceSku: null, supplierCode: '5080', description: 'DIPIRONA' });
+    seedItem(mem, { lineNumber: '1', ean: null, marketplaceSku: null, supplierProductCode: '5080', description: 'DIPIRONA' });
     await applied(mem);
     await svc(mem).publishCosts(TENANT, 'inv-1', { sub: 'u1' });
     const pc = mem.rows.productCost[0];

@@ -4,7 +4,6 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import type { DocumentSource, UnifiedInvoice } from '../costs/document-parser';
 import { resolveDocumentAccount, type AccountMatchReason, type MlAccountIdentity } from '../costs/document-account-match';
 import { normalizeCnpj, isValidCnpj } from '../../shared/fiscal/cnpj';
-import type { AuthPrincipal } from '../auth/auth.service';
 
 const SOURCE_MAP: Record<DocumentSource, PurchaseDocumentSource> = {
   xml: PurchaseDocumentSource.XML,
@@ -152,7 +151,7 @@ export class PurchaseInvoiceService {
     tenantId: string,
     invoiceId: string,
     accountId: string,
-    actor: AuthPrincipal | null,
+    actor: { sub?: string } | null,
   ): Promise<{ invoiceId: string; linkedAccountId: string }> {
     const invoice = await this.prisma.purchaseInvoice.findFirst({
       where: { id: invoiceId, tenantId },

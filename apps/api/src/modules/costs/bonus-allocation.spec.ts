@@ -3,6 +3,7 @@ import {
   applyBonusAllocation,
   type BonusAllocationLine,
   type BonusDecision,
+  type AllocationLineResult,
 } from './bonus-allocation';
 
 const line = (over: Partial<BonusAllocationLine> & { lineNumber: string }): BonusAllocationLine => ({
@@ -16,7 +17,7 @@ const line = (over: Partial<BonusAllocationLine> & { lineNumber: string }): Bonu
   ...over,
 });
 
-const byLine = (results: { lineNumber: string }[], n: string) => results.find((r) => r.lineNumber === n)!;
+const byLine = (results: AllocationLineResult[], n: string) => results.find((r) => r.lineNumber === n)!;
 
 describe('applyBonusAllocation', () => {
   it('PROPORTIONAL (§H): custo = (totalLinha + bónus rateado) ÷ quantidade', () => {

@@ -44,12 +44,12 @@ export class CostPublicationService {
     const items = await this.prisma.purchaseInvoiceItem.findMany({
       where: { tenantId, purchaseInvoiceId: invoiceId },
       select: {
-        id: true, lineNumber: true, ean: true, marketplaceSku: true, supplierCode: true,
+        id: true, lineNumber: true, ean: true, marketplaceSku: true, supplierProductCode: true,
         quantity: true, totalLine: true, isBonus: true, bonusQuantity: true,
       },
     });
     const lines: BonusAllocationLine[] = items.map((i) => ({
-      lineNumber: i.lineNumber, ean: i.ean, marketplaceSku: i.marketplaceSku, supplierCode: i.supplierCode,
+      lineNumber: i.lineNumber, ean: i.ean, marketplaceSku: i.marketplaceSku, supplierCode: i.supplierProductCode,
       quantity: i.quantity ?? money('0'), totalLine: i.totalLine ?? money('0'),
       isBonus: i.isBonus, bonusQuantity: i.bonusQuantity ?? money('0'),
     }));
@@ -116,7 +116,7 @@ export class CostPublicationService {
 
       const items = await tx.purchaseInvoiceItem.findMany({
         where: { tenantId, purchaseInvoiceId: invoiceId },
-        select: { id: true, ean: true, marketplaceSku: true, supplierCode: true, description: true, unitCostApproved: true },
+        select: { id: true, ean: true, marketplaceSku: true, supplierProductCode: true, description: true, unitCostApproved: true },
       });
       const publishable = items.filter((i) => i.unitCostApproved !== null && i.unitCostApproved !== undefined);
       if (publishable.length === 0) throw new BadRequestException('Nenhum custo aprovado para publicar.');
@@ -134,7 +134,7 @@ export class CostPublicationService {
         await tx.productCost.create({
           data: {
             tenantId, marketplaceAccountId: invoice.marketplaceAccountId,
-            ean: i.ean, sku: i.marketplaceSku, supplierCode: i.supplierCode, description: i.description,
+            ean: i.ean, sku: i.marketplaceSku, supplierCode: i.supplierProductCode, description: i.description,
             unitCost: i.unitCostApproved!, isEstimate: false,
             sourceInvoiceItemId: i.id, costAllocationRuleId: draft.id,
             validFrom, status: CostLifecycle.APPROVED, createdBy: actor?.sub ?? null,
