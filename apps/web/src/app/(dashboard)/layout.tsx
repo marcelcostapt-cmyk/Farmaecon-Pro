@@ -22,6 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             { label: '📊 Dashboard',     href: '/dashboard' },
             { label: '🛒 Pedidos',       href: '/orders' },
             { label: 'Relatório de observação', href: '/observation' },
+            { label: '📈 Margem por SKU', href: '/margin/preview' },
             { label: '💰 Financeiro',    href: '/finance' },
             { label: '🔗 Integrações',   href: '/integrations' },
           ].map((item) => (

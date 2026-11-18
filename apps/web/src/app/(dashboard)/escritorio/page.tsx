@@ -1,5 +1,6 @@
 import { AgentStatusList } from '@/components/escritorio/AgentStatusList';
 import { OfficeScene } from '@/components/escritorio/OfficeScene';
+import { MargemResumoCard } from '@/components/escritorio/MargemResumoCard';
 
 export default function EscritorioPage() {
   return (
@@ -21,6 +22,8 @@ export default function EscritorioPage() {
         <OfficeScene />
         <AgentStatusList />
       </div>
+
+      <MargemResumoCard />
     </div>
   );
 }
