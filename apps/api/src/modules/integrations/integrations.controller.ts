@@ -7,7 +7,13 @@ import { CurrentTenant, CurrentUser } from '../../shared/decorators/tenant.decor
 import { AdminGuard } from '../../shared/security/admin.guard';
 import type { AuthPrincipal } from '../auth/auth.service';
 import { ok } from '../../shared/types/api-response.type';
-class RenameAccountDto { @IsOptional() @IsString() @MaxLength(240) displayName: string | null; }
+// PATCH parcial: cada campo é opcional; ausente = preservar, null = limpar (se opcional).
+// Os limites/validação de regra (CNPJ, 60 chars) ficam no serviço; aqui só o formato.
+class UpdateAccountIdentityDto {
+  @IsOptional() @IsString() @MaxLength(80) displayName?: string | null;
+  @IsOptional() @IsString() @MaxLength(255) businessName?: string | null;
+  @IsOptional() @IsString() @MaxLength(18) cnpj?: string | null;
+}
 class CallbackDto { @IsString() @MinLength(1) @MaxLength(2048) code: string; @IsString() @MaxLength(128) state: string; }
 @UseGuards(AuthGuard('jwt'))
 @Controller('integrations')
@@ -28,8 +34,13 @@ export class IntegrationsController {
     await this.integrations.disconnect(tenantId, id); return ok({ disconnected: true });
   }
   @UseGuards(AdminGuard)
-  @Patch(':id') async rename(@CurrentTenant() tenantId: string, @Param('id') id: string, @Body() dto: RenameAccountDto) {
-    return ok(await this.integrations.rename(tenantId, id, dto.displayName ?? null));
+  @Patch(':id') async updateIdentity(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() actor: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() dto: UpdateAccountIdentityDto,
+  ) {
+    return ok(await this.integrations.updateIdentity(tenantId, id, actor, dto));
   }
   @UseGuards(AdminGuard)
   @Post(':id/reconnect') async reconnect(@CurrentUser() actor: AuthPrincipal, @Param('id') id: string) {

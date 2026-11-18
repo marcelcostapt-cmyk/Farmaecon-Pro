@@ -1,7 +1,16 @@
 // In-memory test double; never wired into the application. HTTP/SQL smoke tests cover the real adapter separately.
+// Deep-clone plain objects/arrays; pass class instances (Prisma.Decimal, Date) by reference.
+function safeClone(v: any): any {
+  if (Array.isArray(v)) return v.map(safeClone);
+  if (v && typeof v === 'object' && (v.constructor === Object || v.constructor === undefined)) {
+    const o: any = {}; for (const k of Object.keys(v)) o[k] = safeClone(v[k]); return o;
+  }
+  return v;
+}
+
 export class MemoryPrisma {
-  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], financialTransaction: [] };
-  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; financialTransaction: any;
+  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], orderItem: [], financialTransaction: [], purchaseInvoice: [], purchaseInvoiceItem: [], costAllocationRule: [], productCost: [] };
+  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; orderItem: any; financialTransaction: any; purchaseInvoice: any; purchaseInvoiceItem: any; costAllocationRule: any; productCost: any;
   constructor() {
     for (const model of Object.keys(this.rows)) (this as any)[model] = this.model(model);
   }
@@ -13,7 +22,8 @@ export class MemoryPrisma {
         if ('gte' in value && !(row[key] >= value.gte)) return false;
         if ('lte' in value && !(row[key] <= value.lte)) return false;
         if ('in' in value && !value.in.includes(row[key])) return false;
-        if (['gt','gte','lte','in'].some(k => k in value)) return true;
+        if ('notIn' in value && value.notIn.includes(row[key])) return false;
+        if (['gt','gte','lte','in','notIn'].some(k => k in value)) return true;
         return this.matches(row, value); // Prisma compound unique input.
       }
       return row[key] === value;
@@ -32,12 +42,12 @@ export class MemoryPrisma {
     }
     const relations: Record<string,string> = { marketplaceAccount: 'marketplaceAccount', financialTransactions: 'financialTransaction', syncStates: 'marketplaceSyncState' };
     const projectField = (k: string, spec: any): any => {
-      if (spec === true) return structuredClone(data[k]);
+      if (spec === true) return safeClone(data[k]);
       if (Array.isArray(data[k])) return data[k].map((v: any) => this.project(relations[k], v, spec));
       return this.project(relations[k] ?? k, data[k], spec);
     };
     if (args.select) return Object.fromEntries(Object.entries(args.select).filter(([,v]) => v).map(([k,v]) => [k,projectField(k,v)]));
-    const result = structuredClone(row);
+    const result = safeClone(row);
     for (const [k,v] of Object.entries(args.include ?? {})) result[k] = projectField(k,v);
     return result;
   }

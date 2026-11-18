@@ -16,8 +16,13 @@ const models = new Set([
   'marketplaceAccount',
   'marketplaceSyncState',
   'order',
+  'orderItem',
   'product',
   'financialTransaction',
+  'purchaseInvoice',
+  'purchaseInvoiceItem',
+  'costAllocationRule',
+  'productCost',
 ]);
 interface LoginRecord {
   id: string;
@@ -127,8 +132,9 @@ export class PrismaService
     const policies = await this.$queryRaw<{ count: number }[]>`
       SELECT count(*)::int AS count FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relname IN ('tenants','users','marketplace_accounts','orders',
-        'products','financial_transactions','auth_sessions','oauth_states','marketplace_sync_states') AND c.relrowsecurity`;
-    if (policies[0]?.count !== 9)
+        'products','financial_transactions','auth_sessions','oauth_states','marketplace_sync_states','order_items',
+        'purchase_invoices','purchase_invoice_items','cost_allocation_rules','product_costs') AND c.relrowsecurity`;
+    if (policies[0]?.count !== 14)
       throw new Error('Required tenant RLS policies are missing');
     this.logger.log('✅ Prisma connected to database');
   }
