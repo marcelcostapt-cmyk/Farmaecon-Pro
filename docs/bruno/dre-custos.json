@@ -1,0 +1,84 @@
+{
+  "v": 1,
+  "name": "Farmaecon — DRE custos (ensaio)",
+  "folders": [],
+  "requests": [
+    {
+      "v": "1",
+      "name": "1. Login (ADMIN do piloto)",
+      "method": "POST",
+      "endpoint": "<<host>>/auth/login",
+      "params": [],
+      "headers": [{ "key": "Content-Type", "value": "application/json", "active": true }],
+      "auth": { "authType": "none", "authActive": false },
+      "preRequestScript": "",
+      "testScript": "// Copie data.accessToken da resposta para a variável de ambiente <<token>>.",
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"email\": \"admin-cost-pilot@rehearsal.local\",\n  \"password\": \"<<password>>\"\n}"
+      }
+    },
+    {
+      "v": "1",
+      "name": "2. Ingest (upload da fixture)",
+      "method": "POST",
+      "endpoint": "<<host>>/dre/purchase-documents",
+      "params": [],
+      "headers": [],
+      "auth": { "authType": "bearer", "authActive": true, "token": "<<token>>" },
+      "preRequestScript": "",
+      "testScript": "// Copie data.invoiceId da resposta para <<invoiceId>>. data.accountMatch.linkedAccountId deve vir preenchido (vínculo por CNPJ).",
+      "body": {
+        "contentType": "multipart/form-data",
+        "body": [
+          { "key": "file", "value": "", "active": true, "isFile": true, "comment": "apps/api/test/fixtures/nfe-bonificacao-sintetica.xml" }
+        ]
+      }
+    },
+    {
+      "v": "1",
+      "name": "2b. Vincular conta (só se o vínculo não for automático)",
+      "method": "POST",
+      "endpoint": "<<host>>/dre/purchase-documents/<<invoiceId>>/account",
+      "params": [],
+      "headers": [{ "key": "Content-Type", "value": "application/json", "active": true }],
+      "auth": { "authType": "bearer", "authActive": true, "token": "<<token>>" },
+      "preRequestScript": "",
+      "testScript": "",
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"accountId\": \"a1b2c3d4-0000-4000-8000-000000000001\"\n}"
+      }
+    },
+    {
+      "v": "1",
+      "name": "3. Bonus (PROPORTIONAL §H)",
+      "method": "POST",
+      "endpoint": "<<host>>/dre/purchase-documents/<<invoiceId>>/bonus",
+      "params": [],
+      "headers": [{ "key": "Content-Type", "value": "application/json", "active": true }],
+      "auth": { "authType": "bearer", "authActive": true, "token": "<<token>>" },
+      "preRequestScript": "",
+      "testScript": "// Esperado: data.items com unitCostApproved 11 e 33. Alternativas: rule IGNORE | SPECIFIC_SKU (+ specificSkuEan).",
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"hasBonus\": true,\n  \"bonusAmount\": \"40\",\n  \"rule\": \"PROPORTIONAL\"\n}"
+      }
+    },
+    {
+      "v": "1",
+      "name": "4. Publish (grava product_costs APPROVED)",
+      "method": "POST",
+      "endpoint": "<<host>>/dre/purchase-documents/<<invoiceId>>/publish",
+      "params": [],
+      "headers": [{ "key": "Content-Type", "value": "application/json", "active": true }],
+      "auth": { "authType": "bearer", "authActive": true, "token": "<<token>>" },
+      "preRequestScript": "",
+      "testScript": "// Esperado: data.publishedCount 2, data.ruleType PROPORTIONAL_SPREAD. Um 2.º publish é recusado.",
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"confirm\": true\n}"
+      }
+    }
+  ]
+}
