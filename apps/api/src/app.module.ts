@@ -9,6 +9,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { DreModule } from './modules/dre/dre.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { QueueModule } from './shared/queue/queue.module';
@@ -29,6 +30,7 @@ import { QueueModule } from './shared/queue/queue.module';
     ProductsModule,
     OrdersModule,
     FinanceModule,
+    DreModule,
     DashboardModule,
   ],
   controllers: [HealthController],

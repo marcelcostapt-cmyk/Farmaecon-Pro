@@ -1,0 +1,66 @@
+/* Farmaecon — Design tokens (bloqueado 2026-11-14, a partir da cena "C2 · Estações no balcão")
+   Uso: :root no shell interno. Light apenas (o produto não tem dark mode definido). */
+:root {
+  /* ---- Marca ---- */
+  --fa-navy:        #1B2A3D;  /* títulos, navegação, mobília da cena */
+  --fa-navy-700:    #27405c;  /* gradiente/estados sobre navy */
+  --fa-orange:      #F26522;  /* ação principal, acento */
+  --fa-orange-700:  #D44D10;  /* hover do laranja */
+  --fa-bg:          #F5F7FA;  /* fundo da app */
+  --fa-surface:     #FFFFFF;  /* cards, header, sidebar-content */
+
+  /* ---- Neutros / texto ---- */
+  --fa-text:        #1B2A3D;  /* corpo sobre claro */
+  --fa-muted:       #64748B;  /* secundário */
+  --fa-muted-2:     #94A3B8;  /* terciário / vazio */
+  --fa-border:      #E6EBF1;  /* bordas de card */
+  --fa-border-2:    #DBE3EC;  /* bordas de controlo */
+  --fa-side-text:   #CBD5E1;  /* texto na sidebar navy */
+  --fa-side-text-2: #8AA0B6;  /* subtítulo na sidebar */
+
+  /* ---- Semânticos financeiros (sempre com texto/ícone, nunca só cor) ---- */
+  --fa-pos:         #1B998B;  /* resultado positivo (verde-azulado, passa 4.5:1 melhor que verde puro) */
+  --fa-neg:         #C0392B;  /* prejuízo */
+  --fa-warn:        #B4690E;  /* atenção / estimado */
+  --fa-warn-bg:     #FFF4E5;
+  --fa-info:        #2E5E86;
+  --fa-info-bg:     #E8F0F7;
+
+  /* ---- Estados de agente (qualidade do dado) ---- */
+  --fa-st-off-bg:   #EEF1F4;  --fa-st-off-fg:  #64748B;  /* Não configurado */
+  --fa-st-wait-bg:  #FFF4E5;  --fa-st-wait-fg: #B4690E;  /* Aguardando dados */
+  --fa-st-idle-bg:  #E8F0F7;  --fa-st-idle-fg: #2E5E86;  /* Sem execução integrada */
+
+  /* ---- Acentos dos 6 agentes (diferenciados por matiz E luminosidade) ---- */
+  --fa-ag-gestor:   #F26522;
+  --fa-ag-analista: #2E8BC0;
+  --fa-ag-anuncios: #6A4C93;
+  --fa-ag-criativo: #E4572E;
+  --fa-ag-ads:      #1B998B;
+  --fa-ag-sac:      #3D5A80;
+
+  /* ---- Tipografia ---- */
+  --fa-font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --fa-fs-label: 11px;  --fa-fs-body: 14px;  --fa-fs-body-lg: 16px;
+  --fa-fs-h2: 22px;     --fa-fs-h1: 28px;    --fa-fs-kpi: 30px;
+  --fa-fw-reg: 500; --fa-fw-semi: 600; --fa-fw-bold: 800;
+  /* Dinheiro: font-variant-numeric: tabular-nums; text-align:right; locale pt-BR; nunca truncar centavos. */
+
+  /* ---- Espaçamento (múltiplos de 8) ---- */
+  --fa-s1: 4px; --fa-s2: 8px; --fa-s3: 12px; --fa-s4: 16px; --fa-s5: 20px; --fa-s6: 24px;
+  --fa-pad-card: 16px;  /* 16–24 interno */
+
+  /* ---- Raios ---- */
+  --fa-r-sm: 8px;   /* botões, chips */
+  --fa-r-md: 10px;  /* inputs */
+  --fa-r-lg: 13px;  /* cards (10–14) */
+  --fa-r-xl: 16px;  /* painéis grandes / cena */
+  --fa-r-pill: 999px;
+
+  /* ---- Elevação (suave) ---- */
+  --fa-sh-1: 0 10px 20px rgba(27,42,61,.07);
+  --fa-sh-2: 0 14px 26px rgba(27,42,61,.14);
+
+  /* ---- Foco acessível ---- */
+  --fa-focus: 0 0 0 3px rgba(242,101,34,.40);
+}

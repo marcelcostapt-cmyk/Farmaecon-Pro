@@ -4,6 +4,9 @@ export interface Account {
   id: string;
   name: string;
   displayName: string | null;
+  externalSellerId: string | null;
+  businessName: string | null;
+  cnpj: string | null;
   platform: string;
   status: AccountStatus | string;
   orderCount: number;

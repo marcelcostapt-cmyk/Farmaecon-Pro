@@ -33,11 +33,19 @@ try {
     await database.query("INSERT INTO marketplace_accounts (id, tenant_id, platform, name, source, last_synced_at, updated_at) VALUES ($1, $2, 'MERCADO_LIVRE', $3, 'SIMULATED', '2026-09-01T12:00:00Z', NOW())", [`upgrade-account-${key}`, `upgrade-${key}`, 'Synthetic migration account']);
     await database.query("INSERT INTO orders (id, tenant_id, marketplace_account_id, external_order_id, total_amount, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'PAID', '2026-09-01T10:30:00Z', NOW())", [`upgrade-order-${key}`, `upgrade-${key}`, `upgrade-account-${key}`, `test-${key}`, key === 'a' ? 123.45 : 0]);
   }
-  const before = (await database.query('SELECT * FROM orders ORDER BY id')).rows;
+  // Compara as colunas ORIGINAIS do pedido (o invariante real é "os dados sobrevivem"),
+  // não `SELECT *`: migrações aditivas legítimas podem acrescentar colunas novas a orders.
+  const originalColumns = 'id, tenant_id, marketplace_account_id, external_order_id, total_amount, status, created_at, updated_at';
+  const before = (await database.query(`SELECT ${originalColumns} FROM orders ORDER BY id`)).rows;
   prisma(['migrate', 'deploy']);
   prisma(['migrate', 'deploy']);
-  const after = (await database.query('SELECT * FROM orders ORDER BY id')).rows;
+  const after = (await database.query(`SELECT ${originalColumns} FROM orders ORDER BY id`)).rows;
   assert.deepEqual(after, before, 'Existing orders must survive upgrade unchanged');
+  // As colunas aditivas do DRE (20261114_dre_order_items) ficam NULL para pedidos pré-existentes.
+  const dreColumns = (await database.query('SELECT paid_amount, ml_date_created, ml_date_closed, pack_id, status_detail, ml_payments_raw FROM orders ORDER BY id')).rows;
+  assert(dreColumns.length === 2 && dreColumns.every(row => row.paid_amount === null && row.ml_date_created === null
+    && row.ml_date_closed === null && row.pack_id === null && row.status_detail === null && row.ml_payments_raw === null),
+    'Novas colunas do DRE devem ficar nulas para pedidos pré-existentes (migração aditiva)');
   const accounts = (await database.query('SELECT last_sync_state, last_sync_attempt_at, last_sync_error, last_synced_at FROM marketplace_accounts')).rows;
   assert(accounts.length === 2 && accounts.every(a => a.last_sync_state === 'NOT_SYNCED' && a.last_sync_attempt_at === null && a.last_sync_error === null && a.last_synced_at), 'Upgrade must preserve timestamps without claiming previous complete sync evidence');
   const migrations = (await database.query('SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name')).rows.map(row => row.migration_name);
