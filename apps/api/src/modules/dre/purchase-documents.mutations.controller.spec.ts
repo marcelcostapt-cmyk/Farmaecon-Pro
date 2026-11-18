@@ -2,8 +2,9 @@ import { ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PurchaseDocumentsController } from './purchase-documents.controller';
 
-const admin = { id: 'u1', tenantId: 'tenant-a', role: 'ADMIN' };
-const operator = { id: 'u2', tenantId: 'tenant-a', role: 'OPERATOR' };
+// Forma real do principal injetado por @CurrentUser (AuthPrincipal): o id do utilizador é `sub`, não `id`.
+const admin = { sub: 'u1', email: 'a@x', tenantId: 'tenant-a', role: 'ADMIN', sid: 's1' };
+const operator = { sub: 'u2', email: 'o@x', tenantId: 'tenant-a', role: 'OPERATOR', sid: 's2' };
 
 function make() {
   const invoices = { associateAccountManually: jest.fn(async () => ({ invoiceId: 'inv-1', linkedAccountId: 'acc-1' })) };

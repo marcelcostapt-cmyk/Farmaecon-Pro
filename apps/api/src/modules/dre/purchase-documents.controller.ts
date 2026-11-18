@@ -20,14 +20,12 @@ import { parseDocument, type UnifiedInvoice } from '../costs/document-parser';
 import type { BonusCalculation } from '../costs/bonus-calc';
 import { money } from '../costs/cost-money';
 import type { BonusRule, BonusDecision } from '../costs/bonus-allocation';
+import type { AuthPrincipal } from '../auth/auth.service';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
 import { CostPublicationService } from './cost-publication.service';
 
-interface RequestUser {
-  id: string;
-  tenantId: string;
-  role: string;
-}
+// O principal injetado por @CurrentUser é o AuthPrincipal: o id do utilizador é `sub`.
+type RequestUser = AuthPrincipal;
 
 const BONUS_RULES: BonusRule[] = ['PROPORTIONAL', 'SPECIFIC_SKU', 'IGNORE'];
 
@@ -173,7 +171,7 @@ export class PurchaseDocumentsController {
   async ingest(@CurrentUser() user: RequestUser, @UploadedFile() file?: UploadedDocument) {
     if (user.role !== 'ADMIN') throw new ForbiddenException('Apenas ADMIN pode importar documentos de custo.');
     const doc = await parseUpload(file);
-    const res = await this.purchaseInvoices.ingest(user.tenantId, doc, user.id ?? null);
+    const res = await this.purchaseInvoices.ingest(user.tenantId, doc, user.sub ?? null);
     return ok(res);
   }
 
@@ -181,7 +179,7 @@ export class PurchaseDocumentsController {
   @Post(':id/account')
   async associateAccount(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() dto: AssociateAccountDto) {
     this.ensureAdmin(user);
-    return ok(await this.purchaseInvoices.associateAccountManually(user.tenantId, id, dto.accountId, { sub: user.id }));
+    return ok(await this.purchaseInvoices.associateAccountManually(user.tenantId, id, dto.accountId, { sub: user.sub }));
   }
 
   // Aplica a decisão de bonificação e recalcula o custo por linha. NÃO publica.
@@ -197,13 +195,13 @@ export class PurchaseDocumentsController {
       specificSkuEan: dto.specificSkuEan ?? null,
       manual,
     };
-    return ok(await this.publication.applyBonus(user.tenantId, id, decision, { sub: user.id }));
+    return ok(await this.publication.applyBonus(user.tenantId, id, decision, { sub: user.sub }));
   }
 
   // Aprova e publica os custos em product_costs. Confirmação explícita obrigatória.
   @Post(':id/publish')
   async publish(@CurrentUser() user: RequestUser, @Param('id') id: string, @Body() _dto: PublishDto) {
     this.ensureAdmin(user);
-    return ok(await this.publication.publishCosts(user.tenantId, id, { sub: user.id }));
+    return ok(await this.publication.publishCosts(user.tenantId, id, { sub: user.sub }));
   }
 }
