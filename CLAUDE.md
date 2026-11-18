@@ -124,3 +124,14 @@ Estado por dimensão:
 Top 3 bloqueios: (1) DRE gerencial não existe (só desenhado, inc 1 pendente de aprovação); (2) dados financeiros do ML não persistidos; (3) hardening infra/segurança.
 Top 5 passos: (1) aprovar+executar inc 1 do DRE; (2) hardening rápido (UFW+swap+imagem produção-only); (3) fechar ciclo Git (PR #6, branches, main); (4) testar restore BD; (5) triar vulns + digests.
 Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por conta vs empresa (resolvi por conta)? prioridade DRE vs infra? alinhar main? alargar allowlist (ADS/billing) no inc 2?
+
+## Deploy do PR #9 — ADIADO (Via 3) · 2026-11-18
+- PR #9 MERGED em feature/merge-ml-resumable-sync (commit 36d9675). NÃO houve deploy em produção.
+- Produção intocada: MARKETPLACE_MODE=OBSERVATION (nem está no env → default), SOURCE=MERCADO_LIVRE, imagens api e33588e-scheduler / web f69965b inalteradas. Migrations de produção em 20261011 (6 pendentes NÃO aplicadas).
+- Motivo: sem autorização explícita do Márcio para a Via 1. A "via limpa" (só migrations do PR #9) é INVIÁVEL: o auto-vínculo por CNPJ do PR #9 lê cnpj/businessName (migration fiscal-identity) e o código de integrations lê display_name (migration integrations-management) — não dá para aplicar só as do DRE sem partir a app.
+- GATE p/ Márcio: escolher Via 1 (aplicar as 6 migrations aditivas, já validadas no ensaio, deploy completo), Via 2 (reverter integrations-management+fiscal-identity e revalidar — é dev, não deploy) ou Via 3 (manter em ensaio). Via 1 é a única que entrega a publicação de custos em produção.
+
+## Ciclo WeStack — Gestor de Margem por SKU (branch feature/westack-margin-manager, só leitura) · 2026-11-18
+- DESCOBERTA que reduz o âmbito do prompt: os campos financeiros do ML JÁ são modelados e persistidos — OrderItem.saleFee ← ML sale_fee, grossPrice, unitPrice, quantity; Order.paidAmount ← paid_amount; Order.mlPaymentsRaw ← payments (JSON). Logo NÃO é preciso migration/sync novos para "persistir fees" (passo do prompt já está feito no branch merge-ml).
+- Já existe DrePreviewService + computeDrePreview que calcula receita, CMV (de product_costs APPROVED) e margem BRUTA (receita−CMV). O delta WeStack é: margem LÍQUIDA (receita − taxas ML saleFee − CMV) + limites configuráveis por tenant (margin_rules) + alertas. Reutiliza cost-matching existente; nunca fabrica número (indisponível se falta custo/taxa).
+- Ressalva de validação: produção (20261011) ainda não tem order_items (migração não deployada); ensaio tem o schema mas 0 orders (MOCK). Validação de margem com dados reais só após deploy; entretanto valida-se com dados sintéticos no ensaio (como no PR #9).
