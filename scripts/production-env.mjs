@@ -6,7 +6,10 @@ import { pathToFileURL } from 'node:url';
 const random = () => randomBytes(32).toString('base64url');
 const key = () => randomBytes(32).toString('base64');
 const domain = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-const image = /^(?:[a-z0-9][a-z0-9./:_-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*|[a-z0-9][a-z0-9./:_-]*@sha256:[a-f0-9]{64})$/;
+// Hardening: a imagem de produção TEM de estar fixada por digest (sha256), não por tag.
+// Uma tag é mutável (pode ser republicada sobre o mesmo nome); o digest garante que o
+// que corre é exatamente o que foi testado no CI. Converter tag→digest: docs/hardening.md.
+const image = /^[a-z0-9][a-z0-9./:_-]*@sha256:[a-f0-9]{64}$/;
 
 export function productionDefaults() {
   return {

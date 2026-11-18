@@ -10,6 +10,10 @@ COPY scripts/clear-marketplace-credentials.mjs scripts/clear-marketplace-credent
 COPY scripts/database-migrate.mjs scripts/database-migrate.mjs
 RUN npm exec --workspace api -- prisma generate
 RUN npm run build --workspace api
+# Hardening: runtime produção-only. Remove devDeps (typescript, jest, nest cli…)
+# depois do build. O cliente Prisma gerado e o CLI `prisma` (movido para
+# dependencies) sobrevivem, porque o serviço `migrate` corre `prisma migrate deploy`.
+RUN npm prune --omit=dev
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

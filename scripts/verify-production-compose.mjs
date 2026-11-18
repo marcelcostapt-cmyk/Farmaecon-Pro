@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { productionDefaults } from './production-env.mjs';
 
 // Config-only verification: never contacts the Docker daemon or an account.
-const env = { ...process.env, ...productionDefaults(), API_IMAGE: 'farmaecon-api:ci', WEB_IMAGE: 'farmaecon-web:ci', TRAEFIK_NETWORK: 'verified-proxy', TRAEFIK_CERT_RESOLVER: 'verified-acme' };
+const env = { ...process.env, ...productionDefaults(), API_IMAGE: `farmaecon-api@sha256:${'a'.repeat(64)}`, WEB_IMAGE: `farmaecon-web@sha256:${'b'.repeat(64)}`, TRAEFIK_NETWORK: 'verified-proxy', TRAEFIK_CERT_RESOLVER: 'verified-acme' };
 const executable = process.env.FARMAECON_COMPOSE_BIN || 'docker';
 const prefix = process.env.FARMAECON_COMPOSE_BIN ? [] : ['compose'];
 const args = [...prefix, '--env-file', '/dev/null', '-p', 'farmaecon-config-check', '-f', 'docker-compose.prod.yml'];

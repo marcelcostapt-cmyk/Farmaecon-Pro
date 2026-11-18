@@ -13,7 +13,8 @@ import { encryptBackup, decryptBackup } from './backup-crypto.mjs';
 import { auditStage, captureProcess, OUTPUT_TAIL_CHARS, runCommand, withCleanup } from './production-diagnostics.mjs';
 import { collectRestoreDiagnostics, waitForRestoreDatabase } from './production-backup.mjs';
 
-const fixture = () => ({ ...productionDefaults(), API_IMAGE: 'farmaecon-api:tested-commit', WEB_IMAGE: 'farmaecon-web:tested-commit', TRAEFIK_NETWORK: 'proxy', TRAEFIK_CERT_RESOLVER: 'acme' });
+const digest = name => `${name}@sha256:${'a'.repeat(64)}`;
+const fixture = () => ({ ...productionDefaults(), API_IMAGE: digest('farmaecon-api'), WEB_IMAGE: digest('farmaecon-web'), TRAEFIK_NETWORK: 'proxy', TRAEFIK_CERT_RESOLVER: 'acme' });
 test('new production secrets are independent and external marketplace access starts disabled', () => {
   const a = fixture(), b = fixture();
   assert.equal(validateProduction(a, { traefik: true }), true);
@@ -39,6 +40,8 @@ test('preflight rejects missing keys, unsafe URLs, mutable latest images and inc
     { JWT_ACCESS_SECRET: '' }, { TOKEN_ENCRYPTION_KEY: 'bad-key' },
     { APP_DOMAIN: 'https://app.farmaecon.com.br/path' }, { DB_USER: 'bad:user' },
     { API_IMAGE: 'farmaecon-api:latest' }, { WEB_IMAGE: '' },
+    // Hardening: só digest por sha256 é aceite; tag mutável (mesmo não-latest) é rejeitada.
+    { API_IMAGE: 'farmaecon-api:tested-commit' }, { WEB_IMAGE: 'farmaecon-web:1.2.3' },
     { MARKETPLACE_SOURCE: 'LIVE' }, { MARKETPLACE_SOURCE: 'MERCADO_LIVRE' },
   ]) assert.throws(() => validateProduction({ ...fixture(), ...change }));
   const a = fixture();
