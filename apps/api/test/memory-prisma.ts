@@ -51,6 +51,7 @@ export class MemoryPrisma {
       count: jest.fn(async (args: any) => this.rows[name].filter(r => this.matches(r,args.where)).length),
       create: jest.fn(async (args: any) => { const row = { id: `${name}-${this.rows[name].length}`, createdAt: new Date(), revokedAt: null, consumedAt: null, ...args.data }; this.rows[name].push(row); return this.project(name,row,args); }),
       updateMany: jest.fn(async (args: any) => { const found=this.rows[name].filter(r=>this.matches(r,args.where)); found.forEach(r=>{ for(const [key,value] of Object.entries(args.data ?? {})){ if(value && typeof value === 'object' && 'increment' in (value as any)) r[key]=(r[key] ?? 0)+(value as any).increment; else Object.assign(r,{[key]:value}); } }); return { count: found.length }; }),
+      deleteMany: jest.fn(async (args: any = {}) => { const before=this.rows[name].length; this.rows[name]=this.rows[name].filter(r=>!this.matches(r,args.where)); return { count: before-this.rows[name].length }; }),
       upsert: jest.fn(async (args: any) => { let row=this.rows[name].find(r=>this.matches(r,args.where)); if (row) Object.assign(row,args.update); else { row={id:`${name}-${this.rows[name].length}`,createdAt:new Date(),status:'ACTIVE',...args.create};this.rows[name].push(row); } return this.project(name,row,args); }),
     };
   }

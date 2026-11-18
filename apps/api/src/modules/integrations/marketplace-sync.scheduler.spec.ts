@@ -15,6 +15,7 @@ function setup(account: Record<string, unknown> | null = ACTIVE_ML, inFlight: Pa
     upsertJobScheduler: jest.fn().mockResolvedValue(undefined),
     removeJobScheduler: jest.fn().mockResolvedValue(true),
     getJobs: jest.fn().mockResolvedValue(inFlight),
+    getJobScheduler: jest.fn().mockResolvedValue(undefined),
   };
   const prisma = { marketplaceAccount: { findFirst: jest.fn().mockResolvedValue(account) } };
   const ordersSync = { syncRecentOrders: jest.fn().mockResolvedValue({ status: 'COMPLETE' }) };
@@ -26,6 +27,22 @@ const tick = (accountId = 'account-a', id = 'repeat:tick-1') =>
   ({ id, name: SCHEDULED_SYNC_JOB, data: { tenantId: 'tenant-a', accountId } }) as Job;
 
 describe('MarketplaceSyncScheduler', () => {
+  it('nextRunAt returns the next tick or null', async () => {
+    const { queue, scheduler } = setup();
+    queue.getJobScheduler.mockResolvedValueOnce({ next: 1794684499835 });
+    await expect(scheduler.nextRunAt('account-a')).resolves.toEqual(new Date(1794684499835));
+    expect(queue.getJobScheduler).toHaveBeenCalledWith('orders-sync-account-a');
+    await expect(scheduler.nextRunAt('account-a')).resolves.toBeNull();
+    queue.getJobScheduler.mockRejectedValueOnce(new Error('redis down'));
+    await expect(scheduler.nextRunAt('account-a')).resolves.toBeNull();
+  });
+
+  it('nextRunAt resolves null when Redis hangs instead of rejecting', async () => {
+    const { queue, scheduler } = setup();
+    queue.getJobScheduler.mockReturnValue(new Promise(() => {})); // never settles (ioredis offline queue)
+    await expect(scheduler.nextRunAt('account-a')).resolves.toBeNull();
+  }, 2500);
+
   it('keeps the recurring interval at 15 minutes and never below 10', () => {
     expect(RECURRING_SYNC_INTERVAL_MS).toBe(15 * 60 * 1000);
     expect(RECURRING_SYNC_INTERVAL_MS).toBeGreaterThanOrEqual(10 * 60 * 1000);
@@ -154,9 +171,10 @@ describe('MarketplaceSyncProcessor recurring integration', () => {
 
 describe('IntegrationsService.disconnect', () => {
   it('removes the recurring schedule of a disconnected account', async () => {
-    const prisma = { marketplaceAccount: { findFirstOrThrow: jest.fn().mockResolvedValue({}), updateMany: jest.fn() } };
+    const prisma = { marketplaceAccount: { findFirst: jest.fn().mockResolvedValue({ id: 'account-a' }), updateMany: jest.fn() } };
     const scheduler = { removeRecurring: jest.fn() };
-    const service = new IntegrationsService(prisma as never, {} as never, {} as never, scheduler as never);
+    const tokenQueue = { getJobs: jest.fn().mockResolvedValue([]) };
+    const service = new IntegrationsService(prisma as never, {} as never, tokenQueue as never, {} as never, {} as never, scheduler as never);
     await service.disconnect('tenant-a', 'account-a');
     expect(scheduler.removeRecurring).toHaveBeenCalledWith('account-a');
   });

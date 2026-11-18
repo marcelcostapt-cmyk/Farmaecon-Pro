@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   // Provider-controlled query values must not be written to logs.
   const providerError = url.searchParams.has('error');
 
-  let success = false;
+  let outcome = 'error=oauth_failed';
   if (code && state && !providerError) {
     try {
       const api = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
@@ -29,13 +29,15 @@ export async function GET(request: Request) {
         cache: 'no-store',
         signal: AbortSignal.timeout(10000),
       });
-      success = response.ok;
+      const body = await response.json().catch(() => null);
+      if (response.ok) outcome = body?.data?.reconnected ? 'success=ml_reconnected' : 'success=ml_connected';
+      else if (response.status === 409 && body?.code === 'SELLER_MISMATCH') outcome = 'error=seller_mismatch';
     } catch {
       /* No provider error or credentials are exposed */
     }
   }
 
-  const response = NextResponse.redirect(new URL(`/integrations?${success ? 'success=ml_connected' : 'error=oauth_failed'}`, publicBase));
+  const response = NextResponse.redirect(new URL(`/integrations?${outcome}`, publicBase));
   response.headers.set('Referrer-Policy', 'no-referrer');
   response.headers.set('Cache-Control', 'no-store');
   return response;

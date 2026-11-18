@@ -6,6 +6,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 // This page receives the redirect after ML OAuth callback is processed by the backend.
 // Backend redirects to: /integrations?success=ml_connected&account=xxx
 // or: /integrations?error=oauth_failed
+const SUCCESS_COPY = {
+  ml_connected: { title: 'Mercado Livre conectado!', description: 'Conta conectada e importação inicial de pedidos em andamento.' },
+  ml_reconnected: { title: 'Conta reconectada!', description: 'A importação de pedidos foi retomada.' },
+  sync_requested: { title: 'Sincronização iniciada!', description: 'Os pedidos estão sendo importados em segundo plano.' },
+} as const;
+
+// Same text as the API's AccountErrors.SELLER_MISMATCH (the web does not import API code).
+const SELLER_MISMATCH = 'A conta Mercado Livre autenticada não corresponde a esta integração. Entre com a conta original e tente novamente.';
+
 export default function IntegrationsCallbackHandler() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -14,7 +23,7 @@ export default function IntegrationsCallbackHandler() {
     const success = searchParams.get('success');
     const error = searchParams.get('error');
 
-    if (success === 'ml_connected' || success === 'sync_requested') {
+    if (success === 'ml_connected' || success === 'ml_reconnected' || success === 'sync_requested') {
       // Clean the URL after showing feedback
       setTimeout(() => {
         router.replace('/integrations');
@@ -31,13 +40,8 @@ export default function IntegrationsCallbackHandler() {
   const success = searchParams.get('success');
   const error = searchParams.get('error');
 
-  if (success === 'ml_connected' || success === 'sync_requested') {
-    const title = success === 'ml_connected'
-      ? 'Mercado Livre conectado!'
-      : 'Sincronização iniciada!';
-    const description = success === 'ml_connected'
-      ? 'Conta conectada e importação inicial de pedidos em andamento.'
-      : 'Os pedidos estão sendo importados em segundo plano.';
+  if (success === 'ml_connected' || success === 'ml_reconnected' || success === 'sync_requested') {
+    const { title, description } = SUCCESS_COPY[success];
 
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
@@ -53,9 +57,11 @@ export default function IntegrationsCallbackHandler() {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <span className="text-5xl">❌</span>
-        <h2 className="text-xl font-bold">Erro na autorização</h2>
+        <h2 className="text-xl font-bold">{error === 'seller_mismatch' ? 'Conta Mercado Livre diferente' : 'Erro na autorização'}</h2>
         <p className="text-sm text-muted-foreground">
-          {error === 'oauth_denied'
+          {error === 'seller_mismatch'
+            ? SELLER_MISMATCH
+            : error === 'oauth_denied'
             ? 'Autorização negada pelo usuário.'
             : error === 'sync_failed'
               ? 'Não foi possível iniciar a sincronização dos pedidos.'

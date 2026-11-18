@@ -9,6 +9,8 @@ import { MlOrdersSyncService } from './ml-orders-sync.service';
 /** Recurring read-only order sync interval. Keep at or above 10 minutes. */
 export const RECURRING_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 export const SCHEDULED_SYNC_JOB = 'scheduled-sync-account-orders';
+/** Reads of the recurring schedule give up after this, so a hung Redis never stalls the listing. */
+export const REDIS_READ_TIMEOUT_MS = 500;
 
 /** Jobs in these states mean a pass (or its page chain) is already in flight. */
 const IN_FLIGHT_STATES = ['active', 'waiting', 'delayed', 'prioritized', 'waiting-children'] as const;
@@ -58,6 +60,25 @@ export class MarketplaceSyncScheduler {
         },
       },
     );
+  }
+
+  /** Next scheduled tick, or null when there is none or Redis cannot answer. */
+  async nextRunAt(accountId: string): Promise<Date | null> {
+    const read = this.queue.getJobScheduler(MarketplaceSyncScheduler.schedulerId(accountId));
+    read.catch(() => undefined); // ioredis may settle after the timeout; never leak an unhandled rejection
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const scheduler = await Promise.race([
+        read,
+        new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), REDIS_READ_TIMEOUT_MS); }),
+      ]);
+      return scheduler?.next ? new Date(scheduler.next) : null;
+    } catch {
+      this.logger.warn(`Could not read next sync for account ${accountId}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async removeRecurring(accountId: string): Promise<void> {

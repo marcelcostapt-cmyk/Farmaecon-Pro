@@ -51,13 +51,42 @@ Nota: `up api` corre antes o serviço `migrate` (mesma imagem da API).
 - Compose: /opt/farmaecon/docker-compose.rehearsal.yml
 - API: http://127.0.0.1:13001/api/v1/health
 - Web: http://127.0.0.1:13000
-- Estado: healthy, mas DESATUALIZADO — ainda em farmaecon-api/web:0de434db2b80 (produção já está em f69965b/e33588e).
+- Estado (2026-11-14 19:48 UTC): ATUALIZADO para as imagens de produção — API/migrate farmaecon-api:e33588e-scheduler-20261114-164657,
+  Web farmaecon-web:f69965b-20261114-153937. Health/ready/web 200, 9/9 migrations. MARKETPLACE_SOURCE=MOCK (sem chamadas reais ao ML).
+- Imagens estão fixas no próprio compose (sem env file) — atualizar com sed nas linhas `image:`.
+- A migration 20261008_tenant_rls_environment_parity foi marcada com `migrate resolve --applied` (como em produção),
+  porque o seu SQL é igual ao de 20260921_tenant_rls e falharia com "policy already exists".
+- Backup antes da atualização: /opt/farmaecon/backups/pre-rehearsal-update-20261114-194739/
+  (dump da BD do ensaio — vazia: 0 orders/users/contas —, compose .bak, ROLLBACK_IMAGES, SHA256SUMS).
+
+## Gestão de contas ML em /integrations (branch feature/integrations-account-management — NÃO em produção)
+- Spec: docs/superpowers/specs/2026-11-14-integrations-account-management-design.md · Plano: docs/superpowers/plans/2026-11-14-integrations-account-management.md
+- Estado da conta = `status` (ACTIVE/WARNING/DISCONNECTED); não existe `isConnected`. ≠ ACTIVE não sincroniza nem renova tokens.
+- Desconectar apaga tokens (null), põe DISCONNECTED, remove o scheduler e os jobs pendentes de `token-refresh`.
+- `name` = identificador técnico `ML #<sellerId>`; `displayName` (nullable, ≤60 chars, vazio → null) é o nome amigável; UI mostra `displayName ?? name`.
+- Reconectar: `POST /integrations/:id/reconnect` grava `oauth_states.expected_account_id`; o callback exige o mesmo `externalSellerId`
+  (senão 409 `SELLER_MISMATCH`, nada escrito; web → `/integrations?error=seller_mismatch`).
+- Remover: `DELETE /integrations/:id` = hard delete só com DISCONNECTED + 0 pedidos + 0 jobs pendentes (orders tem ON DELETE CASCADE!).
+- Ações de gestão só ADMIN; sincronizar aberto a todos. `GET /integrations/ml/config` diz se o OAuth/PKCE está disponível.
+- Web: componentes cliente → route handlers JSON (`apps/web/src/app/api/integrations/api-bridge.ts`); sem Server Actions novas.
+  A web é Next 16 / React 19 (params de route handlers são Promise; `proxy.ts` na raiz é o middleware — não usar esse nome noutros sítios).
+- Migration `20261114_integrations_account_management` (aditiva: display_name, expected_account_id).
+- Revisão final: subagente Opus → 2 importantes corrigidos (timeout no nextRunAt; remove verifica deleteMany.count). 6 menores adiados no ledger.
+- VALIDADO NO ENSAIO (2026-11-14 ~20:37 UTC) com farmaecon-api/web:integrations-a63fd93-20261114: migration aplicada (10/10),
+  endpoints exercitados contra Postgres real com RLS — ml/config=SIMULATED_SOURCE, listagem só do próprio tenant (+displayName/nextSyncAt),
+  rename (trim/null), disconnect (tokens null + DISCONNECTED), delete 409 (NOT_DISCONNECTED/HAS_ORDERS), cross-tenant 404, OPERATOR 403.
+  Dados de teste limpos; ensaio de volta à base vazia, agora a correr a imagem do branch. OAuth real não testável (MOCK).
+  Backup pré-validação: /opt/farmaecon/backups/pre-rehearsal-integrations-20261114-203158/
+- Revisão TypeScript (estilo Pocock) aplicada: 0 `any`/casts forçados no diff; corrigido bug de edição (Enter) + retornos explícitos.
+  DECISÕES DE DESIGN (recusadas de propósito, não reabrir sem motivo): mantém class-validator (não Zod — evita dep nova);
+  state OAuth continua opaco + lookup na BD (NÃO decodificar tenantId/accountId do state — seria regressão de segurança);
+  erros via ConflictException/NotFoundException (sem filtro global); display_name é TEXT + check de 60 code points (não varchar);
+  DELETE devolve 200 {removed:true} (envelope `ok()` consistente, não 204); AccountCard é self-contained (page é Server Component).
 
 ## Pendências / próximos passos
 - Monitorizar nas próximas horas: jobs falhados em bull:marketplace-sync, acumulação na fila, erros ML/tokens
   (1º refresh de token relevante: conta 3fb4ba8a expira ~21:47 UTC de 2026-11-14).
 - Reparo menor no scheduler: o 1º tick dispara logo após o registo (2 passagens seguidas à API ML).
-- Atualizar o ensaio para as imagens de produção.
 - Limpeza possível de imagens antigas sem uso (api:58dede46, web:oauth-redirect-…) — confirmar antes.
 - Ollama: adiado; se necessário, instalar localmente, não na VPS.
 - Ressalvas pré-deploy antigas: tamanho da imagem API reduzido (2,98 → 1,97 GB); Server Action ainda por rever.
