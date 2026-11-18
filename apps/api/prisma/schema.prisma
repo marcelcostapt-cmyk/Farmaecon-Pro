@@ -361,6 +361,7 @@ model PurchaseInvoiceItem {
   isBonus             Boolean   @default(false) @map("is_bonus")
   paidQuantity        Decimal?  @map("paid_quantity")
   bonusQuantity       Decimal?  @map("bonus_quantity")
+  allocatedBonus      Decimal?  @map("allocated_bonus")
   allocationRuleId    String?   @map("allocation_rule_id")
   warnings            Json?
   createdAt           DateTime  @default(now()) @map("created_at")
