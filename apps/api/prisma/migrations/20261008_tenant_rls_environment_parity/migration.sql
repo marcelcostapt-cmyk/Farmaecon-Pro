@@ -1,5 +1,10 @@
 -- The application login is never the schema owner. Migration/backup credentials
 -- stay outside the API. This role has no cluster administration privileges.
+--
+-- Esta migration duplica 20260921_tenant_rls (paridade de ambiente). É aplicada
+-- IDEMPOTENTEMENTE: num deploy de raiz 20260921 cria tudo e esta reaplica os mesmos
+-- objetos sem falhar (antes falhava com 42710 "policy already exists" e bloqueava o
+-- `migrate deploy`). DROP POLICY IF EXISTS + CREATE OR REPLACE tornam-na re-executável.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'farmaecon_runtime') THEN
     CREATE ROLE farmaecon_runtime NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
@@ -20,30 +25,38 @@ ALTER TABLE financial_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE oauth_states ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS tenant_isolation ON tenants;
 CREATE POLICY tenant_isolation ON tenants TO farmaecon_runtime
   USING (id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (id = nullif(current_setting('app.tenant_id', true), ''));
+DROP POLICY IF EXISTS tenant_isolation ON users;
 CREATE POLICY tenant_isolation ON users TO farmaecon_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), ''));
+DROP POLICY IF EXISTS tenant_isolation ON marketplace_accounts;
 CREATE POLICY tenant_isolation ON marketplace_accounts TO farmaecon_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), ''));
+DROP POLICY IF EXISTS tenant_isolation ON products;
 CREATE POLICY tenant_isolation ON products TO farmaecon_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), ''));
+DROP POLICY IF EXISTS tenant_isolation ON orders;
 CREATE POLICY tenant_isolation ON orders TO farmaecon_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '') AND
     EXISTS (SELECT 1 FROM marketplace_accounts a WHERE a.id = marketplace_account_id AND a.tenant_id = orders.tenant_id));
+DROP POLICY IF EXISTS tenant_isolation ON financial_transactions;
 CREATE POLICY tenant_isolation ON financial_transactions TO farmaecon_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '') AND
     (order_id IS NULL OR EXISTS (SELECT 1 FROM orders o WHERE o.id = order_id AND o.tenant_id = financial_transactions.tenant_id)));
+DROP POLICY IF EXISTS tenant_isolation ON auth_sessions;
 CREATE POLICY tenant_isolation ON auth_sessions TO farmaecon_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '') AND
     EXISTS (SELECT 1 FROM users u WHERE u.id = user_id AND u.tenant_id = auth_sessions.tenant_id));
+DROP POLICY IF EXISTS tenant_isolation ON oauth_states;
 CREATE POLICY tenant_isolation ON oauth_states TO farmaecon_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '') AND
@@ -52,7 +65,7 @@ CREATE POLICY tenant_isolation ON oauth_states TO farmaecon_runtime
 
 -- Pre-login tenant is unknown. The sole global lookup returns one exact email
 -- to the backend password verifier. It is never an HTTP endpoint.
-CREATE FUNCTION public.farmaecon_login_lookup(requested_email text)
+CREATE OR REPLACE FUNCTION public.farmaecon_login_lookup(requested_email text)
 RETURNS TABLE (id text, email text, password text, "tenantId" text, role text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public
 AS $$ SELECT u.id, u.email, u.password, u.tenant_id, u.role::text
