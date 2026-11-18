@@ -56,6 +56,7 @@ model Tenant {
   marketplaceSyncStates MarketplaceSyncState[]
   products              Product[]
   orders                Order[]
+  marginRules           MarginRule[]
 
   @@map("tenants")
 }
@@ -399,4 +400,23 @@ model ProductCost {
 
   @@index([tenantId, marketplaceAccountId, ean, validFrom])
   @@map("product_costs")
+}
+
+// WeStack — regra de margem mínima por tenant (sku nullable = regra global).
+// Alertas são informativos; nunca alteram preço/anúncio. Pelo menos um limite deve existir.
+model MarginRule {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  sku              String? // null = regra global do tenant
+  minMarginPercent Decimal? @map("min_margin_percent")
+  minMarginAmount  Decimal? @map("min_margin_amount")
+  createdBy        String?  @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+  @@map("margin_rules")
 }
