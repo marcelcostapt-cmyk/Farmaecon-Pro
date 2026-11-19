@@ -29,21 +29,28 @@ export async function MargemResumoCard() {
   return (
     <a
       href="/margin/preview"
-      className="block rounded-xl border p-6 transition-colors hover:bg-accent"
+      className="block rounded-[var(--fa-r-lg)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-6 shadow-[var(--fa-sh-1)] transition-shadow hover:shadow-[var(--fa-sh-2)]"
       aria-label="Abrir margem por SKU"
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-emerald-700">📈 Margem por SKU</p>
-        <span className="text-xs text-muted-foreground">ver detalhe →</span>
+        <p className="text-[13px] font-extrabold text-[var(--fa-navy)]">📈 Margem por SKU</p>
+        <span className="text-xs font-semibold text-[var(--fa-orange-700)]">ver detalhe →</span>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-4">
         <div>
-          <p className="text-xs text-muted-foreground">SKUs abaixo do limite</p>
-          <p className="mt-1 text-2xl font-semibold text-amber-700">{belowLimit ?? '—'}</p>
+          <p className="text-xs text-[var(--fa-muted)]">SKUs abaixo do limite</p>
+          <p
+            className="fa-num mt-1 text-[30px] font-extrabold leading-none"
+            style={{ color: belowLimit && belowLimit > 0 ? 'var(--fa-neg)' : 'var(--fa-navy)' }}
+          >
+            {belowLimit ?? '—'}
+          </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Margem média</p>
-          <p className="mt-1 text-2xl font-semibold">{avg === null ? 'Indisponível' : `${avg}%`}</p>
+          <p className="text-xs text-[var(--fa-muted)]">Margem média</p>
+          <p className="fa-num mt-1 text-[30px] font-extrabold leading-none text-[var(--fa-navy)]">
+            {avg === null ? <span className="text-base font-semibold text-[var(--fa-muted-2)]">Indisponível</span> : `${avg}%`}
+          </p>
         </div>
       </div>
     </a>

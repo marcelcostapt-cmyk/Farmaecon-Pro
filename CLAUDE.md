@@ -181,3 +181,10 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - Browser (Playwright, screenshots): /escritorio mostra card "📈 Margem por SKU" (1 abaixo do limite, 40.0% média, ver detalhe→); /dre/preview carrega o formulário de importação (ADMIN) com a conta disponível; /margin/preview mostra resumo+alerta+tabela corretos. Nenhuma chamada ao ML (MOCK/OBSERVATION).
 - PRODUÇÃO INTACTA: api-1 e33588e-scheduler / web-1 f69965b (Up, não recriados); .local/production.env inalterado. Deploy a produção continua a depender do gate do Márcio (Via 1).
 - Dados sintéticos ficaram no ensaio para inspeção manual; repor base com o backup acima se necessário.
+
+## Frontend /escritorio — Direção C2 aplicada (branch feature/frontend-escritorio-direcao-c, NÃO em produção) · 2026-11-19
+- Pedido era "Direção C1 (Palco claro)" do Figma, mas o Figma não é acessível e o repo só tem o sistema C2 ("Estações no balcão", bloqueado 2026-11-14 em docs/design/design-system.md + tokens.css). O utilizador escolheu (opção 1) aplicar o C2 existente. NÃO inventar C1.
+- Só pacote web; sem backend/deploy/produção. Tokens --fa-* adicionados a apps/web/src/app/globals.css (:root + .fa-num tabular-nums). Restilizados: layout.tsx (sidebar navy, nav/hover, chip "Modo Observação" laranja #FFF4EC + ponto, header, palco claro --fa-bg no main), escritorio/page.tsx (h1 navy 28, chip), components/escritorio/{StatusBadge (pares fa-st-*/financeiros: ponto+texto), OfficeScene, AgentStatusList, MargemResumoCard (KPI 30 + tabular-nums; nº abaixo do limite em --fa-neg se >0)}.
+- Verde: npm run build --workspace web OK. Screenshots antes (/tmp .../ui-escritorio.png) e depois desktop+tablet (ui-escritorio-after*.png); responsividade desktop 1280 + tablet 820 OK.
+- Validação visual feita com imagem farmaecon-web:escritorio-c2 trocada temporariamente no ensaio e REVERTIDA para 94612a9 (ensaio de volta ao estado validado, web healthy). Nada tocou produção.
+- Nota: a sidebar é o shell partilhado → o navy/laranja aparece em TODAS as páginas do dashboard (consistente com o sistema, por design). Falta eventual: estado "ativo" por rota (precisa de client nav) não implementado.

@@ -117,6 +117,50 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Sistema visual interno Farmaecon — Direção C2 "Estações no balcão"
+   (ver docs/design/design-system.md + docs/design/tokens.css). Light apenas. */
+:root {
+  --fa-navy: #1b2a3d;
+  --fa-navy-700: #27405c;
+  --fa-navy-hover: #24374d;
+  --fa-orange: #f26522;
+  --fa-orange-700: #d44d10;
+  --fa-orange-bg: #fff4ec;
+  --fa-bg: #f5f7fa;
+  --fa-surface: #ffffff;
+  --fa-text: #1b2a3d;
+  --fa-muted: #64748b;
+  --fa-muted-2: #94a3b8;
+  --fa-border: #e6ebf1;
+  --fa-border-2: #dbe3ec;
+  --fa-side-text: #cbd5e1;
+  --fa-side-text-2: #8aa0b6;
+  /* Semânticos financeiros / estados (sempre com texto ou ícone) */
+  --fa-pos: #1b998b;
+  --fa-neg: #c0392b;
+  --fa-neg-bg: #fdecea;
+  --fa-warn: #b4690e;
+  --fa-warn-bg: #fff4e5;
+  --fa-info: #2e5e86;
+  --fa-info-bg: #e8f0f7;
+  --fa-ok-bg: #e8f6f3;
+  --fa-st-off-bg: #eef1f4;
+  --fa-st-off-fg: #64748b;
+  /* Raios / elevação / foco */
+  --fa-r-sm: 8px;
+  --fa-r-md: 10px;
+  --fa-r-lg: 13px;
+  --fa-r-xl: 16px;
+  --fa-sh-1: 0 10px 20px rgba(27, 42, 61, 0.07);
+  --fa-sh-2: 0 14px 26px rgba(27, 42, 61, 0.14);
+  --fa-focus: 0 0 0 3px rgba(242, 101, 34, 0.4);
+}
+
+/* Dinheiro/indicadores: numerais tabulares, não truncar centavos (alinhar à direita no uso). */
+.fa-num {
+  font-variant-numeric: tabular-nums;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
