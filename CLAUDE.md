@@ -145,3 +145,12 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - Verde: 325 unit (api) + 30 e2e em PostgreSQL REAL (`npm run test:postgres`, farmaecon_runtime; margem líquida, indisponível sem taxa, alerta <limite, isolamento entre tenants + migration/boot check 15) + build api + build web. Revisão final: auto-revisão do diff (sem subagente, por não ter sido pedido); 1 menor adiado (índice único (tenant_id, sku) trata sku NULL como distinto — guardado por findFirst+create no upsertRule, sem impacto funcional).
 - PENDENTE: validação de margem com DADOS REAIS só após deploy em produção (order_items não deployados); até lá só sintético. Deploy continua a depender do gate do Márcio (Via 1/2/3).
 - Infra de teste descartável (farmaecon-e2e-pg/redis) e `.local/observation.env` são locais e efémeros (env ignorada pelo git); recriar PG+env para voltar a correr `test:postgres`.
+
+### VALIDADO NO ENSAIO (2026-11-19 ~10:10 UTC) — imagens farmaecon-api/web:94612a9
+- Build das imagens api(2,17 GB)/web(337 MB) do HEAD 94612a9; compose do ensaio atualizado (sed nas linhas image:, b8146aa→94612a9); deploy `docker compose -f docker-compose.rehearsal.yml up -d` (projeto farmaecon-rehearsal-teste). migrate PASS (migration margin_rules aplicada, boot RLS check 15), api/web healthy, /api/v1/health 200, web 200.
+- Backup pré-deploy: /opt/farmaecon/backups/pre-ui-rehearsal-20261119-101052/ (rehearsal.dump 64K + redis.rdb + compose.bak + SHA256SUMS).
+- Seed SINTÉTICO (owner, bypassa RLS; dados fictícios): tenant ensaio-westack, admin-westack@ensaio.local (ADMIN), conta ML #ensaio, 2 custos APPROVED (DIPIRONA 30, PARACETAMOL 20), 3 vendas (saleFee 10/5/null), regra global 40%.
+- Endpoints (JWT real): /margin/preview → DIPIRONA 100/10/60/30 (30%) disp., PARACETAMOL 50/5/20/25 (50%) disp., SEMTAXA indisponível (taxa/custo null); totais receita 190, 2 disp./1 indisp. /margin/alerts → só DIPIRONA (30%<40%). /integrations → 1 conta.
+- Browser (Playwright, screenshots): /escritorio mostra card "📈 Margem por SKU" (1 abaixo do limite, 40.0% média, ver detalhe→); /dre/preview carrega o formulário de importação (ADMIN) com a conta disponível; /margin/preview mostra resumo+alerta+tabela corretos. Nenhuma chamada ao ML (MOCK/OBSERVATION).
+- PRODUÇÃO INTACTA: api-1 e33588e-scheduler / web-1 f69965b (Up, não recriados); .local/production.env inalterado. Deploy a produção continua a depender do gate do Márcio (Via 1).
+- Dados sintéticos ficaram no ensaio para inspeção manual; repor base com o backup acima se necessário.
