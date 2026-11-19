@@ -105,8 +105,12 @@ Nota: `up api` corre antes o serviço `migrate` (mesma imagem da API).
 - Health: API {"status":"ok","mode":"OBSERVATION"}; web 200; público via traefik app.farmaecon.com.br / e /login 200, /margin/preview e /dre/preview 307→/login (auth, rotas existem). api/web restarts=0. orders 13.016 (inalterado). Scheduler de observação a sincronizar ML real (tick SYNCED pós-deploy).
 - Backup pré-deploy: /opt/farmaecon/backups/pre-deploy-via1-20261119-103428/ (farmaecon_db.dump 548K + redis.rdb + production.env.bak + ROLLBACK_IMAGES {api e33588e-scheduler / web f69965b} + orders_count.txt=13016 + SHA256SUMS verificado).
 - Rollback de código: repor tags do ROLLBACK_IMAGES em production.env + mesmo `up`. Rollback de schema NÃO é automático (migrations aditivas); restaurar BD do dump só com autorização explícita.
-- Checkpoint F#1 (~10:47 UTC): api/web healthy restarts=0; db/redis healthy; orders 13.016; bull:marketplace-sync:failed=19 — TODOS "ML API 429" e TODOS anteriores ao deploy (último ~07:49 UTC), transitórios, NÃO causados pelo deploy.
-- Pendente: monitorização 24h (checkpoints a cada 15 min); validação funcional autenticada da UI em produção exige login real do Márcio (NÃO semear utilizadores/dados de teste em produção).
+- MONITORAMENTO EM CURSO (janela 24h aberta; deploy ~10:45 UTC 2026-11-19 → fecho previsto ~11:13 UTC 2026-11-20). Monitorização PONTUAL (opção escolhida), não automática.
+  - F#1 (~10:47 UTC): api/web healthy restarts=0; orders 13.016; bull:marketplace-sync:failed=19 — TODOS "ML API 429" e TODOS anteriores ao deploy (último ~07:49 UTC), transitórios, NÃO do deploy.
+  - F#2 (11:13 UTC): healthy restarts=0; failed=19 (0 novos); orders 13.017 (+1, sync real a funcionar); sem erros novos.
+  - F#3 (11:54 UTC): healthy restarts=0; failed=19 (0 novos; último ~07:49 UTC); token-refresh:failed=0; orders 13.017; logs só ticks SYNCED + refresh de token, sem 5xx/exceções.
+  - FALTA: checkpoint final ~11:13 UTC de 2026-11-20 → se limpo, FECHAR janela.
+- Nota de validação com dados reais em PRODUÇÃO: orders antigos não têm order_items (tabela nova; só populam em re-sync); custos não publicados (bloqueados pelas 7 decisões). Logo margem/DRE em prod ficam "indisponível" até re-sync popular items E custos serem publicados. Validação autenticada da UI em prod exige login real do Márcio (NÃO semear dados em produção).
 
 ## Pendências / próximos passos
 - Monitorizar nas próximas horas: jobs falhados em bull:marketplace-sync, acumulação na fila, erros ML/tokens
