@@ -96,6 +96,18 @@ Nota: `up api` corre antes o serviço `migrate` (mesma imagem da API).
 - Falta: UI `/dre/preview` (opcional, não feito), Task D (idempotência/isolamento e2e Postgres real — lógica coberta em memória), revisão final de branch (revisor fresco). product_costs/cost_allocation_rules continuam sem CRUD (regra de ouro: nada publicado sem regra aprovada).
 - Bug report do incidente de containers: JÁ em fila (SendFeedback); envio pelo utilizador via /feedback. Regras kill/pt-BR em memória.
 
+## DEPLOY VIA 1 EM PRODUÇÃO — CONCLUÍDO (2026-11-19 ~10:45 UTC)
+- Produção atualizada para farmaecon-api/web:94612a9 (branch feature/westack-margin-manager): PR #9 (publicação manual de custos + bonificação + parsers NF-e) + ciclo WeStack (margem por SKU).
+- Autorização explícita do Márcio/utilizador obtida no gate (AskUserQuestion "Deploy Via 1" → "Sim").
+- production.env: SÓ as 2 tags (API_IMAGE/WEB_IMAGE → :94612a9); diff vazio fora delas (MARKETPLACE_MODE hardcoded OBSERVATION no compose, SOURCE/segredos/URLs intactos).
+- Comando: `docker compose -p farmaecon -f docker-compose.prod.yml -f docker-compose.vps.yml --env-file .local/production.env up -d --no-build`. migrate usa API_IMAGE (não há MIGRATE_IMAGE).
+- 7 migrations aditivas aplicadas (o prompt dizia 6): dre_order_items, dre_purchase_documents, integrations_account_management, add_account_fiscal_identity, dre_bonus_and_fiscal_fields, dre_allocated_bonus, westack_margin_rules. migrate PASS, boot RLS check 15 tabelas, Prisma conectado.
+- Health: API {"status":"ok","mode":"OBSERVATION"}; web 200; público via traefik app.farmaecon.com.br / e /login 200, /margin/preview e /dre/preview 307→/login (auth, rotas existem). api/web restarts=0. orders 13.016 (inalterado). Scheduler de observação a sincronizar ML real (tick SYNCED pós-deploy).
+- Backup pré-deploy: /opt/farmaecon/backups/pre-deploy-via1-20261119-103428/ (farmaecon_db.dump 548K + redis.rdb + production.env.bak + ROLLBACK_IMAGES {api e33588e-scheduler / web f69965b} + orders_count.txt=13016 + SHA256SUMS verificado).
+- Rollback de código: repor tags do ROLLBACK_IMAGES em production.env + mesmo `up`. Rollback de schema NÃO é automático (migrations aditivas); restaurar BD do dump só com autorização explícita.
+- Checkpoint F#1 (~10:47 UTC): api/web healthy restarts=0; db/redis healthy; orders 13.016; bull:marketplace-sync:failed=19 — TODOS "ML API 429" e TODOS anteriores ao deploy (último ~07:49 UTC), transitórios, NÃO causados pelo deploy.
+- Pendente: monitorização 24h (checkpoints a cada 15 min); validação funcional autenticada da UI em produção exige login real do Márcio (NÃO semear utilizadores/dados de teste em produção).
+
 ## Pendências / próximos passos
 - Monitorizar nas próximas horas: jobs falhados em bull:marketplace-sync, acumulação na fila, erros ML/tokens
   (1º refresh de token relevante: conta 3fb4ba8a expira ~21:47 UTC de 2026-11-14).
