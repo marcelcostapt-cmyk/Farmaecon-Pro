@@ -112,6 +112,17 @@ Nota: `up api` corre antes o serviço `migrate` (mesma imagem da API).
   - FALTA: checkpoint final ~11:13 UTC de 2026-11-20 → se limpo, FECHAR janela.
 - Nota de validação com dados reais em PRODUÇÃO: orders antigos não têm order_items (tabela nova; só populam em re-sync); custos não publicados (bloqueados pelas 7 decisões). Logo margem/DRE em prod ficam "indisponível" até re-sync popular items E custos serem publicados. Validação autenticada da UI em prod exige login real do Márcio (NÃO semear dados em produção).
 
+### PIPELINE DRE→MARGEM VALIDADO PONTA-A-PONTA NO ENSAIO (2026-11-19 ~14:4x UTC, imagens 94612a9, MOCK)
+- Prova pelos endpoints/UI deployados, com dados SINTÉTICOS (fixture apps/api/test/fixtures/nfe-bonificacao-sintetica.xml: produtos A cProd 5080/EAN …011 unit 10, B cProd 5081/EAN …022 unit 30, sem bonificação):
+  1. POST /dre/purchase-documents/preview → 2 linhas, 0 candidatos de bonificação.
+  2. POST /dre/purchase-documents (ingest) → pending_review; accountMatch=cnpj_no_match (requer revisão).
+  3. POST :id/account → MATCHING doc↔conta a funcionar: RECUSOU por "CNPJ do destinatário difere do CNPJ da conta"; só vinculou após alinhar cnpj da conta ao dest da NF-e (00000000000272). (conta criada com UUID real; acc-westack do seed anterior não é UUID e falha o @IsUUID.)
+  4. POST :id/bonus {hasBonus:false, rule:IGNORE} → custos por linha A=10, B=30.
+  5. POST :id/publish {confirm:true} → 2 product_costs APPROVED (ZERO_BONUS), com cost_allocation_rule (ean+supplier_code+description; sku null pois a NF-e não traz SKU do ML).
+- Margem a partir dos custos PUBLICADOS (match por descrição normalizada, pois orders não têm ean/supplier_code): semeadas 2 vendas (title=PRODUTO SINTETICO A/B). /margin/preview?account_id=<uuid>: A rev100−taxa8−CMV50=42 (42%), B 100−12−60=28 (28%); /margin/alerts: B 28%<40%. UI /margin/preview confirma (screenshots). Liga DRE + matching fiscal + margem por SKU.
+- RESSALVA: valida só a MECÂNICA com dados sintéticos; as 7 decisões de negócio continuam a bloquear a publicação de custos REAIS (em produção). Nenhuma chamada ao ML.
+- Dados do pipeline ficaram no ensaio (conta a2607821…, 2 vendas, 2 custos); repor com /opt/farmaecon/backups/pre-ui-rehearsal-20261119-101052 se quiser base limpa.
+
 ## Pendências / próximos passos
 - Monitorizar nas próximas horas: jobs falhados em bull:marketplace-sync, acumulação na fila, erros ML/tokens
   (1º refresh de token relevante: conta 3fb4ba8a expira ~21:47 UTC de 2026-11-14).
