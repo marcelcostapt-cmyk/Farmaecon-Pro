@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { logoutAction, getCurrentUser } from '@/lib/auth';
 import type { Metadata } from 'next';
+import { SidebarNav } from './sidebar-nav';
 
 export const metadata: Metadata = {
   title: 'Dashboard | Farmaecon PRO',
@@ -18,25 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </h1>
           <p className="text-xs text-[var(--fa-side-text-2)]">{user.email}</p>
         </div>
-        <nav className="flex flex-col gap-1 flex-1">
-          {[
-            { label: '🏢 Escritório',    href: '/escritorio' },
-            { label: '📊 Dashboard',     href: '/dashboard' },
-            { label: '🛒 Pedidos',       href: '/orders' },
-            { label: 'Relatório de observação', href: '/observation' },
-            { label: '📈 Margem por SKU', href: '/margin/preview' },
-            { label: '💰 Financeiro',    href: '/finance' },
-            { label: '🔗 Integrações',   href: '/integrations' },
-          ].map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-2 px-3 py-2 rounded-[var(--fa-r-sm)] text-sm font-semibold text-[var(--fa-side-text)] hover:bg-[var(--fa-navy-hover)] hover:text-white transition-colors"
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
+        <SidebarNav />
 
         <div className="border-t border-[var(--fa-navy-700)] pt-4">
           <form action={logoutAction}>
