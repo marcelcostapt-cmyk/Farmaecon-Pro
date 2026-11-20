@@ -30,6 +30,15 @@ interface MarginRanking {
   villains: MarginLine[];
   unavailableCount: number;
 }
+interface FeeChange {
+  sku: string;
+  description: string | null;
+  fromMonth: string;
+  toMonth: string;
+  fromRatePercent: string;
+  toRatePercent: string;
+  deltaPp: string;
+}
 interface MarginRule {
   id: string;
   sku: string | null;
@@ -95,11 +104,12 @@ export default async function MarginPreviewPage({
   if (params.start_date) accountQuery.set('start_date', params.start_date);
   if (params.end_date) accountQuery.set('end_date', params.end_date);
 
-  const [{ data: preview }, { data: alerts }, { data: ranking }, { data: rules }, user] = await Promise.all([
+  const [{ data: preview }, { data: alerts }, { data: ranking }, { data: rules }, { data: feeChanges }, user] = await Promise.all([
     fetchApi<MarginPreview>(`/margin/preview?${query}`),
     fetchApi<MarginAlert[]>(`/margin/alerts?${accountQuery}`),
     fetchApi<MarginRanking>(`/margin/ranking?${accountQuery}`),
     fetchApi<MarginRule[]>('/margin/rules'),
+    fetchApi<FeeChange[]>(`/margin/fee-changes?${accountQuery}`),
     getCurrentUser(),
   ]);
   const isAdmin = user?.role === 'ADMIN';
@@ -199,6 +209,34 @@ export default async function MarginPreviewPage({
           </table>
         </div>
         {preview.lines.length === 0 && <p className="p-4 text-muted-foreground">Nenhuma venda no período para esta empresa.</p>}
+      </section>
+
+      <section className="rounded-xl border p-6">
+        <h2 className="text-xl font-semibold">Mudanças de tarifa do Mercado Livre</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          SKUs cuja taxa efetiva variou 2 pontos percentuais ou mais entre os dois últimos meses com dados.
+        </p>
+        {feeChanges.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">Nenhuma variação relevante de tarifa no período.</p>
+        ) : (
+          <ul className="mt-4 space-y-2 text-sm">
+            {feeChanges.map((c) => (
+              <li key={c.sku} className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  <strong>{c.sku}</strong>
+                  {c.description ? <span className="text-muted-foreground"> — {c.description}</span> : null}
+                </span>
+                <span className="tabular-nums">
+                  {c.fromMonth} {pct(c.fromRatePercent)} → {c.toMonth} {pct(c.toRatePercent)}{' '}
+                  <strong className={Number(c.deltaPp) > 0 ? 'text-amber-700' : 'text-emerald-700'}>
+                    ({Number(c.deltaPp) > 0 ? '+' : ''}
+                    {Number(c.deltaPp).toFixed(1)} pp)
+                  </strong>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="space-y-4 rounded-xl border p-6">
