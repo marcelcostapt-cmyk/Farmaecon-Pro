@@ -99,6 +99,8 @@ function toPreview(doc: UnifiedInvoice) {
     otherExpense: dec(l.otherExpense),
     cfop: l.cfop,
     lotNumber: l.lotNumber,
+    fabricationDate: l.fabricationDate,
+    expiryDate: l.expiryDate,
     isBonus: l.isBonus,
     approvedAcquisitionCost: null as null,
     warnings: l.warnings,

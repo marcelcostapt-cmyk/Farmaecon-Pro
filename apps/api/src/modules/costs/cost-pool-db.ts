@@ -42,8 +42,13 @@ export interface DbPurchaseInvoiceItem {
   otherExpense: Prisma.Decimal | null;
   cfop: string | null;
   lotNumber: string | null;
+  fabricationDate: Date | null;
+  expiryDate: Date | null;
   isBonus: boolean;
 }
+
+// Data de calendário (UTC) em AAAA-MM-DD, a mesma forma usada pelo parser da NF-e.
+const toIsoDay = (d: Date | null): string | null => (d === null ? null : d.toISOString().slice(0, 10));
 
 const SRC: Record<DbPurchaseInvoice['source'], DocumentSource> = { XML: 'xml', PDF: 'pdf', EXCEL: 'xlsx' };
 
@@ -66,6 +71,8 @@ export function dbToUnifiedInvoice(inv: DbPurchaseInvoice, items: DbPurchaseInvo
     otherExpense: i.otherExpense,
     cfop: i.cfop,
     lotNumber: i.lotNumber,
+    fabricationDate: toIsoDay(i.fabricationDate),
+    expiryDate: toIsoDay(i.expiryDate),
     isBonus: i.isBonus,
     approvedAcquisitionCost: null,
     warnings: [],

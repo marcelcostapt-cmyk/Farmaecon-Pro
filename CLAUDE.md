@@ -207,3 +207,11 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - Verificado: migrate PASS (sem migrations novas), api health/ready 200, web 200, /margin/preview sem sessão → 307 /login, /margin/ranking|fee-changes|rules → 401 sem token (montados e protegidos).
 - NÃO verificado: UI no browser (sem credenciais do admin de ensaio). Próximo: validar as três secções com login de ensaio, ou pedir credenciais.
 - Produção intocada (94612a9 / e33588e-scheduler / f69965b).
+
+## Validade e fabricação do lote (NF-e) · 2026-11-20 (branch feature/westack-margin-manager, NÃO em produção)
+- FEITO: parser extrai `rastro/dVal` (validade) e `rastro/dFab` (fabricação) por lote, só no formato AAAA-MM-DD (outro formato → null). Persistido em `purchase_invoice_items.expiry_date` e `fabrication_date` (migration aditiva `20261120_purchase_item_lot_dates`, colunas NULL).
+- REGRA CONSERVADORA: linha com vários lotes NÃO persiste validade/fabricação (null + aviso "validade/fabricação por lote não persistidas"). Escolher o vencimento mais cedo ou outra regra seria decisão de negócio — não tomada.
+- Anvisa: NÃO existe na NF-e (é atributo de cadastro do produto). Fora do alcance desta etapa.
+- Verde: tsc limpo; 367 unit (4 novos em nfe-lot-dates.spec.ts); 36 e2e em PostgreSQL real (migration aplicada do zero).
+- Pendente (decisão do Márcio): regra de consumo por lote (FIFO / validade) e tratamento de multi-lote.
+- Ensaio NÃO atualizado com esta alteração (a imagem do ensaio é f82647f-margin).

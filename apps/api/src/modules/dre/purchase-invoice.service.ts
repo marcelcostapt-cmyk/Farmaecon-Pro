@@ -117,6 +117,8 @@ export class PurchaseInvoiceService {
             otherExpense: l.otherExpense,
             cfop: l.cfop,
             lotNumber: l.lotNumber,
+            fabricationDate: l.fabricationDate === null ? null : new Date(`${l.fabricationDate}T00:00:00.000Z`),
+            expiryDate: l.expiryDate === null ? null : new Date(`${l.expiryDate}T00:00:00.000Z`),
             isBonus: l.isBonus,
             warnings: l.warnings as unknown as Prisma.InputJsonValue,
           },

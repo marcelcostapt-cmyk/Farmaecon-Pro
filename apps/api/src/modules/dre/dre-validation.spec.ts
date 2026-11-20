@@ -151,7 +151,8 @@ function pdfUnified(): UnifiedInvoice {
       lineNumber: l.lineNumber, sourceRef: `linha ${l.lineNumber}`, supplierProductCode: l.supplierProductCode,
       ean: l.ean, marketplaceSku: l.marketplaceSku, description: l.description, ncm: null, unit: null,
       quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, unitCostPaid: l.unitCostExtracted, totalLine: l.totalLine,
-      discount: null, otherExpense: null, cfop: null, lotNumber: l.lot, isBonus: false, approvedAcquisitionCost: null, warnings: l.warnings,
+      discount: null, otherExpense: null, cfop: null, lotNumber: l.lot, fabricationDate: null, expiryDate: null,
+      isBonus: false, approvedAcquisitionCost: null, warnings: l.warnings,
     })),
   };
 }

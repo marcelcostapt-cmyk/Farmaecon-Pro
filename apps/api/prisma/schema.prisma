@@ -360,6 +360,8 @@ model PurchaseInvoiceItem {
   unit                String?
   cfop                String?
   lotNumber           String?   @map("lot_number")
+  fabricationDate     DateTime? @map("fabrication_date") @db.Date
+  expiryDate          DateTime? @map("expiry_date") @db.Date
   isBonus             Boolean   @default(false) @map("is_bonus")
   paidQuantity        Decimal?  @map("paid_quantity")
   bonusQuantity       Decimal?  @map("bonus_quantity")

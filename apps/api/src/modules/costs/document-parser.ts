@@ -24,6 +24,8 @@ export interface UnifiedInvoiceLine {
   otherExpense: Prisma.Decimal | null;
   cfop: string | null;
   lotNumber: string | null;
+  fabricationDate: string | null; // YYYY-MM-DD; só com um único lote na linha
+  expiryDate: string | null; // YYYY-MM-DD; só com um único lote na linha (multi-lote → null + aviso)
   isBonus: boolean;
   approvedAcquisitionCost: null; // sempre nulo na extração; só após regra aprovada
   warnings: string[];
@@ -90,8 +92,13 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
         quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, unitCostPaid: l.unitCostPaid,
         totalLine: l.totalLine ?? l.productsValue, discount: l.discount, otherExpense: l.otherExpense, cfop: l.cfop,
         lotNumber: l.lots.length === 1 ? l.lots[0].lot : l.lots.length ? l.lots.map((x) => x.lot).join('+') : null,
+        fabricationDate: l.lots.length === 1 ? l.lots[0].fabricationDate : null,
+        expiryDate: l.lots.length === 1 ? l.lots[0].expiryDate : null,
         isBonus: l.isBonus, approvedAcquisitionCost: null,
-        warnings: l.lots.length > 1 ? [...l.warnings, `Linha com ${l.lots.length} lotes`] : l.warnings,
+        warnings:
+          l.lots.length > 1
+            ? [...l.warnings, `Linha com ${l.lots.length} lotes: validade/fabricação por lote não persistidas`]
+            : l.warnings,
       })),
     };
   }
@@ -111,6 +118,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
         ncm: null, unit: null,
         quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, unitCostPaid: l.unitCostExtracted,
         totalLine: l.totalLine, discount: null, otherExpense: null, cfop: null, lotNumber: l.lot,
+        fabricationDate: null, expiryDate: null,
         isBonus: false, approvedAcquisitionCost: null, warnings: l.warnings,
       })),
     };
@@ -132,6 +140,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
       ncm: null, unit: null,
       quantity: null, unitCostExtracted: r.unitCost, unitCostPaid: null, totalLine: null,
       discount: null, otherExpense: null, cfop: null, lotNumber: null,
+      fabricationDate: null, expiryDate: null,
       isBonus: false, approvedAcquisitionCost: null, warnings: r.warnings,
     })),
   };

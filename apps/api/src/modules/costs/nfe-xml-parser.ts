@@ -5,6 +5,8 @@ import { money } from './cost-money';
 export interface ParsedLot {
   lot: string | null;
   quantity: Prisma.Decimal;
+  fabricationDate: string | null; // YYYY-MM-DD (rastro/dFab)
+  expiryDate: string | null; // YYYY-MM-DD (rastro/dVal)
 }
 
 export interface ParsedInvoiceLine {
@@ -50,6 +52,11 @@ export interface ParsedInvoice {
 
 const arr = <T>(x: T | T[] | undefined | null): T[] => (Array.isArray(x) ? x : x == null ? [] : [x]);
 const text = (v: unknown): string | null => (v == null ? null : String(v).trim() || null);
+// Data da NF-e (AAAA-MM-DD). Qualquer outro formato devolve null (nunca inventa data).
+const isoDate = (v: unknown): string | null => {
+  const t = text(v);
+  return t !== null && /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+};
 const dec = (v: unknown): Prisma.Decimal | null => {
   const s = text(v);
   return s === null ? null : money(s);
@@ -104,6 +111,8 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
     const lots = arr(prod.rastro as Record<string, unknown> | Record<string, unknown>[]).map((r) => ({
       lot: text(r.nLote),
       quantity: dec(r.qLote) ?? money('0'),
+      fabricationDate: isoDate(r.dFab),
+      expiryDate: isoDate(r.dVal),
     }));
 
     // Bonificação na linha: CFOP 5910, ou ausência de vItem (tag) com vProd > 0.
