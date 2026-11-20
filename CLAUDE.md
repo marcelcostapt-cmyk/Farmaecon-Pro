@@ -262,3 +262,6 @@ Contexto único: `GLOSSARY.md` e `docs/adr/` na raiz. Ver `docs/agents/domain.md
 - LINT: o script `lint` continua a falhar com ~3042 problemas porque a configuração de Prettier (80 colunas) não corresponde ao código commitado. Não alterei regras de estilo. Débito técnico.
 - Testes na última execução: 51 suites / 394 unit (1 skip); 52 e2e em PostgreSQL real; tsc limpo.
 - Migrations novas nesta sequência (aditivas): 20261122_product_lots_quantity, 20261123_product_anvisa, 20261124_ads_costs (RLS, boot check 17).
+- ENSAIO (noturno): API e0e6182-noturno (migrations 20261122/23/24 aplicadas, ads_costs confirmada), web bb99b54-officecard. Backup: /opt/farmaecon/backups/pre-noturno-rehearsal-20261120-233538/.
+- VALIDAÇÃO API no ensaio (script com conta ADMIN de teste): alocação FEFO (12 un. → N-A 4 + N-B 8; N-VENC fora por vencido); quantidade negativa → 400; ADS import 3 linhas, reimport 0 (idempotente), resumo 170 total / 20 sem SKU / 150 ABC; Anvisa gravado e lido em GET /products.
+- VALIDAÇÃO BROWSER (regressão, ADMIN de teste): /lots, /escritorio, /margin/preview e /dre/lots carregam sem erro; card de lotes coerente com a BD. Os novos endpoints (alocação, ADS, Anvisa) ainda não têm interface, por isso não foram validados no browser.
