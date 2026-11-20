@@ -12,6 +12,7 @@ import {
   type MarginRuleRow,
 } from '../costs/margin-preview';
 import { rankMarginLines, type MarginRanking } from '../costs/margin-ranking';
+import { computeFeeChanges, type FeeChange } from '../costs/fee-change';
 
 export interface MarginFilters {
   accountId?: string;
@@ -96,6 +97,12 @@ export class MarginService {
       this.approvedCostPool(tenantId, filters.accountId),
     ]);
     return rankMarginLines(computeMarginPreview(rows, pool, undefined, 'sku').lines);
+  }
+
+  /** Variações de taxa ML por SKU entre os dois últimos meses com dados (≥ 2 pp). Só leitura. */
+  async feeChanges(tenantId: string, filters: Omit<MarginFilters, 'groupBy'>): Promise<FeeChange[]> {
+    const rows = await this.loadRows(tenantId, { ...filters, groupBy: 'sku' });
+    return computeFeeChanges(rows);
   }
 
   async alerts(tenantId: string, filters: MarginFilters): Promise<MarginAlert[]> {

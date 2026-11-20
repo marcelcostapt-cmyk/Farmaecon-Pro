@@ -23,7 +23,9 @@ describe('Gestor de Margem — PostgreSQL real', () => {
   const prefix = `margin-${randomUUID()}`;
   const tenantA = `${prefix}-a`;
   const tenantB = `${prefix}-b`;
+  const tenantC = `${prefix}-c`; // tenant dedicado à mudança de tarifa (não altera os totais de A/B)
   const accountA = `${prefix}-acc`;
+  const accountC = `${prefix}-accC`;
   const soldAt = new Date('2026-05-10T12:00:00Z');
 
   async function seedApprovedCost(tenantId: string, accountId: string, sku: string, unit: string) {
@@ -43,11 +45,19 @@ describe('Gestor de Margem — PostgreSQL real', () => {
     });
   }
 
-  async function seedSale(tenantId: string, accountId: string, sku: string, qty: number, unitPrice: string, saleFee: string | null) {
+  async function seedSale(
+    tenantId: string,
+    accountId: string,
+    sku: string,
+    qty: number,
+    unitPrice: string,
+    saleFee: string | null,
+    at: Date = soldAt,
+  ) {
     const order = await owner.order.create({
       data: {
         tenantId, marketplaceAccountId: accountId, externalOrderId: `${sku}-${randomUUID()}`,
-        totalAmount: qty * Number(unitPrice), status: 'PAID', mlDateCreated: soldAt,
+        totalAmount: qty * Number(unitPrice), status: 'PAID', mlDateCreated: at,
       },
       select: { id: true },
     });
@@ -72,10 +82,16 @@ describe('Gestor de Margem — PostgreSQL real', () => {
     await app.init();
     margin = module.get(MarginService);
 
-    for (const id of [tenantA, tenantB]) await owner.tenant.create({ data: { id, name: id } });
+    for (const id of [tenantA, tenantB, tenantC]) await owner.tenant.create({ data: { id, name: id } });
     await owner.marketplaceAccount.create({
       data: { id: accountA, tenantId: tenantA, platform: 'MERCADO_LIVRE', name: 'ML #pilot', source: 'SIMULATED', status: 'ACTIVE' },
     });
+    await owner.marketplaceAccount.create({
+      data: { id: accountC, tenantId: tenantC, platform: 'MERCADO_LIVRE', name: 'ML #tarifa', source: 'SIMULATED', status: 'ACTIVE' },
+    });
+    // Tarifa do SKU TAR sobe de 10% (maio) para 15% (junho) → alerta de mudança de tarifa (Δ +5 pp).
+    await seedSale(tenantC, accountC, 'TAR', 1, '100', '10', new Date('2026-05-10T12:00:00Z'));
+    await seedSale(tenantC, accountC, 'TAR', 1, '100', '15', new Date('2026-06-10T12:00:00Z'));
     // SKU ABC: custo 30, venda 2×50, taxa 10 → margem 30 (30%). SKU SEMTAXA: sem saleFee → indisponível.
     await seedApprovedCost(tenantA, accountA, 'ABC', '30');
     await seedSale(tenantA, accountA, 'ABC', 2, '50', '10');
@@ -87,7 +103,7 @@ describe('Gestor de Margem — PostgreSQL real', () => {
   });
 
   afterAll(async () => {
-    const tenants = { in: [tenantA, tenantB] };
+    const tenants = { in: [tenantA, tenantB, tenantC] };
     await owner?.marginRule.deleteMany({ where: { tenantId: tenants } });
     await owner?.orderItem.deleteMany({ where: { tenantId: tenants } });
     await owner?.order.deleteMany({ where: { tenantId: tenants } });
@@ -132,6 +148,15 @@ describe('Gestor de Margem — PostgreSQL real', () => {
     expect(ranking.villains.map((l) => l.sku)).toEqual(['XYZ']);
     expect(ranking.villains[0].marginPercent!.toString()).toBe('-10');
     expect(ranking.unavailableCount).toBe(1); // SEMTAXA
+  });
+
+  it('mudança de tarifa ML: alerta o SKU cuja taxa efetiva varia ≥ 2 pp entre meses', async () => {
+    const changes = await inTenant(tenantC, () => margin.feeChanges(tenantC, {}));
+    expect(changes).toHaveLength(1);
+    expect(changes[0].sku).toBe('TAR');
+    expect(changes[0].fromMonth).toBe('2026-05');
+    expect(changes[0].toMonth).toBe('2026-06');
+    expect(changes[0].deltaPp.toString()).toBe('5');
   });
 
   it('isola por tenant: tenant B não vê vendas nem alertas de A', async () => {
