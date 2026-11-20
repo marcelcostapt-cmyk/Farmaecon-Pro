@@ -6,9 +6,10 @@ import { usePathname } from 'next/navigation';
 // Navegação da sidebar com realce do item ativo por rota (sistema C2: ativo = laranja + texto branco).
 const ITEMS: Array<{ label: string; href: string }> = [
   { label: '🏢 Escritório', href: '/escritorio' },
-  { label: '📊 Dashboard', href: '/dashboard' },
+  // /dashboard redireciona para /observation; aponta direto para evitar item nunca-ativo
+  // e remove a antiga entrada duplicada "Relatório de observação" (mesma rota).
+  { label: '📊 Dashboard', href: '/observation' },
   { label: '🛒 Pedidos', href: '/orders' },
-  { label: 'Relatório de observação', href: '/observation' },
   { label: '📈 Margem por SKU', href: '/margin/preview' },
   { label: '💰 Financeiro', href: '/finance' },
   { label: '🔗 Integrações', href: '/integrations' },
