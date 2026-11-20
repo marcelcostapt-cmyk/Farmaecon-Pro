@@ -1,4 +1,6 @@
 import { fetchApi } from '@/lib/api';
+import { getCurrentUser } from '@/lib/auth';
+import RuleForm from './rule-form';
 
 // Gestor de Margem (WeStack) — página só leitura. Margem líquida = receita − taxas ML − CMV.
 // Nunca estima nem altera o Mercado Livre; SKUs sem custo/taxa aparecem como "Indisponível".
@@ -27,6 +29,12 @@ interface MarginRanking {
   heroes: MarginLine[];
   villains: MarginLine[];
   unavailableCount: number;
+}
+interface MarginRule {
+  id: string;
+  sku: string | null;
+  minMarginPercent: string | null;
+  minMarginAmount: string | null;
 }
 interface MarginAlert {
   sku: string | null;
@@ -87,11 +95,14 @@ export default async function MarginPreviewPage({
   if (params.start_date) accountQuery.set('start_date', params.start_date);
   if (params.end_date) accountQuery.set('end_date', params.end_date);
 
-  const [{ data: preview }, { data: alerts }, { data: ranking }] = await Promise.all([
+  const [{ data: preview }, { data: alerts }, { data: ranking }, { data: rules }, user] = await Promise.all([
     fetchApi<MarginPreview>(`/margin/preview?${query}`),
     fetchApi<MarginAlert[]>(`/margin/alerts?${accountQuery}`),
     fetchApi<MarginRanking>(`/margin/ranking?${accountQuery}`),
+    fetchApi<MarginRule[]>('/margin/rules'),
+    getCurrentUser(),
   ]);
+  const isAdmin = user?.role === 'ADMIN';
 
   const avg = averageMargin(preview.lines);
 
@@ -188,6 +199,26 @@ export default async function MarginPreviewPage({
           </table>
         </div>
         {preview.lines.length === 0 && <p className="p-4 text-muted-foreground">Nenhuma venda no período para esta empresa.</p>}
+      </section>
+
+      <section className="space-y-4 rounded-xl border p-6">
+        <h2 className="text-xl font-semibold">Regras de margem</h2>
+        {rules.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma regra definida. Sem regra, nenhum SKU gera alerta.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {rules.map((r) => (
+              <li key={r.id}>
+                <strong>{r.sku ?? 'Global (todos os SKUs)'}</strong> — mínimo {pct(r.minMarginPercent)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {isAdmin ? (
+          <RuleForm />
+        ) : (
+          <p className="text-sm text-muted-foreground">Apenas administradores podem alterar as regras de margem.</p>
+        )}
       </section>
 
       <section className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-amber-950">

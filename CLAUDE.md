@@ -195,6 +195,7 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - LIÇÃO: `npm run lint --workspace=api` corre `eslint --fix` sobre todo o src/test e reformata ~113 ficheiros; NÃO o correr para validar. O estilo commitado é mais largo que o do lint.
 - Infra de teste descartável: containers `farmaecon-e2e-pg` (127.0.0.1:55432) e `farmaecon-e2e-redis` (127.0.0.1:6379), criados para o e2e; remover quando não forem precisos.
 - UI FEITA: secção "Melhores/Piores margens" em /margin/preview (Server Component, `GET /margin/ranking`, sem Server Action). `tsc` e `build web` OK. Não validado no browser nem em ensaio (imagem da API precisa do endpoint novo).
-- PRÓXIMO: (b) UI de regras por SKU (formulário cliente → route handler PUT /margin/rules, via api-bridge); depois (c) alerta de mudança de tarifa ML. Ensaio com imagens novas só quando (b) estiver pronto.
+- UI REGRAS FEITA: lista de regras + formulário ADMIN em /margin/preview (rule-form.tsx, cliente) → `PUT /api/margin/rules` (route handler via api-bridge; bridge aceita PUT agora). Só percentual; limite em valor fica só na API. `build web` OK. Sem teste e2e de UI (web não tem testes).
+- PRÓXIMO: (c) alerta de mudança de tarifa ML (backend novo, comparar saleFee ao longo do tempo). Ensaio com imagens novas (API + web) só depois de (c) ou antes, a critério; a API atual ainda não tem o endpoint de ranking no ensaio.
 - BLOQUEIO: nenhum; a margem real em produção continua dependente das 7 decisões de negócio.
 - DECISÕES do protocolo autónomo: registadas em /tmp/farmaecon-decision.log (ordem: UI ranking antes de regras por SKU, por ser só leitura).
