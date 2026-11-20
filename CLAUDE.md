@@ -265,3 +265,10 @@ Contexto único: `GLOSSARY.md` e `docs/adr/` na raiz. Ver `docs/agents/domain.md
 - ENSAIO (noturno): API e0e6182-noturno (migrations 20261122/23/24 aplicadas, ads_costs confirmada), web bb99b54-officecard. Backup: /opt/farmaecon/backups/pre-noturno-rehearsal-20261120-233538/.
 - VALIDAÇÃO API no ensaio (script com conta ADMIN de teste): alocação FEFO (12 un. → N-A 4 + N-B 8; N-VENC fora por vencido); quantidade negativa → 400; ADS import 3 linhas, reimport 0 (idempotente), resumo 170 total / 20 sem SKU / 150 ABC; Anvisa gravado e lido em GET /products.
 - VALIDAÇÃO BROWSER (regressão, ADMIN de teste): /lots, /escritorio, /margin/preview e /dre/lots carregam sem erro; card de lotes coerente com a BD. Os novos endpoints (alocação, ADS, Anvisa) ainda não têm interface, por isso não foram validados no browser.
+
+## Análise upload direto de NF-e vs ERP · 2026-11-21 (sem código alterado, sem deploy)
+- DECISÃO PROPOSTA (`.claude/decisoes/nfe-upload-direto-vs-erp.md`): opção C híbrida. Upload direto do XML é o caminho principal e JÁ EXISTE (`POST /dre/purchase-documents/preview` e ingestão, com ligação por CNPJ). ERP fica opcional.
+- LACUNA CONFIRMADA: o parser não lê o grupo `med` (registo Anvisa da NT 2018.005). Próximo passo técnico, depois de confirmar as tags no leiaute oficial.
+- NÃO CONFIRMADO (precisa de parecer jurídico ou fonte oficial): se armazenar XML de terceiros é legal e a LGPD aplicável; se há obrigação de consulta à SEFAZ; se o QR code da DANFE contém a chave de acesso.
+- Protótipo `POST /documents/nfe/upload` NÃO criado: duplicaria o fluxo existente.
+- `.claude/decisoes/erp-bling-olist.md` atualizado: NF-e e preços continuam não confirmados nos dois.
