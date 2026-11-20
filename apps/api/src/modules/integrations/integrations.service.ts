@@ -1,10 +1,26 @@
 import { publicAccountSelect } from '../../shared/security/public-selects';
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
+import { QUEUE_MARKETPLACE_SYNC, QUEUE_TOKEN_REFRESH } from '../../shared/queue/queue.module';
+import { findPendingAccountJobs } from './account-jobs';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
+import { MarketplaceSyncScheduler } from './marketplace-sync.scheduler';
+import { MlOAuthService } from './ml-oauth.service';
+import { accountConflict } from './account-errors';
+import { normalizeCnpj, isValidCnpj, normalizeBusinessName } from '../../shared/fiscal/cnpj';
+import type { AuthPrincipal } from '../auth/auth.service';
+
+export const DISPLAY_NAME_MAX = 60;
+export const BUSINESS_NAME_MAX = 255;
+
+/** PATCH parcial da identidade: chave ausente = preservar; null = limpar (se opcional). */
+export interface AccountIdentityPatch {
+  displayName?: string | null;
+  businessName?: string | null;
+  cnpj?: string | null;
+}
 
 @Injectable()
 export class IntegrationsService {
@@ -13,7 +29,10 @@ export class IntegrationsService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_MARKETPLACE_SYNC) private readonly syncQueue: Queue,
+    @InjectQueue(QUEUE_TOKEN_REFRESH) private readonly tokenQueue: Queue,
     private readonly ordersSync: MlOrdersSyncService,
+    private readonly oauth: MlOAuthService,
+    @Optional() private readonly scheduler?: MarketplaceSyncScheduler,
   ) {}
 
   async findAll(tenantId: string) {
@@ -32,8 +51,10 @@ export class IntegrationsService {
       orderBy: { createdAt: 'asc' },
     });
 
-    return accounts.map((acc) => ({
+    const nextRuns = await Promise.all(accounts.map((acc) => this.nextSyncAt(acc.id)));
+    return accounts.map((acc, index) => ({
       ...acc,
+      nextSyncAt: nextRuns[index],
       orderCount: acc._count.orders,
       status: acc.status,
       syncStatus: acc.syncStates[0]?.status ?? acc.lastSyncState ?? 'NOT_STARTED',
@@ -45,12 +66,131 @@ export class IntegrationsService {
     }));
   }
 
-  async disconnect(tenantId: string, accountId: string) {
-    // Verify ownership before deleting
-    await this.prisma.marketplaceAccount.findFirstOrThrow({
-      where: { id: accountId, tenantId },
-    });
+  private async nextSyncAt(accountId: string): Promise<string | null> {
+    try {
+      return (await this.scheduler?.nextRunAt(accountId))?.toISOString() ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Blank or null clears the friendly name, so the UI falls back to the technical `name`. */
+  async rename(tenantId: string, accountId: string, displayName: string | null) {
+    const value = displayName?.trim() || null;
+    if (value && [...value].length > DISPLAY_NAME_MAX) {
+      throw new BadRequestException(`O nome pode ter no máximo ${DISPLAY_NAME_MAX} caracteres.`);
+    }
+    const updated = await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { displayName: value } });
+    if (updated.count === 0) throw new NotFoundException('Account not found');
+    return this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
+  }
+
+  /**
+   * PATCH parcial da identidade da conta (nome no painel, razão social, CNPJ).
+   * Preserva campos não enviados (undefined); null explícito limpa um campo opcional;
+   * CNPJ inválido é rejeitado com 400 SEM gravar (nunca vira null+sucesso). A razão
+   * social normalizada é recalculada só quando a razão social é enviada. Não altera
+   * tenant, seller, credenciais, permissões ou status. Audita autor/data/campos (sem
+   * valores fiscais completos). Escopo por tenant na leitura e na escrita.
+   */
+  async updateIdentity(
+    tenantId: string,
+    accountId: string,
+    actor: AuthPrincipal | null,
+    patch: AccountIdentityPatch,
+  ) {
+    const data: Record<string, unknown> = {};
+    const changed: string[] = [];
+
+    if (patch.displayName !== undefined) {
+      const value = patch.displayName?.trim() || null;
+      if (value && [...value].length > DISPLAY_NAME_MAX) {
+        throw new BadRequestException(`O nome pode ter no máximo ${DISPLAY_NAME_MAX} caracteres.`);
+      }
+      data.displayName = value;
+      changed.push('displayName');
+    }
+
+    if (patch.businessName !== undefined) {
+      const value = patch.businessName?.trim() || null;
+      if (value && value.length > BUSINESS_NAME_MAX) {
+        throw new BadRequestException(`A razão social pode ter no máximo ${BUSINESS_NAME_MAX} caracteres.`);
+      }
+      data.businessName = value;
+      data.businessNameNormalized = normalizeBusinessName(value); // recalcula só quando enviada
+      changed.push('businessName');
+    }
+
+    if (patch.cnpj !== undefined) {
+      if (patch.cnpj === null || patch.cnpj.trim() === '') {
+        data.cnpj = null; // limpar campo opcional
+      } else if (!isValidCnpj(patch.cnpj)) {
+        throw new BadRequestException('CNPJ inválido.'); // nunca converte inválido em null
+      } else {
+        data.cnpj = normalizeCnpj(patch.cnpj);
+      }
+      changed.push('cnpj');
+    }
+
+    if (changed.length === 0) {
+      const current = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
+      if (!current) throw new NotFoundException('Account not found');
+      return current;
+    }
+
+    const updated = await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data });
+    if (updated.count === 0) throw new NotFoundException('Account not found');
+
+    // Auditoria protegida: autor, data e nomes dos campos alterados — sem valores fiscais completos.
+    this.logger.log(
+      JSON.stringify({ event: 'account.identity.updated', actor: actor?.sub ?? null, tenantId, accountId, fields: changed, at: new Date().toISOString() }),
+    );
+
+    return this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: publicAccountSelect });
+  }
+
+  async disconnect(tenantId: string, accountId: string): Promise<void> {
+    const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { id: true } });
+    if (!account) throw new NotFoundException('Account not found');
     await this.prisma.marketplaceAccount.updateMany({ where: { id: accountId, tenantId }, data: { status: 'DISCONNECTED', accessToken: null, refreshToken: null, expiresAt: null } });
+    await this.scheduler?.removeRecurring(accountId);
+    await this.removeTokenRefreshJobs(accountId);
+  }
+
+  /** A refresh job for a disconnected account would only fail; drop it. */
+  private async removeTokenRefreshJobs(accountId: string) {
+    try {
+      for (const job of await findPendingAccountJobs(this.tokenQueue, accountId)) await job.remove();
+    } catch {
+      this.logger.warn(`Could not remove pending token refresh jobs for account ${accountId}`);
+    }
+  }
+
+  /** Starts OAuth bound to this account; the callback rejects any other seller. */
+  async startReconnect(actor: AuthPrincipal, accountId: string): Promise<{ url: string }> {
+    const account = await this.prisma.marketplaceAccount.findFirst({
+      where: { id: accountId, tenantId: actor.tenantId }, select: { status: true, externalSellerId: true },
+    });
+    if (!account) throw new NotFoundException('Account not found');
+    if (account.status !== 'DISCONNECTED' || !account.externalSellerId) throw accountConflict('RECONNECT_NOT_ALLOWED');
+    return this.oauth.buildAuthorizationUrl(actor, accountId);
+  }
+
+  /** Hard delete, only for disconnected accounts with no order history and nothing queued. */
+  async remove(tenantId: string, accountId: string): Promise<void> {
+    const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { status: true } });
+    if (!account) throw new NotFoundException('Account not found');
+    if (account.status !== 'DISCONNECTED') throw accountConflict('ACCOUNT_NOT_DISCONNECTED');
+    if (await this.prisma.order.count({ where: { tenantId, marketplaceAccountId: accountId } }) > 0) throw accountConflict('ACCOUNT_HAS_ORDERS');
+    const [syncJobs, tokenJobs] = await Promise.all([
+      findPendingAccountJobs(this.syncQueue, accountId),
+      findPendingAccountJobs(this.tokenQueue, accountId),
+    ]);
+    if (syncJobs.length + tokenJobs.length > 0) throw accountConflict('ACCOUNT_HAS_PENDING_JOBS');
+    // A reconnect may have re-activated the account between the checks and here; only delete while still disconnected.
+    const deleted = await this.prisma.marketplaceAccount.deleteMany({ where: { id: accountId, tenantId, status: 'DISCONNECTED' } });
+    if (deleted.count === 0) throw accountConflict('ACCOUNT_NOT_DISCONNECTED');
+    await this.scheduler?.removeRecurring(accountId);
   }
 
   async scheduleInitialSync(accountId: string, tenantId: string) {

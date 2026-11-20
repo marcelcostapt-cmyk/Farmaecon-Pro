@@ -1,0 +1,24 @@
+{ "documentos": {
+  "nfe-1885505.xml": { "productsTotal": "10111.83", "fiscalTotal": "10111.83", "itens": 15 },
+  "nfe-45468.xml":   { "productsTotal": "2106.50",  "fiscalTotal": "2106.50",  "itens": 3 },
+  "nfe-263151.xml":  { "productsTotal": "5016.50",  "fiscalTotal": "2212.32",  "discounts": "2804.18", "itens": 2 },
+  "nfe-9298845.xml": { "productsTotal": "2856.60",  "fiscalTotal": "1371.17",  "discounts": "1485.43", "itens": 1 },
+  "nfe-193261.xml":  { "productsTotal": "3150.00",  "fiscalTotal": "3150.00",  "itens": 1 },
+  "nfe-188177.xml":  { "productsTotal": "18363.00", "fiscalTotal": "6977.94",  "discounts": "11385.06", "itens": 1 },
+  "nfe-2962607.xml": { "productsTotal": "1653.70",  "fiscalTotal": "1656.89",  "otherExpenses": "3.19", "itens": 3 },
+  "nfe-1309314.xml": { "productsTotal": "262.28",   "fiscalTotal": "264.78",   "otherExpenses": "2.50", "itens": 2 },
+  "nfe-1333570.xml": { "productsTotal": "3523.32",  "fiscalTotal": "3530.82",  "otherExpenses": "7.50", "itens": 9 },
+  "nfe-belajoyce.xml": { "productsTotal": "16630.97", "fiscalTotal": "16630.97", "itens": 4 }
+},
+"porNumero": {
+  "1885505": { "productsTotal": "10111.83", "fiscalTotal": "10111.83", "itens": 15 },
+  "45468":   { "productsTotal": "2106.50",  "fiscalTotal": "2106.50",  "itens": 3 },
+  "263151":  { "productsTotal": "5016.50",  "fiscalTotal": "2212.32",  "discounts": "2804.18", "itens": 2 },
+  "9298845": { "productsTotal": "2856.60",  "fiscalTotal": "1371.17",  "discounts": "1485.43", "itens": 1 },
+  "193261":  { "productsTotal": "3150.00",  "fiscalTotal": "3150.00",  "itens": 1 },
+  "188177":  { "productsTotal": "18363.00", "fiscalTotal": "6977.94",  "discounts": "11385.06", "itens": 1 },
+  "2962607": { "productsTotal": "1653.70",  "fiscalTotal": "1656.89",  "otherExpenses": "3.19", "itens": 3 },
+  "1309314": { "productsTotal": "262.28",   "fiscalTotal": "264.78",   "otherExpenses": "2.50", "itens": 2 },
+  "1333570": { "productsTotal": "3523.32",  "fiscalTotal": "3530.82",  "otherExpenses": "7.50", "itens": 9 },
+  "1926966": { "productsTotal": "16630.97", "fiscalTotal": "16630.97", "itens": 4 }
+} }

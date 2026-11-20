@@ -20,13 +20,13 @@ export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
   return (
     <section
       aria-labelledby="agent-status-title"
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+      className="rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-4 shadow-[var(--fa-sh-1)]"
     >
       <div className="mb-3">
-        <h2 id="agent-status-title" className="text-sm font-semibold">
+        <h2 id="agent-status-title" className="text-[13px] font-extrabold text-[var(--fa-navy)]">
           Setores e agentes
         </h2>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs text-[var(--fa-muted)]">
           Estado demonstrativo até a sincronização real.
         </p>
       </div>
@@ -35,11 +35,11 @@ export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
         {agents.map((agent) => (
           <li
             key={agent.id}
-            className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-accent"
+            className="flex items-center justify-between gap-3 rounded-[var(--fa-r-md)] px-3 py-2 hover:bg-[var(--fa-bg)]"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{agent.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{agent.sector}</p>
+              <p className="truncate text-sm font-semibold text-[var(--fa-navy)]">{agent.name}</p>
+              <p className="truncate text-xs text-[var(--fa-muted)]">{agent.sector}</p>
             </div>
             <StatusBadge status={agent.status} />
           </li>

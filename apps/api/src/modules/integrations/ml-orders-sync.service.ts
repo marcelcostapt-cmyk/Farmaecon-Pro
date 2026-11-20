@@ -6,6 +6,7 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import { QUEUE_MARKETPLACE_SYNC } from '../../shared/queue/queue.module';
 import { MlApiService, MlOrderPage, MlOrderSearchResult, MlOrderPaginationTotalChangedError } from './ml-api.service';
 import { validateOrder } from './order-validation';
+import { mapOrderItems, mapOrderFinance } from './order-item.mapper';
 
 export const ORDER_SYNC_OPERATION = 'ORDERS';
 export const DEFAULT_ORDER_PAGE_SIZE = 50;
@@ -322,8 +323,9 @@ export class MlOrdersSyncService {
       if (updated.count !== 1) throw new SyncCheckpointChangedError();
       for (const { order, externalOrderId, totalAmount, createdAt } of validated) {
         const orderStatus = this.mapOrderStatus(order.status);
+        const finance = mapOrderFinance(order as any);
 
-        await tx.order.upsert({
+        const saved = await tx.order.upsert({
           where: {
             tenantId_marketplaceAccountId_externalOrderId: {
               tenantId: account.tenantId,
@@ -331,7 +333,7 @@ export class MlOrdersSyncService {
               externalOrderId,
             },
           },
-          update: { totalAmount, status: orderStatus, createdAt },
+          update: { totalAmount, status: orderStatus, createdAt, ...finance },
           create: {
             tenantId: account.tenantId,
             marketplaceAccountId: account.id,
@@ -339,7 +341,25 @@ export class MlOrdersSyncService {
             totalAmount,
             status: orderStatus,
             createdAt,
+            ...finance,
           },
+          select: { id: true },
+        });
+
+        // Keep each order's persisted line set EXACT: upsert the lines the current
+        // read returns, then remove any stored line no longer present (cancelled/removed).
+        const items = mapOrderItems(order as any, {
+          tenantId: account.tenantId, marketplaceAccountId: account.id, orderId: saved.id,
+        });
+        for (const item of items) {
+          await tx.orderItem.upsert({
+            where: { tenantId_orderId_mlElementId: { tenantId: account.tenantId, orderId: saved.id, mlElementId: item.mlElementId } },
+            update: item,
+            create: item,
+          });
+        }
+        await tx.orderItem.deleteMany({
+          where: { tenantId: account.tenantId, orderId: saved.id, mlElementId: { notIn: items.map((i) => i.mlElementId) } },
         });
       }
 

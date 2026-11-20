@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00"><NFe><infNFe Id="NFe000000000000000000000000000000000000000999001" versao="4.00">
+  <ide><nNF>999001</nNF><serie>1</serie><dhEmi>2026-04-10T10:00:00-03:00</dhEmi><natOp>COMPRA</natOp></ide>
+  <emit><CNPJ>00000000000191</CNPJ><xNome>FORNECEDOR SINTETICO LTDA</xNome></emit>
+  <dest><CNPJ>00000000000272</CNPJ><xNome>DROGARIA SINTETICA LTDA</xNome></dest>
+  <det nItem="1"><nItem>1</nItem><prod><cProd>5080</cProd><cEAN>7897777700011</cEAN><xProd>PRODUTO SINTETICO A</xProd><NCM>30049099</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10</qCom><vUnCom>10.00</vUnCom><vProd>100.00</vProd><vOutro>0.00</vOutro></prod><imposto><ICMS/></imposto><vItem>100.00</vItem></det>
+  <det nItem="2"><nItem>2</nItem><prod><cProd>5081</cProd><cEAN>7897777700022</cEAN><xProd>PRODUTO SINTETICO B</xProd><NCM>30049099</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10</qCom><vUnCom>30.00</vUnCom><vProd>300.00</vProd><vOutro>0.00</vOutro></prod><imposto><ICMS/></imposto><vItem>300.00</vItem></det>
+  <total><ICMSTot><vProd>400.00</vProd><vOutro>0.00</vOutro><vNF>400.00</vNF></ICMSTot></total>
+ </infNFe></NFe></nfeProc>

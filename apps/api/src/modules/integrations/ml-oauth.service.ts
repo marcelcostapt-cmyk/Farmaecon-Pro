@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { accountConflict } from './account-errors';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -9,6 +10,13 @@ import type { AuthPrincipal } from '../auth/auth.service';
 import { hashToken } from '../auth/auth.service';
 import { TokenVault } from '../../shared/security/token-vault.service';
 import { MarketplaceHttp } from './marketplace-http.service';
+export type OAuthUnavailableReason = 'SIMULATED_SOURCE' | 'PKCE_DISABLED' | 'MISSING_CONFIG';
+export interface OAuthConfig { oauthAvailable: boolean; reason: 'OK' | OAuthUnavailableReason; }
+const UNAVAILABLE_MESSAGES: Record<OAuthUnavailableReason, string> = {
+  SIMULATED_SOURCE: 'OAuth is disabled for simulated accounts',
+  PKCE_DISABLED: 'Enable PKCE in the Mercado Livre application before connecting',
+  MISSING_CONFIG: 'Mercado Livre OAuth is not configured',
+};
 interface Tokens { access_token: string; refresh_token: string; expires_in: number; user_id: number; }
 @Injectable()
 export class MlOAuthService {
@@ -16,9 +24,17 @@ export class MlOAuthService {
   constructor(private readonly config: ConfigService, private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_TOKEN_REFRESH) private readonly queue: Queue,
     private readonly vault: TokenVault, private readonly http: MarketplaceHttp) {}
-  async buildAuthorizationUrl(actor: AuthPrincipal) {
-    if (this.config.get('MARKETPLACE_SOURCE', 'MOCK') !== 'MERCADO_LIVRE') throw new BadRequestException('OAuth is disabled for simulated accounts');
-    if (this.config.get('ML_PKCE_ENABLED') !== 'true') throw new BadRequestException('Enable PKCE in the Mercado Livre application before connecting');
+  /** Whether the connect/reconnect flow can start; never exposes configuration values. */
+  oauthConfig(): OAuthConfig {
+    if (this.config.get('MARKETPLACE_SOURCE', 'MOCK') !== 'MERCADO_LIVRE') return { oauthAvailable: false, reason: 'SIMULATED_SOURCE' };
+    if (this.config.get('ML_PKCE_ENABLED') !== 'true') return { oauthAvailable: false, reason: 'PKCE_DISABLED' };
+    if (!this.config.get('ML_APP_ID') || !this.config.get('ML_REDIRECT_URI')) return { oauthAvailable: false, reason: 'MISSING_CONFIG' };
+    return { oauthAvailable: true, reason: 'OK' };
+  }
+  /** With `expectedAccountId` the callback may only reconnect that account, with the same seller. */
+  async buildAuthorizationUrl(actor: AuthPrincipal, expectedAccountId?: string) {
+    const availability = this.oauthConfig();
+    if (availability.reason !== 'OK') throw new BadRequestException(UNAVAILABLE_MESSAGES[availability.reason]);
     const appId = this.config.getOrThrow<string>('ML_APP_ID');
     const redirectUri = this.config.getOrThrow<string>('ML_REDIRECT_URI');
     const state = randomBytes(32).toString('base64url');
@@ -27,6 +43,7 @@ export class MlOAuthService {
     await this.prisma.oAuthState.create({ data: {
       stateHash, userId: actor.sub, tenantId: actor.tenantId, sessionId: actor.sid,
       verifier: this.vault.encrypt(verifier, stateHash), expiresAt: new Date(Date.now() + 600000),
+      expectedAccountId: expectedAccountId ?? null,
     } });
     const url = new URL('https://auth.mercadolivre.com.br/authorization');
     for (const [key, value] of Object.entries({ response_type: 'code', client_id: appId, redirect_uri: redirectUri,
@@ -49,6 +66,17 @@ export class MlOAuthService {
     const sellerId = String(tokens.user_id);
     const context = `${actor.tenantId}:${sellerId}`;
     const credentials = { accessToken: this.vault.encrypt(tokens.access_token, context), refreshToken: this.vault.encrypt(tokens.refresh_token, context), expiresAt: new Date(Date.now() + tokens.expires_in * 1000) };
+    if (stored.expectedAccountId) {
+      const expected = await this.prisma.marketplaceAccount.findFirst({
+        where: { id: stored.expectedAccountId, tenantId: actor.tenantId, platform: 'MERCADO_LIVRE' },
+        select: { id: true, externalSellerId: true },
+      });
+      if (!expected) throw new NotFoundException('Account not found');
+      if (expected.externalSellerId !== sellerId) throw accountConflict('SELLER_MISMATCH');
+      await this.prisma.marketplaceAccount.updateMany({ where: { id: expected.id, tenantId: actor.tenantId }, data: { ...credentials, status: 'ACTIVE' } });
+      await this.schedule(expected.id, actor.tenantId, tokens.expires_in);
+      return { accountId: expected.id, reconnected: true };
+    }
     const account = await this.prisma.marketplaceAccount.upsert({
       where: { tenantId_platform_externalSellerId: { tenantId: actor.tenantId, platform: 'MERCADO_LIVRE', externalSellerId: sellerId } },
       update: { ...credentials, status: 'ACTIVE' },
@@ -56,7 +84,7 @@ export class MlOAuthService {
       select: { id: true },
     });
     await this.schedule(account.id, actor.tenantId, tokens.expires_in);
-    return { accountId: account.id };
+    return { accountId: account.id, reconnected: false };
   }
   private async tokenRequest(body: URLSearchParams): Promise<Tokens> {
     body.set('client_id', this.config.getOrThrow('ML_APP_ID'));

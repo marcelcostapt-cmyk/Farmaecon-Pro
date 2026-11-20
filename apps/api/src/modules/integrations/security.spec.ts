@@ -6,6 +6,9 @@ import { TokenVault } from '../../shared/security/token-vault.service';
 import { MarketplaceHttp, assertObservationRequest } from './marketplace-http.service';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
 import { ObservationService } from '../observation/observation.service';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { IntegrationsService } from './integrations.service';
+import { AccountErrors } from './account-errors';
 const actor={sub:'user-a',tenantId:'a',role:'ADMIN',sid:'session-a',email:'a@test.local'};
 describe('OAuth state, PKCE and vault',()=>{
   let db:MemoryPrisma;let service:MlOAuthService;let vault:TokenVault;let config:ConfigService;
@@ -26,7 +29,7 @@ describe('OAuth state, PKCE and vault',()=>{
     const account=db.rows.marketplaceAccount[0];expect(account.accessToken).not.toContain('access-fixture');
     expect(vault.decrypt(account.accessToken,'a:123')).toBe('access-fixture');
     expect(()=>vault.decrypt(account.accessToken,'b:123')).toThrow();
-    expect(result).toEqual({accountId:account.id});
+    expect(result).toEqual({accountId:account.id,reconnected:false});
   });
   it.each(['invalid','expired','wrong-user','wrong-tenant','wrong-session'])('rejects %s state before network calls',async(kind)=>{
     const url=await begin();let state=url.searchParams.get('state')!;let principal={...actor};
@@ -56,6 +59,68 @@ describe('OAuth state, PKCE and vault',()=>{
     expect(()=>vault.decrypt('legacy-plaintext','a')).toThrow();
     const encrypted=vault.encrypt('fixture','a');const parts=encrypted.split('.');parts[2]=randomBytes(16).toString('base64url');
     expect(()=>vault.decrypt(parts.join('.'),'a')).toThrow();expect(()=>new TokenVault(new ConfigService({}))).toThrow();
+  });
+});
+describe('reconnect',()=>{
+  let db:MemoryPrisma;let service:MlOAuthService;let vault:TokenVault;let http:{request:jest.Mock};let queue:{add:jest.Mock};let integrations:IntegrationsService;
+  const tokens=(userId:number)=>({ok:true,json:async()=>({access_token:'access-new',refresh_token:'refresh-new',user_id:userId,expires_in:3600})});
+  const baseConfig={MARKETPLACE_SOURCE:'MERCADO_LIVRE',ML_PKCE_ENABLED:'true',ML_APP_ID:'test-only',ML_SECRET_KEY:'s'.repeat(64),ML_REDIRECT_URI:'http://localhost:3000/auth/callback',TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
+  const disconnected=(overrides:Record<string,unknown>={})=>({id:'acc-a',tenantId:'a',platform:'MERCADO_LIVRE',status:'DISCONNECTED',externalSellerId:'123',name:'ML #123',displayName:'Farmashop',accessToken:null,refreshToken:null,expiresAt:null,source:'MERCADO_LIVRE',createdAt:new Date(),...overrides});
+  beforeEach(()=>{
+    db=new MemoryPrisma();const config=new ConfigService(baseConfig);vault=new TokenVault(config);http={request:jest.fn().mockResolvedValue(tokens(123))};queue={add:jest.fn()};
+    service=new MlOAuthService(config,db as any,queue as any,vault,http as any);
+    integrations=new IntegrationsService(db as any,{} as any,{} as any,{} as any,service,undefined);
+    db.rows.marketplaceAccount.push(disconnected());
+  });
+  const stateOf=(url:string)=>new URL(url).searchParams.get('state')!;
+  it('reconnects the same account when the seller matches',async()=>{
+    const {url}=await service.buildAuthorizationUrl(actor,'acc-a');
+    expect(db.rows.oAuthState[0].expectedAccountId).toBe('acc-a');
+    await expect(service.exchangeCode('code',stateOf(url),actor)).resolves.toEqual({accountId:'acc-a',reconnected:true});
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+    const account=db.rows.marketplaceAccount[0];
+    expect(account).toMatchObject({status:'ACTIVE',displayName:'Farmashop'});
+    expect(vault.decrypt(account.accessToken,'a:123')).toBe('access-new');
+  });
+  it('rejects a different seller without writing anything',async()=>{
+    http.request.mockResolvedValue(tokens(999));
+    const {url}=await service.buildAuthorizationUrl(actor,'acc-a');
+    const error=await service.exchangeCode('code',stateOf(url),actor).catch(e=>e);
+    expect(error).toBeInstanceOf(ConflictException);
+    expect(error.getResponse()).toEqual({code:'SELLER_MISMATCH',message:AccountErrors.SELLER_MISMATCH});
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({status:'DISCONNECTED',accessToken:null,refreshToken:null});
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+  it('fails when the expected account was deleted before the callback',async()=>{
+    const {url}=await service.buildAuthorizationUrl(actor,'acc-a');
+    db.rows.marketplaceAccount=[];
+    await expect(service.exchangeCode('code',stateOf(url),actor)).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.rows.marketplaceAccount).toHaveLength(0);
+  });
+  it('new connect for an existing disconnected seller reactivates it and keeps displayName',async()=>{
+    const {url}=await service.buildAuthorizationUrl(actor);
+    expect(db.rows.oAuthState[0].expectedAccountId ?? null).toBeNull();
+    await expect(service.exchangeCode('code',stateOf(url),actor)).resolves.toEqual({accountId:'acc-a',reconnected:false});
+    expect(db.rows.marketplaceAccount).toHaveLength(1);
+    expect(db.rows.marketplaceAccount[0]).toMatchObject({id:'acc-a',status:'ACTIVE',displayName:'Farmashop'});
+  });
+  it('startReconnect refuses accounts that are not DISCONNECTED',async()=>{
+    db.rows.marketplaceAccount[0].status='ACTIVE';
+    const error=await integrations.startReconnect(actor,'acc-a').catch(e=>e);
+    expect(error).toBeInstanceOf(ConflictException);expect(error.getResponse()).toMatchObject({code:'RECONNECT_NOT_ALLOWED'});
+    await expect(integrations.startReconnect({...actor,tenantId:'b'},'acc-a')).rejects.toBeInstanceOf(NotFoundException);
+    db.rows.marketplaceAccount[0].status='DISCONNECTED';
+    const {url}=await integrations.startReconnect(actor,'acc-a');
+    expect(new URL(url).hostname).toBe('auth.mercadolivre.com.br');
+    expect(db.rows.oAuthState.at(-1).expectedAccountId).toBe('acc-a');
+  });
+  it('oauthConfig reports why OAuth is unavailable',()=>{
+    const make=(overrides:Record<string,unknown>)=>new MlOAuthService(new ConfigService({...baseConfig,...overrides}),db as any,queue as any,vault,http as any).oauthConfig();
+    expect(make({MARKETPLACE_SOURCE:'MOCK'})).toEqual({oauthAvailable:false,reason:'SIMULATED_SOURCE'});
+    expect(make({ML_PKCE_ENABLED:'false'})).toEqual({oauthAvailable:false,reason:'PKCE_DISABLED'});
+    expect(make({ML_APP_ID:undefined})).toEqual({oauthAvailable:false,reason:'MISSING_CONFIG'});
+    expect(make({})).toEqual({oauthAvailable:true,reason:'OK'});
   });
 });
 describe('Central observation policy',()=>{

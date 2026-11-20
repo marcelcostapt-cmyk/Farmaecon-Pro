@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00"><NFe><infNFe Id="NFe000000000000000000000000000000000000002962607" versao="4.00">
+  <ide><nNF>2962607</nNF><serie>1</serie><dhEmi>2026-08-21T16:00:00-03:00</dhEmi><natOp>COMPRA</natOp></ide>
+  <emit><CNPJ>00000000000191</CNPJ><xNome>FORNECEDOR FICTICIO LTDA</xNome></emit>
+  <dest><CNPJ>00000000000272</CNPJ><xNome>DROGARIA FICTICIA LTDA</xNome></dest>
+  <det nItem="1"><nItem>1</nItem><prod><cProd>O1</cProd><cEAN>7895555500011</cEAN><xProd>PRODUTO O1</xProd><NCM>30049099</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10</qCom><vUnCom>50.00</vUnCom><vProd>500.00</vProd><vOutro>0.84</vOutro></prod><imposto><ICMS/></imposto><vItem>500.00</vItem></det>
+  <det nItem="2"><nItem>2</nItem><prod><cProd>O2</cProd><cEAN>7895555500022</cEAN><xProd>PRODUTO O2</xProd><NCM>30049099</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10</qCom><vUnCom>55.37</vUnCom><vProd>553.70</vProd><vOutro>0.62</vOutro></prod><imposto><ICMS/></imposto><vItem>553.70</vItem></det>
+  <det nItem="3"><nItem>3</nItem><prod><cProd>O3</cProd><cEAN>7895555500033</cEAN><xProd>PRODUTO O3</xProd><NCM>30049099</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10</qCom><vUnCom>60.00</vUnCom><vProd>600.00</vProd><vOutro>1.73</vOutro></prod><imposto><ICMS/></imposto><vItem>600.00</vItem></det>
+  <total><ICMSTot><vProd>1653.70</vProd><vOutro>3.19</vOutro><vNF>1656.89</vNF></ICMSTot></total>
+ </infNFe></NFe></nfeProc>

@@ -125,7 +125,11 @@ async function verifyRestore(source) {
         if (!/^\d+$/.test(migrations) || Number(migrations) < 1) throw new Error('Restored database lacks completed migrations');
         restoreRun(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', 'SELECT count(*) FROM public.tenants; SELECT count(*) FROM public.orders; SELECT count(*) FROM public.auth_sessions;']);
         const protectedTables = restoreRun(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relrowsecurity"]);
-        const expectedProtectedTables = restoreRun(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', "SELECT CASE WHEN to_regclass('public.marketplace_sync_states') IS NULL THEN 8 ELSE 9 END"]);
+        // Esperado = quantas das tabelas canónicas com RLS EXISTEM no backup restaurado
+        // (independente de relrowsecurity, que é o que o restauro tem de preservar). É
+        // versão-consciente: backups antigos sem as tabelas do DRE esperam menos. Mantém-se
+        // alinhado com a verificação de arranque da API (prisma.service.ts: 14 tabelas).
+        const expectedProtectedTables = restoreRun(['exec', container, 'psql', '-U', 'postgres', '-d', 'restore_check', '-At', '-c', "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname IN ('tenants','users','marketplace_accounts','orders','products','financial_transactions','auth_sessions','oauth_states','marketplace_sync_states','order_items','purchase_invoices','purchase_invoice_items','cost_allocation_rules','product_costs')"]);
         if (Number(protectedTables) !== Number(expectedProtectedTables)) throw new Error('Restored row-security policies are incomplete');
       });
       console.log('PASS: authenticated archive restored in a disposable Postgres container with no network. Production database untouched.');

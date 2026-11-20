@@ -1,9 +1,18 @@
 // In-memory test double; never wired into the application. HTTP/SQL smoke tests cover the real adapter separately.
 import { types } from 'node:util';
 
+// Deep-clone plain objects/arrays; pass class instances (Prisma.Decimal, Date) by reference.
+function safeClone(v: any): any {
+  if (Array.isArray(v)) return v.map(safeClone);
+  if (v && typeof v === 'object' && (v.constructor === Object || v.constructor === undefined)) {
+    const o: any = {}; for (const k of Object.keys(v)) o[k] = safeClone(v[k]); return o;
+  }
+  return v;
+}
+
 export class MemoryPrisma {
-  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], financialTransaction: [] };
-  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; financialTransaction: any;
+  rows: Record<string, any[]> = { user: [], tenant: [], authSession: [], oAuthState: [], marketplaceAccount: [], marketplaceSyncState: [], order: [], orderItem: [], financialTransaction: [], purchaseInvoice: [], purchaseInvoiceItem: [], costAllocationRule: [], productCost: [] };
+  user: any; tenant: any; authSession: any; oAuthState: any; marketplaceAccount: any; marketplaceSyncState: any; order: any; orderItem: any; financialTransaction: any; purchaseInvoice: any; purchaseInvoiceItem: any; costAllocationRule: any; productCost: any;
   constructor() {
     for (const model of Object.keys(this.rows)) (this as any)[model] = this.model(model);
   }
@@ -16,7 +25,8 @@ export class MemoryPrisma {
         if ('gte' in value && !(row[key] >= value.gte)) return false;
         if ('lte' in value && !(row[key] <= value.lte)) return false;
         if ('in' in value && !value.in.includes(row[key])) return false;
-        if (['gt','gte','lte','in'].some(k => k in value)) return true;
+        if ('notIn' in value && value.notIn.includes(row[key])) return false;
+        if (['gt','gte','lte','in','notIn'].some(k => k in value)) return true;
         return this.matches(row, value); // Prisma compound unique input.
       }
       return row[key] === value;
@@ -35,12 +45,12 @@ export class MemoryPrisma {
     }
     const relations: Record<string,string> = { marketplaceAccount: 'marketplaceAccount', financialTransactions: 'financialTransaction', syncStates: 'marketplaceSyncState' };
     const projectField = (k: string, spec: any): any => {
-      if (spec === true) return structuredClone(data[k]);
+      if (spec === true) return safeClone(data[k]);
       if (Array.isArray(data[k])) return data[k].map((v: any) => this.project(relations[k], v, spec));
       return this.project(relations[k] ?? k, data[k], spec);
     };
     if (args.select) return Object.fromEntries(Object.entries(args.select).filter(([,v]) => v).map(([k,v]) => [k,projectField(k,v)]));
-    const result = structuredClone(row);
+    const result = safeClone(row);
     for (const [k,v] of Object.entries(args.include ?? {})) result[k] = projectField(k,v);
     return result;
   }
@@ -54,6 +64,7 @@ export class MemoryPrisma {
       count: jest.fn(async (args: any) => this.rows[name].filter(r => this.matches(r,args.where)).length),
       create: jest.fn(async (args: any) => { const row = { id: `${name}-${this.rows[name].length}`, createdAt: new Date(), revokedAt: null, consumedAt: null, ...args.data }; this.rows[name].push(row); return this.project(name,row,args); }),
       updateMany: jest.fn(async (args: any) => { const found=this.rows[name].filter(r=>this.matches(r,args.where)); found.forEach(r=>{ for(const [key,value] of Object.entries(args.data ?? {})){ if(value && typeof value === 'object' && 'increment' in (value as any)) r[key]=(r[key] ?? 0)+(value as any).increment; else Object.assign(r,{[key]:value}); } }); return { count: found.length }; }),
+      deleteMany: jest.fn(async (args: any = {}) => { const before=this.rows[name].length; this.rows[name]=this.rows[name].filter(r=>!this.matches(r,args.where)); return { count: before-this.rows[name].length }; }),
       upsert: jest.fn(async (args: any) => { let row=this.rows[name].find(r=>this.matches(r,args.where)); if (row) Object.assign(row,args.update); else { row={id:`${name}-${this.rows[name].length}`,createdAt:new Date(),status:'ACTIVE',...args.create};this.rows[name].push(row); } return this.project(name,row,args); }),
     };
   }

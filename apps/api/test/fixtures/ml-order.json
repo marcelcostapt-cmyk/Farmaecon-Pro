@@ -1,0 +1,164 @@
+{
+  "captured_at": "2026-11-14T22:35:44.152Z",
+  "account": "0072890c-28d6-4c85-9282-cde164dad580",
+  "seller": "3750471879",
+  "http": 200,
+  "paging": {
+    "total": 9,
+    "offset": 0,
+    "limit": 2
+  },
+  "sample_order_sanitized": {
+    "payments": [
+      {
+        "reason": "Kit 6 Marcadores De Texto Neon Fluorescente Coloridos Home Colorido",
+        "status_code": null,
+        "total_paid_amount": 15.53,
+        "operation_type": "regular_payment",
+        "transaction_amount": 15.53,
+        "transaction_amount_refunded": 0,
+        "date_approved": "2026-11-14T18:15:14.000-04:00",
+        "collector": {
+          "id": 3750471879
+        },
+        "coupon_id": null,
+        "installments": 1,
+        "authorization_code": null,
+        "taxes_amount": 0,
+        "id": 189697020124,
+        "date_last_modified": "2026-11-14T18:15:14.000-04:00",
+        "coupon_amount": 0,
+        "available_actions": [
+          "refund"
+        ],
+        "shipping_cost": 0,
+        "installment_amount": null,
+        "date_created": "2026-11-14T18:15:13.000-04:00",
+        "activation_uri": null,
+        "overpaid_amount": 0,
+        "card_id": null,
+        "status_detail": "accredited",
+        "issuer_id": "2007",
+        "payment_method_id": "account_money",
+        "payment_type": "account_money",
+        "deferred_period": null,
+        "atm_transfer_reference": {
+          "transaction_id": null,
+          "company_id": null
+        },
+        "site_id": "MLB",
+        "payer_id": 253539891,
+        "order_id": 2000019554602498,
+        "currency_id": "BRL",
+        "status": "approved",
+        "transaction_order_id": null
+      }
+    ],
+    "fulfilled": null,
+    "taxes": {
+      "amount": null,
+      "currency_id": null,
+      "id": null
+    },
+    "order_request": {
+      "change": null,
+      "return": null
+    },
+    "expiration_date": "2026-12-12T18:15:15.000-04:00",
+    "feedback": {
+      "buyer": "<redacted:object>",
+      "seller": null
+    },
+    "shipping": {
+      "id": 48528475556
+    },
+    "date_closed": "2026-11-14T18:15:15.000-04:00",
+    "id": 2000019554602498,
+    "manufacturing_ending_date": null,
+    "order_items": [
+      {
+        "item": {
+          "id": "MLB7834901696",
+          "title": "Kit 6 Marcadores De Texto Neon Fluorescente Coloridos Home Colorido",
+          "category_id": "MLB419963",
+          "variation_id": null,
+          "seller_custom_field": null,
+          "global_price": null,
+          "net_weight": null,
+          "variation_attributes": [
+            {
+              "name": "Cor",
+              "id": "COLOR",
+              "value_id": "17292855",
+              "value_name": "Colorido"
+            }
+          ],
+          "warranty": "Garantia do vendedor: 7 dias",
+          "condition": "new",
+          "seller_sku": "6 MARCADORES NEON"
+        },
+        "quantity": 1,
+        "unit_price": 15.53,
+        "gross_price": 20.24,
+        "currency_id": "BRL",
+        "manufacturing_days": null,
+        "picked_quantity": null,
+        "requested_quantity": {
+          "measure": "unit",
+          "value": 1
+        },
+        "sale_fee": 1.79,
+        "listing_type_id": "gold_special",
+        "base_exchange_rate": null,
+        "base_currency_id": null,
+        "bundle": null,
+        "element_id": 1
+      }
+    ],
+    "date_last_updated": "2026-11-14T22:16:48+00:00",
+    "last_updated": "2026-11-14T18:16:48.000-04:00",
+    "comment": "<redacted:object>",
+    "pack_id": 2000016056788193,
+    "coupon": {
+      "amount": 0,
+      "id": null
+    },
+    "shipping_cost": null,
+    "date_created": "2026-11-14T18:15:12.000-04:00",
+    "date_created_ttl": null,
+    "pickup_id": null,
+    "status_detail": null,
+    "tags": [
+      "order_has_discount",
+      "catalog",
+      "paid",
+      "not_delivered",
+      "d2c",
+      "one_shot",
+      "pack_order"
+    ],
+    "static_tags": [
+      "d2c",
+      "one_shot",
+      "pack_order"
+    ],
+    "buyer": "<redacted:object>",
+    "seller": {
+      "id": 3750471879,
+      "nickname": "<redacted:string>"
+    },
+    "total_amount": 15.53,
+    "paid_amount": 15.53,
+    "currency_id": "BRL",
+    "status": "paid",
+    "context": {
+      "application": null,
+      "product_id": null,
+      "channel": "marketplace",
+      "site": "MLB",
+      "flows": [
+        "catalog"
+      ]
+    }
+  }
+}

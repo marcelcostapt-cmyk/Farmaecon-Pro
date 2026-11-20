@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00"><NFe><infNFe Id="NFe000000000000000000000000000000000000001309314" versao="4.00">
+  <ide><nNF>1309314</nNF><serie>1</serie><dhEmi>2026-08-24T17:00:00-03:00</dhEmi><natOp>COMPRA</natOp></ide>
+  <emit><CNPJ>00000000000191</CNPJ><xNome>FORNECEDOR FICTICIO LTDA</xNome></emit>
+  <dest><CNPJ>00000000000272</CNPJ><xNome>DROGARIA FICTICIA LTDA</xNome></dest>
+  <det nItem="1"><nItem>1</nItem><prod><cProd>V1</cProd><cEAN>7896666600011</cEAN><xProd>COSMETICO</xProd><NCM>33049910</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>4</qCom><vUnCom>32.57</vUnCom><vProd>130.28</vProd><vOutro>0.54</vOutro></prod><imposto><ICMS/></imposto><vItem>130.28</vItem></det>
+  <det nItem="2"><nItem>2</nItem><prod><cProd>V2</cProd><cEAN>7896666600022</cEAN><xProd>SUPLEMENTO</xProd><NCM>21069030</NCM><CFOP>5405</CFOP><uCom>UN</uCom><qCom>4</qCom><vUnCom>33.00</vUnCom><vProd>132.00</vProd><vOutro>1.96</vOutro></prod><imposto><ICMS/></imposto><vItem>132.00</vItem></det>
+  <total><ICMSTot><vProd>262.28</vProd><vOutro>2.50</vOutro><vNF>264.78</vNF></ICMSTot></total>
+ </infNFe></NFe></nfeProc>

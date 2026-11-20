@@ -5,6 +5,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
 import { MarketplaceSyncProcessor } from './marketplace-sync.processor';
+import { MarketplaceSyncScheduler } from './marketplace-sync.scheduler';
 import { MlApiService } from './ml-api.service';
 import { MlOAuthService } from './ml-oauth.service';
 import { MlOrdersSyncService } from './ml-orders-sync.service';
@@ -24,6 +25,7 @@ import { QUEUE_MARKETPLACE_SYNC, QUEUE_TOKEN_REFRESH } from '../../shared/queue/
     MlApiService,
     MlOAuthService,
     MlOrdersSyncService,
+    MarketplaceSyncScheduler,
     MarketplaceSyncProcessor,
     TokenRefreshProcessor,
   ],

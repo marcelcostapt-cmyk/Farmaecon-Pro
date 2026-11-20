@@ -56,6 +56,7 @@ model Tenant {
   marketplaceSyncStates MarketplaceSyncState[]
   products              Product[]
   orders                Order[]
+  marginRules           MarginRule[]
 
   @@map("tenants")
 }
@@ -83,6 +84,7 @@ model MarketplaceAccount {
   status           MarketplaceAccountStatus @default(ACTIVE)
   externalSellerId String?                  @map("external_seller_id")
   name             String
+  displayName      String?                  @map("display_name")
   accessToken      String?                  @map("access_token")
   refreshToken     String?                  @map("refresh_token")
   expiresAt        DateTime?                @map("expires_at")
@@ -98,9 +100,19 @@ model MarketplaceAccount {
   lastSyncError     String?                @map("last_sync_error")
   syncStates        MarketplaceSyncState[]
 
+  /// Razão social da empresa COMPRADORA (destinatário da NF-e), para o vínculo fiscal. Origem/revisão registadas em auditoria.
+  businessName           String? @map("business_name") @db.VarChar(255)
+  /// businessName sem acentos, pontuação e sufixos societários — só para sugerir candidatos na busca; nunca confirma vínculo.
+  businessNameNormalized String? @map("business_name_normalized") @db.VarChar(255)
+  /// CNPJ da empresa compradora (não da Farmaecon), para matching exato com o destinatário. Sem unicidade: uma empresa pode ter várias contas.
+  cnpj                   String? @map("cnpj") @db.VarChar(18)
+
   @@unique([tenantId, platform, externalSellerId])
   @@index([tenantId, status])
+  @@index([tenantId, status, cnpj])
+  @@index([tenantId, status, businessNameNormalized])
   @@map("marketplace_accounts")
+  orderItems        OrderItem[]
 }
 
 model Product {
@@ -120,6 +132,7 @@ model Product {
   @@unique([tenantId, sku])
   @@index([tenantId, stockQuantity])
   @@map("products")
+  orderItems       OrderItem[]
 }
 
 model Order {
@@ -131,10 +144,17 @@ model Order {
   status               OrderStatus
   createdAt            DateTime    @default(now()) @map("created_at")
   updatedAt            DateTime    @updatedAt @map("updated_at")
+  paidAmount           Decimal?    @map("paid_amount")
+  mlDateCreated        DateTime?   @map("ml_date_created")
+  mlDateClosed         DateTime?   @map("ml_date_closed")
+  packId               String?     @map("pack_id")
+  statusDetail         String?     @map("status_detail")
+  mlPaymentsRaw        Json?       @map("ml_payments_raw")
 
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   marketplaceAccount    MarketplaceAccount     @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
   financialTransactions FinancialTransaction[]
+  items                 OrderItem[]
 
   @@unique([tenantId, marketplaceAccountId, externalOrderId])
   @@index([tenantId, status, createdAt])
@@ -200,14 +220,204 @@ model AuthSession {
 }
 
 model OAuthState {
-  stateHash  String    @id @map("state_hash")
-  userId     String    @map("user_id")
-  tenantId   String    @map("tenant_id")
-  sessionId  String    @map("session_id")
-  verifier   String
-  expiresAt  DateTime  @map("expires_at")
-  consumedAt DateTime? @map("consumed_at")
+  stateHash         String    @id @map("state_hash")
+  userId            String    @map("user_id")
+  tenantId          String    @map("tenant_id")
+  sessionId         String    @map("session_id")
+  verifier          String
+  expiresAt         DateTime  @map("expires_at")
+  consumedAt        DateTime? @map("consumed_at")
+  expectedAccountId String?   @map("expected_account_id")
 
   @@index([expiresAt])
   @@map("oauth_states")
+}
+
+model OrderItem {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  marketplaceAccountId String   @map("marketplace_account_id")
+  orderId              String   @map("order_id")
+  mlItemId             String?  @map("ml_item_id")
+  mlElementId          String   @map("ml_element_id")
+  sellerSkuRaw         String?  @map("seller_sku_raw")
+  title                String?
+  categoryId           String?  @map("category_id")
+  variationId          String?  @map("variation_id")
+  variationAttributes  Json?    @map("variation_attributes")
+  quantity             Int
+  unitPrice            Decimal  @map("unit_price")
+  grossPrice           Decimal? @map("gross_price")
+  saleFee              Decimal? @map("sale_fee")
+  listingTypeId        String?  @map("listing_type_id")
+  currencyId           String?  @map("currency_id")
+  productId            String?  @map("product_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  order              Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+  product            Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, orderId, mlElementId])
+  @@index([tenantId, marketplaceAccountId])
+  @@index([tenantId, productId])
+  @@map("order_items")
+}
+
+enum PurchaseDocumentSource {
+  XML
+  PDF
+  EXCEL
+}
+
+enum CostLifecycle {
+  EXTRACTED
+  PENDING_REVIEW
+  APPROVED
+  ARCHIVED
+  REJECTED
+}
+
+enum AllocationRuleType {
+  ZERO_BONUS
+  PROPORTIONAL_SPREAD
+  INCLUDE_EXPENSES
+  MANUAL
+}
+
+model PurchaseInvoice {
+  id                      String                 @id @default(uuid())
+  tenantId                String                 @map("tenant_id")
+  marketplaceAccountId    String?                @map("marketplace_account_id")
+  source                  PurchaseDocumentSource
+  originalFilename        String                 @map("original_filename")
+  fileHashSha256          String                 @map("file_hash_sha256")
+  invoiceNumber           String?                @map("invoice_number")
+  invoiceSeries           String?                @map("invoice_series")
+  invoiceKey              String?                @map("invoice_key")
+  issuerCnpj              String?                @map("issuer_cnpj")
+  recipientCnpj           String?                @map("recipient_cnpj")
+  issuedAt                DateTime?              @map("issued_at")
+  productsTotal           Decimal?               @map("products_total")
+  otherExpenses           Decimal?               @map("other_expenses")
+  discounts               Decimal?
+  documentTotal           Decimal?               @map("document_total")
+  paymentAmountInDocument Decimal?               @map("payment_amount_in_document")
+  hasBonus                Boolean                @default(false) @map("has_bonus")
+  bonusAmount             Decimal?               @map("bonus_amount")
+  paidAmount              Decimal?               @map("paid_amount")
+  status                  CostLifecycle          @default(EXTRACTED)
+  extractionWarnings      Json?                  @map("extraction_warnings")
+  createdBy               String?                @map("created_by")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
+
+  items           PurchaseInvoiceItem[]
+  allocationRules CostAllocationRule[]
+
+  @@unique([tenantId, fileHashSha256])
+  @@index([tenantId, status])
+  @@map("purchase_invoices")
+}
+
+model CostAllocationRule {
+  id                String             @id @default(uuid())
+  tenantId          String             @map("tenant_id")
+  purchaseInvoiceId String             @map("purchase_invoice_id")
+  ruleType          AllocationRuleType @map("rule_type")
+  parameters        Json?
+  approvedBy        String?            @map("approved_by")
+  approvedAt        DateTime?          @map("approved_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  purchaseInvoice PurchaseInvoice       @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  items           PurchaseInvoiceItem[]
+  productCosts    ProductCost[]
+
+  @@index([tenantId, purchaseInvoiceId])
+  @@map("cost_allocation_rules")
+}
+
+model PurchaseInvoiceItem {
+  id                  String    @id @default(uuid())
+  tenantId            String    @map("tenant_id")
+  purchaseInvoiceId   String    @map("purchase_invoice_id")
+  lineNumber          String    @map("line_number")
+  sourceRef           String    @map("source_ref")
+  supplierProductCode String?   @map("supplier_product_code")
+  ean                 String?
+  marketplaceSku      String?   @map("marketplace_sku")
+  description         String?
+  quantity            Decimal?
+  unitCostExtracted   Decimal?  @map("unit_cost_extracted")
+  unitCostPaid        Decimal?  @map("unit_cost_paid")
+  unitCostApproved    Decimal?  @map("unit_cost_approved")
+  totalLine           Decimal?  @map("total_line")
+  discount            Decimal?
+  otherExpense        Decimal?  @map("other_expense")
+  ncm                 String?
+  unit                String?
+  cfop                String?
+  lotNumber           String?   @map("lot_number")
+  isBonus             Boolean   @default(false) @map("is_bonus")
+  paidQuantity        Decimal?  @map("paid_quantity")
+  bonusQuantity       Decimal?  @map("bonus_quantity")
+  allocatedBonus      Decimal?  @map("allocated_bonus")
+  allocationRuleId    String?   @map("allocation_rule_id")
+  warnings            Json?
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  purchaseInvoice PurchaseInvoice     @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  allocationRule  CostAllocationRule? @relation(fields: [allocationRuleId], references: [id], onDelete: SetNull)
+  productCosts    ProductCost[]
+
+  @@unique([tenantId, purchaseInvoiceId, lineNumber])
+  @@index([tenantId, ean])
+  @@map("purchase_invoice_items")
+}
+
+model ProductCost {
+  id                   String        @id @default(uuid())
+  tenantId             String        @map("tenant_id")
+  marketplaceAccountId String?       @map("marketplace_account_id")
+  ean                  String?
+  sku                  String?
+  supplierCode         String?       @map("supplier_code")
+  description          String?
+  unitCost             Decimal       @map("unit_cost")
+  isEstimate           Boolean       @default(false) @map("is_estimate")
+  sourceInvoiceItemId  String?       @map("source_invoice_item_id")
+  costAllocationRuleId String?       @map("cost_allocation_rule_id")
+  validFrom            DateTime      @map("valid_from")
+  validUntil           DateTime?     @map("valid_until")
+  status               CostLifecycle @default(EXTRACTED)
+  createdBy            String?       @map("created_by")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  sourceInvoiceItem PurchaseInvoiceItem? @relation(fields: [sourceInvoiceItemId], references: [id], onDelete: SetNull)
+  allocationRule    CostAllocationRule?  @relation(fields: [costAllocationRuleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, marketplaceAccountId, ean, validFrom])
+  @@map("product_costs")
+}
+
+// WeStack — regra de margem mínima por tenant (sku nullable = regra global).
+// Alertas são informativos; nunca alteram preço/anúncio. Pelo menos um limite deve existir.
+model MarginRule {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  sku              String? // null = regra global do tenant
+  minMarginPercent Decimal? @map("min_margin_percent")
+  minMarginAmount  Decimal? @map("min_margin_amount")
+  createdBy        String?  @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+  @@map("margin_rules")
 }

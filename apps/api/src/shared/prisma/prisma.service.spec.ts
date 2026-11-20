@@ -168,12 +168,45 @@ describe('Prisma tenant context (mock driver, not PostgreSQL)', () => {
     await expect(prisma.onModuleInit()).rejects.toThrow('non-owner, non-BYPASSRLS');
   });
 
-  it('requires RLS enabled on all nine tables, including sync states', async () => {
-    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 8 }]);
+  it('requires RLS enabled on all fifteen tables, including DRE cost and margin_rules', async () => {
+    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 14 }]);
     await expect(prisma.onModuleInit()).rejects.toThrow('Required tenant RLS policies are missing');
-    expect(driver.raw.mock.calls[1][0].join('')).toContain("'marketplace_sync_states'");
-    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 9 }]);
+    const inList = driver.raw.mock.calls[1][0].join('');
+    expect(inList).toContain("'marketplace_sync_states'");
+    expect(inList).toContain("'order_items'");
+    expect(inList).toContain("'purchase_invoices'");
+    expect(inList).toContain("'purchase_invoice_items'");
+    expect(inList).toContain("'cost_allocation_rules'");
+    expect(inList).toContain("'product_costs'");
+    expect(inList).toContain("'margin_rules'");
+    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 15 }]);
     await expect(prisma.onModuleInit()).resolves.toBeUndefined();
+  });
+});
+
+describe('DRE purchase-document RLS migration (static checks only, SQL not executed)', () => {
+  const sql = readFileSync(join(__dirname, '../../../prisma/migrations/20261114_dre_purchase_documents/migration.sql'), 'utf8');
+
+  it.each(['purchase_invoices', 'purchase_invoice_items', 'cost_allocation_rules', 'product_costs'])(
+    'habilita RLS e política de isolamento por tenant em %s',
+    (table) => {
+      expect(sql).toContain(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`);
+      expect(sql).toContain(`CREATE POLICY tenant_isolation ON public.${table}`);
+    },
+  );
+
+  it('tabelas-filhas verificam a posse do documento do tenant no WITH CHECK', () => {
+    expect(sql).toContain('WHERE pi.id = purchase_invoice_items.purchase_invoice_id AND pi.tenant_id = purchase_invoice_items.tenant_id');
+    expect(sql).toContain('WHERE pi.id = cost_allocation_rules.purchase_invoice_id AND pi.tenant_id = cost_allocation_rules.tenant_id');
+  });
+
+  it('não publica custo APROVADO sem regra de rateio (CHECK)', () => {
+    expect(sql).toMatch(/CHECK\s*\(\s*status\s*<>\s*'APPROVED'\s*OR\s*cost_allocation_rule_id\s+IS\s+NOT\s+NULL\s*\)/i);
+  });
+
+  it('é transacional', () => {
+    expect(sql).toContain('BEGIN;');
+    expect(sql).toContain('COMMIT;');
   });
 });
 
