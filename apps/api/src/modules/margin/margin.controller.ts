@@ -58,6 +58,21 @@ export class MarginController {
     return ok(toJsonSafe(result));
   }
 
+  @Get('ranking')
+  async ranking(
+    @CurrentTenant() tenantId: string,
+    @Query('account_id') accountId?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    const result = await this.service.ranking(tenantId, {
+      accountId: accountId || undefined,
+      start: startDate ? new Date(startDate) : undefined,
+      end: endDate ? new Date(endDate) : undefined,
+    });
+    return ok(toJsonSafe(result));
+  }
+
   @Get('rules')
   async listRules(@CurrentTenant() tenantId: string) {
     return ok(toJsonSafe(await this.service.listRules(tenantId)));

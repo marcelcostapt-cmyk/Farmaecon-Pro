@@ -80,6 +80,9 @@ describe('Gestor de Margem — PostgreSQL real', () => {
     await seedApprovedCost(tenantA, accountA, 'ABC', '30');
     await seedSale(tenantA, accountA, 'ABC', 2, '50', '10');
     await seedSale(tenantA, accountA, 'SEMTAXA', 1, '40', null);
+    // SKU XYZ: custo 45, venda 50, taxa 10 → margem −5 (−10%): vilão do ranking.
+    await seedApprovedCost(tenantA, accountA, 'XYZ', '45');
+    await seedSale(tenantA, accountA, 'XYZ', 1, '50', '10');
     await owner.marginRule.create({ data: { tenantId: tenantA, sku: 'ABC', minMarginPercent: money('40') } });
   });
 
@@ -123,10 +126,22 @@ describe('Gestor de Margem — PostgreSQL real', () => {
     expect(abc.limitPercent!.toString()).toBe('40');
   });
 
+  it('ranking: herói = maior margem %, vilão = menor, indisponível fica de fora e é contado', async () => {
+    const ranking = await inTenant(tenantA, () => margin.ranking(tenantA, {}));
+    expect(ranking.heroes.map((l) => l.sku)).toEqual(['ABC']);
+    expect(ranking.villains.map((l) => l.sku)).toEqual(['XYZ']);
+    expect(ranking.villains[0].marginPercent!.toString()).toBe('-10');
+    expect(ranking.unavailableCount).toBe(1); // SEMTAXA
+  });
+
   it('isola por tenant: tenant B não vê vendas nem alertas de A', async () => {
     const preview = await inTenant(tenantB, () => margin.preview(tenantB, { groupBy: 'sku' }));
     expect(preview.lines).toHaveLength(0);
     const alerts = await inTenant(tenantB, () => margin.alerts(tenantB, { groupBy: 'sku' }));
     expect(alerts).toHaveLength(0);
+    const ranking = await inTenant(tenantB, () => margin.ranking(tenantB, {}));
+    expect(ranking.heroes).toHaveLength(0);
+    expect(ranking.villains).toHaveLength(0);
+    expect(ranking.unavailableCount).toBe(0);
   });
 });

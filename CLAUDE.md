@@ -188,3 +188,10 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - Verde: npm run build --workspace web OK. Screenshots antes (/tmp .../ui-escritorio.png) e depois desktop+tablet (ui-escritorio-after*.png); responsividade desktop 1280 + tablet 820 OK.
 - Validação visual feita com imagem farmaecon-web:escritorio-c2 trocada temporariamente no ensaio e REVERTIDA para 94612a9 (ensaio de volta ao estado validado, web healthy). Nada tocou produção.
 - Nota: a sidebar é o shell partilhado → o navy/laranja aparece em TODAS as páginas do dashboard (consistente com o sistema, por design). Falta eventual: estado "ativo" por rota (precisa de client nav) não implementado.
+
+## Heróis e vilões por margem (GET /margin/ranking) · 2026-11-20 (branch feature/westack-margin-manager, só leitura, NÃO em produção)
+- FEITO: `costs/margin-ranking.ts` (puro) — heróis = maior margem % com margem positiva; vilões = menor margem % do que sobra; indisponíveis ficam de fora e são contados. Endpoint `GET /margin/ranking` (account_id/start_date/end_date) reusa o cálculo do preview. Sem UI.
+- Verde: tsc limpo; 357 unit (6 novos em margin-ranking.spec.ts); 35 e2e em PostgreSQL real (`npm run test:postgres`, incl. ranking e isolamento por tenant).
+- LIÇÃO: `npm run lint --workspace=api` corre `eslint --fix` sobre todo o src/test e reformata ~113 ficheiros; NÃO o correr para validar. O estilo commitado é mais largo que o do lint.
+- Infra de teste descartável: containers `farmaecon-e2e-pg` (127.0.0.1:55432) e `farmaecon-e2e-redis` (127.0.0.1:6379), criados para o e2e; remover quando não forem precisos.
+- PRÓXIMO: decidir a UI do ranking (secção em /margin/preview) e a tarefa seguinte da lista (alerta de tarifa ML, regras por SKU). BLOQUEIO: nenhum; a margem real em produção continua dependente das 7 decisões de negócio.
