@@ -125,6 +125,7 @@ model Product {
   basePrice        Float    @map("base_price")
   stockQuantity    Int      @default(0) @map("stock_quantity")
   minStockQuantity Int      @default(0) @map("min_stock_quantity")
+  anvisaRegister   String?  @map("anvisa_register")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 

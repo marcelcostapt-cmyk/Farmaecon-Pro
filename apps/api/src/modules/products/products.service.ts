@@ -23,10 +23,15 @@ export class ProductsService {
     return { products, total, page, limit };
   }
 
-  async upsert(tenantId: string, data: { sku: string; title: string; costPrice: number; basePrice: number }) {
+  async upsert(
+    tenantId: string,
+    data: { sku: string; title: string; costPrice: number; basePrice: number; anvisaRegister?: string | null },
+  ) {
+    // Registo Anvisa só muda quando é enviado (undefined = manter).
+    const anvisa = data.anvisaRegister === undefined ? {} : { anvisaRegister: data.anvisaRegister?.trim() || null };
     return this.prisma.product.upsert({
       where: { tenantId_sku: { tenantId, sku: data.sku } },
-      update: { title: data.title, costPrice: data.costPrice, basePrice: data.basePrice },
+      update: { title: data.title, costPrice: data.costPrice, basePrice: data.basePrice, ...anvisa },
       create: { tenantId, ...data },
     });
   }
