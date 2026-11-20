@@ -200,3 +200,10 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - PRÓXIMO: validar UI no browser em ensaio (exige imagens API+web com os endpoints novos: ranking, fee-changes, rules PUT). Antes de qualquer deploy em ensaio: backup do compose e das imagens atuais, como nas validações anteriores. Sem migration nova nesta sequência (margin_rules já existe em produção).
 - BLOQUEIO: nenhum; a margem real em produção continua dependente das 7 decisões de negócio.
 - DECISÕES do protocolo autónomo: registadas em /tmp/farmaecon-decision.log (ordem: UI ranking antes de regras por SKU, por ser só leitura).
+
+## Ensaio atualizado para UI de margem · 2026-11-20 (branch feature/westack-margin-manager, NÃO em produção)
+- Imagens do ensaio: farmaecon-api/web:f82647f-margin (build do HEAD f82647f). Compose do ensaio em /opt/farmaecon/docker-compose.rehearsal.yml atualizado (sed nas linhas image:).
+- Backup pré-deploy: /opt/farmaecon/backups/pre-margin-ui-rehearsal-20261120-201754/ (rehearsal.dump, compose.bak, ROLLBACK_IMAGES = 94612a9, SHA256SUMS OK). Rollback: repor compose.bak e `docker compose -p farmaecon-rehearsal-teste -f docker-compose.rehearsal.yml up -d`.
+- Verificado: migrate PASS (sem migrations novas), api health/ready 200, web 200, /margin/preview sem sessão → 307 /login, /margin/ranking|fee-changes|rules → 401 sem token (montados e protegidos).
+- NÃO verificado: UI no browser (sem credenciais do admin de ensaio). Próximo: validar as três secções com login de ensaio, ou pedir credenciais.
+- Produção intocada (94612a9 / e33588e-scheduler / f69965b).
