@@ -7,12 +7,13 @@ export default function EscritorioPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">Escritório Virtual</h1>
-          <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700">
+          <h1 className="text-[28px] font-extrabold tracking-tight text-[var(--fa-navy)]">Escritório Virtual</h1>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--fa-orange-bg)] px-3 py-1 text-xs font-semibold text-[var(--fa-orange-700)] ring-1 ring-[color:var(--fa-orange)]/30">
+            <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--fa-orange)]" />
             Modo Observação
           </span>
         </div>
-        <p className="max-w-2xl text-sm text-muted-foreground">
+        <p className="max-w-2xl text-sm text-[var(--fa-muted)]">
           Acompanhe os setores e agentes do Farmaecon. Nesta fase, os agentes
           analisam e recomendam, mas não executam alterações comerciais.
         </p>
