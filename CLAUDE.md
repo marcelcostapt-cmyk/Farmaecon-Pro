@@ -233,3 +233,6 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - Web: `/lots` (listagem, filtros por produto/EAN/SKU e estado, cadastro e edição inline para ADMIN). Route handlers `/api/lots` e `/api/lots/[id]`. Barra lateral "Lotes e validades" aponta para /lots; /dre/lots (lotes da NF-e) continua acessível pelo link.
 - Verde: tsc; 377 unit (5 novos em lot-validity.spec.ts; prisma.service.spec atualizado para 16); 44 e2e PostgreSQL real (5 novos em lots.postgres.e2e-spec.ts); build web OK.
 - Pendente: validação no browser no ensaio (imagens API e web novas + migration nova com backup).
+- ENSAIO atualizado para 227c489-lotsmgmt (api+web). Backup: /opt/farmaecon/backups/pre-lots-mgmt-rehearsal-20261120-221321/ (dump, compose.bak = f96ec88-lotsui/cd352a4-lots). Migration 20261121_product_lots aplicada (tabela confirmada).
+- VALIDAÇÃO NO BROWSER (Playwright, ensaio, teste-admin@ensaio.local): login ok; cadastro de 3 lotes ("Lote cadastrado."); filtro estado=vencido → só AMOXICILINA; produto=paracetamol → só PARACETAMOL; produto=EAN → só VITAMINA D; edição de lote → gravada na BD (PT-2026-B); duplicado → "Já existe este lote para este produto.". Screenshot: lots-final.png.
+- Teste 68dadd7: OPERATOR recebe 403 ao escrever (controller). Não coberto no browser (só há conta ADMIN de teste).
