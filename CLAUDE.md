@@ -222,3 +222,6 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - UI LOTES: `/dre/lots` (Server Component, só leitura) lista lotes vencidos/a vencer via `GET /dre/lots/expiring`, com janelas de 30/90/180 dias. Entrada "🧾 Lotes e validades" na barra lateral.
 - Utilizador de teste no ENSAIO (não produção): teste-admin@ensaio.local, tenant ensaio-westack, ADMIN. Palavra-passe gerada, guardada só em /root/.farmaecon-ensaio-test-admin (600). Não guardar em outros ficheiros.
 - Dados de teste no ensaio: NF-e sintética importada (invoice 26a900a9-…): L1 vence 2027-01-10, L2 vence 2026-12-01, L3A+L3B sem validade (multi-lote), L4 sem rastro.
+- ENSAIO web atualizado para f96ec88-lotsui (API continua cd352a4-lots). Backup: /opt/farmaecon/backups/pre-lotsui-rehearsal-20261120-220703/.
+- VALIDAÇÃO NO BROWSER (Playwright, ensaio, utilizador teste-admin@ensaio.local): login ok → /dashboard; /dre/lots?days=30 lista só L2 (11 dias); days=90 lista L2 e L1 (51 dias); L3 (multi-lote) e L4 (sem rastro) corretamente ausentes; /margin/preview carrega sem redirecionamento.
+- NÃO coberto no browser: lote já VENCIDO (não há dado vencido no ensaio); coberto por teste unitário e e2e.
