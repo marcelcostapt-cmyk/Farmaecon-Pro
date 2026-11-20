@@ -215,3 +215,6 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - Verde: tsc limpo; 367 unit (4 novos em nfe-lot-dates.spec.ts); 36 e2e em PostgreSQL real (migration aplicada do zero).
 - Pendente (decisão do Márcio): regra de consumo por lote (FIFO / validade) e tratamento de multi-lote.
 - Ensaio NÃO atualizado com esta alteração (a imagem do ensaio é f82647f-margin).
+- LEITURA FEITA: `GET /dre/lots/expiring?days=` (0–365, default 90) lista lotes vencidos e a vencer, com fatura de origem e estado da fatura (pode estar PENDING_REVIEW — dado ainda não aprovado). Função pura `costs/lot-expiry.ts` + `DrePreviewService.expiringLots`. Só leitura; não altera custo nem CMV.
+- Verde: 5 unit (lot-expiry.spec.ts); e2e PostgreSQL real `test/lot-expiry.postgres.e2e-spec.ts` (limite da janela, vencido, sem validade, isolamento). 372 unit, 39 e2e.
+- Pendente: UI da lista (opcional, pequena) e validação no browser; a validação HTTP do parâmetro days não tem teste dedicado (regex simples, 400 em valor inválido).
