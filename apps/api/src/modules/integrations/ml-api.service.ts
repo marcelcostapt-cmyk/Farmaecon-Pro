@@ -35,6 +35,13 @@ export interface MlOrderWindow {
   to: Date;
 }
 
+/** Carries a validated total without accepting the inconsistent page. */
+export class MlOrderPaginationTotalChangedError extends Error {
+  constructor(readonly total: number) {
+    super('Order pagination total changed during synchronization');
+  }
+}
+
 @Injectable()
 export class MlApiService {
   private readonly logger = new Logger(MlApiService.name);
@@ -244,11 +251,14 @@ export class MlApiService {
       !Number.isSafeInteger(total) ||
       (total ?? -1) < 0 ||
       reportedOffset !== offset ||
-      results.length > limit ||
-      offset > (total ?? 0)
+      results.length > limit
     ) {
       throw new Error('Incomplete or inconsistent order pagination');
     }
+
+    // A shrinking result set can invalidate an otherwise confirmed cursor.
+    // Reject this page, but let the sync restart its fixed window safely.
+    if (offset > (total ?? 0)) throw new MlOrderPaginationTotalChangedError(total!);
 
     const nextOffset = offset + results.length;
     const complete = nextOffset >= (total ?? 0);

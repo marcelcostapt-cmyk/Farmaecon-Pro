@@ -67,4 +67,24 @@ describe('MlApiService bounded order windows', () => {
     expect(url.searchParams.get('order.date_closed.from')).toBeNull();
     expect(url.searchParams.get('order.date_closed.to')).toBeNull();
   });
+
+  it.each([40, 0])('exposes a valid reduced total %i for recovery when the cursor is beyond it', async total => {
+    const { service, http } = setup();
+    http.request.mockResolvedValue({ ok: true, status: 200, json: async () => ({
+      paging: { total, offset: 50, limit: 50 }, results: [],
+    }) });
+    await expect(service.listSellerOrdersPageInWindow('account-a', 'tenant-a', {
+      offset: 50, windowFrom: new Date('2026-10-03T20:00:00Z'), windowTo: new Date('2026-10-04T03:00:00Z'),
+    })).rejects.toMatchObject({ message: 'Order pagination total changed during synchronization', total });
+  });
+
+  it.each([
+    { total: -1, offset: 50 }, { total: 40.5, offset: 50 }, { total: 40, offset: 0 },
+  ])('does not reinterpret malformed pagination as a recoverable total change: %j', async paging => {
+    const { service, http } = setup();
+    http.request.mockResolvedValue({ ok: true, status: 200, json: async () => ({ paging, results: [] }) });
+    await expect(service.listSellerOrdersPageInWindow('account-a', 'tenant-a', {
+      offset: 50, windowFrom: new Date('2026-10-03T20:00:00Z'), windowTo: new Date('2026-10-04T03:00:00Z'),
+    })).rejects.toThrow('Incomplete or inconsistent order pagination');
+  });
 });

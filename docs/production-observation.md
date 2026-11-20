@@ -141,9 +141,34 @@ memória e armazenamento temporário. Consulta migrações e tabelas esperadas;
 não modifica o banco de produção. Para bancos que excedam a capacidade do teste
 descartável, usar um ambiente de recuperação dimensionado e verificar novamente.
 O papel PostgreSQL não faz parte do dump: o teste cria um papel sem login antes
-de restaurar as políticas RLS. Na recuperação operacional, executar novamente
-o job `migrate` com as mesmas chaves protegidas para configurar login/grants
-antes de iniciar a API. Nunca entregar a conexão do proprietário à aplicação.
+de restaurar as políticas RLS. Como o dump não contém ACLs, o verificador
+reaplica as permissões com `scripts/runtime-grants.mjs` após `pg_restore`.
+Na recuperação operacional, executar novamente o job `migrate`, com as mesmas
+chaves protegidas, **antes de iniciar a API**, mesmo quando o Prisma informar
+que não há migrations pendentes. Esse job configura o login e executa a mesma
+reconciliação, independentemente do histórico restaurado em `_prisma_migrations`:
+
+```bash
+docker compose --env-file .local/production.env -f docker-compose.prod.yml -f docker-compose.vps.yml run --rm --no-deps migrate
+```
+
+O inventário de tabelas vem do schema Prisma gerado da versão em uso. A rotina
+valida todas as tabelas antes de conceder permissões: exige RLS habilitada,
+policy `tenant_isolation` já destinada ao runtime e proprietário distinto do
+runtime. Ela falha sem aplicar grants parciais quando esse contrato não existe;
+não cria nem altera políticas RLS. Tabelas de aplicação recebem o contrato CRUD
+existente, exceto `marketplace_sync_states`, que mantém somente SELECT/INSERT/
+UPDATE. `_prisma_migrations` e tabelas fora do schema da aplicação não recebem
+grants. A rotina também recompõe a revogação de EXECUTE de PUBLIC na função
+`farmaecon_login_lookup(text)` e mantém a concessão ao runtime.
+
+Usar o schema/client gerado da versão correspondente ao backup para verificar
+restaurações antigas; uma versão com tabelas adicionais ainda não migradas
+recusará um schema incompleto. Nunca entregar a conexão do proprietário à API.
+O teste `npm run test:restore-grants` cria dois clusters PostgreSQL descartáveis,
+executa dump/restore reais, reaplica o job de migração duas vezes e verifica
+SELECT/INSERT/UPDATE autenticado como `farmaecon_runtime`, além da restrição da
+função de login. Requer Docker operacional; não consulta produção.
 
 O script exige o mesmo nome de projeto Compose do deploy. Se não for
 `farmaecon`, definir `FARMAECON_COMPOSE_PROJECT`. Para outro arquivo privado,
