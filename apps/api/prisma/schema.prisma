@@ -57,6 +57,7 @@ model Tenant {
   products              Product[]
   orders                Order[]
   marginRules           MarginRule[]
+  productLots          ProductLot[]
 
   @@map("tenants")
 }
@@ -422,4 +423,25 @@ model MarginRule {
   @@unique([tenantId, sku])
   @@index([tenantId])
   @@map("margin_rules")
+}
+
+model ProductLot {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  productName     String    @map("product_name")
+  ean             String?
+  sku             String?
+  lotNumber       String    @map("lot_number")
+  fabricationDate DateTime? @map("fabrication_date") @db.Date
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  notes           String?
+  createdBy       String?   @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiryDate])
+  @@index([tenantId, ean])
+  @@map("product_lots")
 }

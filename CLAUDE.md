@@ -225,3 +225,11 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - ENSAIO web atualizado para f96ec88-lotsui (API continua cd352a4-lots). Backup: /opt/farmaecon/backups/pre-lotsui-rehearsal-20261120-220703/.
 - VALIDAÇÃO NO BROWSER (Playwright, ensaio, utilizador teste-admin@ensaio.local): login ok → /dashboard; /dre/lots?days=30 lista só L2 (11 dias); days=90 lista L2 e L1 (51 dias); L3 (multi-lote) e L4 (sem rastro) corretamente ausentes; /margin/preview carrega sem redirecionamento.
 - NÃO coberto no browser: lote já VENCIDO (não há dado vencido no ensaio); coberto por teste unitário e e2e.
+
+## Gestão de lotes e validades · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- API: modelo `ProductLot` (tabela product_lots, migration aditiva 20261121_product_lots com RLS + GRANT). `GET /lots?product=&status=`, `POST /lots` e `PATCH /lots/:id` (escrita só ADMIN). Estado de validade calculado na leitura (`costs/lot-validity.ts`): vencido, vence_em_30 (0–30 dias), vigente, sem_validade. Sem quantidade/estoque.
+- Duplicado = mesmo produto (nome) + mesmo número de lote → 409. Validade anterior à fabricação → 400.
+- Boot RLS check 15 → 16 tabelas (product_lots adicionada ao conjunto `models` e à lista).
+- Web: `/lots` (listagem, filtros por produto/EAN/SKU e estado, cadastro e edição inline para ADMIN). Route handlers `/api/lots` e `/api/lots/[id]`. Barra lateral "Lotes e validades" aponta para /lots; /dre/lots (lotes da NF-e) continua acessível pelo link.
+- Verde: tsc; 377 unit (5 novos em lot-validity.spec.ts; prisma.service.spec atualizado para 16); 44 e2e PostgreSQL real (5 novos em lots.postgres.e2e-spec.ts); build web OK.
+- Pendente: validação no browser no ensaio (imagens API e web novas + migration nova com backup).

@@ -12,6 +12,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { DreModule } from './modules/dre/dre.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { MarginModule } from './modules/margin/margin.module';
+import { LotsModule } from './modules/lots/lots.module';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { QueueModule } from './shared/queue/queue.module';
 
@@ -34,6 +35,7 @@ import { QueueModule } from './shared/queue/queue.module';
     DreModule,
     DashboardModule,
     MarginModule,
+    LotsModule,
   ],
   controllers: [HealthController],
 })
