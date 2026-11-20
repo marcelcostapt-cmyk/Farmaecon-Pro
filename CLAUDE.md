@@ -240,3 +240,25 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - PRÓXIMO PASSO FEITO: card "🧾 Lotes e validades" no escritório (LotesResumoCard, só leitura, liga a /lots). Commit bb99b54. Ensaio web em bb99b54-officecard (API 227c489-lotsmgmt). Backup: /opt/farmaecon/backups/pre-officecard-rehearsal-20261120-223126/.
 - VALIDAÇÃO NO BROWSER (ADMIN de teste): card mostra Lotes 3 / Vencidos 1 / Vencem em 30 dias 1, igual à contagem direta na BD; clique leva a /lots. Screenshot: office/escritorio.png.
 - Pendente geral: CMV real (bloqueado pelas 7 decisões do Márcio); Bling/Olist (escolha de ERP); ADS (inc. 2); estoque por lote (regra de negócio); Anvisa (não está na NF-e).
+
+## Agent skills
+
+### Issue tracker
+
+Issues em GitHub (`github.com/marcelcostapt-cmyk/Farmaecon-Pro`), via `gh`. Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Rótulos padrão: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Contexto único: `GLOSSARY.md` e `docs/adr/` na raiz. Ver `docs/agents/domain.md`.
+
+## Turno autónomo noturno · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- FEITO (commits): lint sem --fix por omissão (b92a148; lint:fix para uso deliberado); alocação FEFO com fallback FIFO, preview sem baixa de estoque, lotes vencidos e sem quantidade fora (a2fa89a); registo Anvisa opcional no produto (562c9da); custos de ADS por importação CSV + resumo por SKU/período (422fa53).
+- NÃO FEITO e porquê: integração do ADS no cálculo de margem (mudaria números já validados; fica preparada: `GET /ads/summary` por SKU). Ficha de produto na web (não existe página de produtos; o campo está na API). Ledger de estoque (baixa real) — fora do preview.
+- DOCUMENTOS DE DECISÃO (não implementam regra de negócio): `.claude/decisoes/cmv-7-decisoes.md` (recomendações para as 7 decisões; decisão continua do Márcio) e `.claude/decisoes/erp-bling-olist.md` (análise com factos confirmados e não confirmados).
+- LINT: o script `lint` continua a falhar com ~3042 problemas porque a configuração de Prettier (80 colunas) não corresponde ao código commitado. Não alterei regras de estilo. Débito técnico.
+- Testes na última execução: 51 suites / 394 unit (1 skip); 52 e2e em PostgreSQL real; tsc limpo.
+- Migrations novas nesta sequência (aditivas): 20261122_product_lots_quantity, 20261123_product_anvisa, 20261124_ads_costs (RLS, boot check 17).
