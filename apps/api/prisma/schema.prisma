@@ -58,6 +58,7 @@ model Tenant {
   orders                Order[]
   marginRules           MarginRule[]
   productLots          ProductLot[]
+  adsCosts             AdsCost[]
 
   @@map("tenants")
 }
@@ -94,6 +95,7 @@ model MarketplaceAccount {
 
   tenant            Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   orders            Order[]
+  adsCosts          AdsCost[]
   source            String                 @default("MERCADO_LIVRE")
   lastSyncedAt      DateTime?              @map("last_synced_at")
   lastSyncState     String                 @default("NOT_SYNCED") @map("last_sync_state")
@@ -446,4 +448,24 @@ model ProductLot {
   @@index([tenantId, expiryDate])
   @@index([tenantId, ean])
   @@map("product_lots")
+}
+
+model AdsCost {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  marketplaceAccountId String   @map("marketplace_account_id")
+  day                  DateTime @db.Date
+  sku                  String?
+  campaign             String?
+  amount               Decimal  @db.Decimal(19, 4)
+  sourceHash           String   @map("source_hash")
+  sourceLine           Int      @map("source_line")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sourceHash, sourceLine])
+  @@index([tenantId, day])
+  @@map("ads_costs")
 }

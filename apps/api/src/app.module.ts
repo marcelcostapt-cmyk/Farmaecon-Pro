@@ -13,6 +13,7 @@ import { DreModule } from './modules/dre/dre.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { MarginModule } from './modules/margin/margin.module';
 import { LotsModule } from './modules/lots/lots.module';
+import { AdsModule } from './modules/ads/ads.module';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { QueueModule } from './shared/queue/queue.module';
 
@@ -36,6 +37,7 @@ import { QueueModule } from './shared/queue/queue.module';
     DashboardModule,
     MarginModule,
     LotsModule,
+    AdsModule,
   ],
   controllers: [HealthController],
 })
