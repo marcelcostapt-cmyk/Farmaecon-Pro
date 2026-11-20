@@ -23,6 +23,11 @@ interface MarginPreview {
   lines: MarginLine[];
   totals: { revenue: string; groupsAvailable: number; groupsUnavailable: number };
 }
+interface MarginRanking {
+  heroes: MarginLine[];
+  villains: MarginLine[];
+  unavailableCount: number;
+}
 interface MarginAlert {
   sku: string | null;
   description: string | null;
@@ -44,6 +49,29 @@ function averageMargin(lines: MarginLine[]): string | null {
   return (sum / available.length).toFixed(1);
 }
 
+function RankingList({ title, empty, lines }: { title: string; empty: string; lines: MarginLine[] }) {
+  return (
+    <div className="rounded-xl border p-6">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      {lines.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <ol className="mt-3 space-y-2 text-sm">
+          {lines.map((l) => (
+            <li key={l.key} className="flex items-center justify-between gap-4">
+              <span className="truncate">
+                <strong>{l.sku ?? '(sem SKU)'}</strong>
+                <span className="text-muted-foreground"> {l.description ? `— ${l.description}` : ''}</span>
+              </span>
+              <span className="shrink-0 font-semibold tabular-nums">{pct(l.marginPercent)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 export default async function MarginPreviewPage({
   searchParams,
 }: {
@@ -59,9 +87,10 @@ export default async function MarginPreviewPage({
   if (params.start_date) accountQuery.set('start_date', params.start_date);
   if (params.end_date) accountQuery.set('end_date', params.end_date);
 
-  const [{ data: preview }, { data: alerts }] = await Promise.all([
+  const [{ data: preview }, { data: alerts }, { data: ranking }] = await Promise.all([
     fetchApi<MarginPreview>(`/margin/preview?${query}`),
     fetchApi<MarginAlert[]>(`/margin/alerts?${accountQuery}`),
+    fetchApi<MarginRanking>(`/margin/ranking?${accountQuery}`),
   ]);
 
   const avg = averageMargin(preview.lines);
@@ -110,6 +139,16 @@ export default async function MarginPreviewPage({
           </ul>
         </section>
       )}
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <RankingList title="Melhores margens" empty="Nenhum SKU com margem positiva confirmável." lines={ranking.heroes} />
+        <RankingList title="Piores margens" empty="Nenhum SKU com margem confirmável abaixo do restante." lines={ranking.villains} />
+        {ranking.unavailableCount > 0 && (
+          <p className="text-sm text-muted-foreground md:col-span-2">
+            {ranking.unavailableCount} SKU(s) fora do ranking por falta de custo aprovado ou taxa ML.
+          </p>
+        )}
+      </section>
 
       <section>
         <h2 className="mb-4 text-xl font-semibold">Detalhe por SKU</h2>
