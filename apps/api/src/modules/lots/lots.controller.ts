@@ -2,8 +2,10 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, 
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentTenant, CurrentUser } from '../../shared/decorators/tenant.decorator';
 import { ok } from '../../shared/types/api-response.type';
+import { toJsonSafe } from '../costs/decimal-json';
 import type { AuthPrincipal } from '../auth/auth.service';
 import { VALIDITY_STATUSES, type ValidityStatus } from '../costs/lot-validity';
+import { Prisma } from '@prisma/client';
 import { CreateLotDto, UpdateLotDto } from './lots.dto';
 import { LotsService } from './lots.service';
 
@@ -22,6 +24,15 @@ export class LotsController {
       status: status ? (status as ValidityStatus) : undefined,
     };
     return ok(await this.service.list(tenantId, new Date(), filter));
+  }
+
+  // Sugestão de alocação FEFO/FIFO (só leitura). product = EAN, SKU ou nome exato; quantity > 0.
+  @Get('allocation')
+  async allocation(@CurrentTenant() tenantId: string, @Query('product') product?: string, @Query('quantity') quantity?: string) {
+    if (!product || product.trim() === '') throw new BadRequestException('Informe o produto (EAN, SKU ou nome).');
+    if (!quantity || !/^\d+(\.\d{1,4})?$/.test(quantity) || new Prisma.Decimal(quantity).lte(0))
+      throw new BadRequestException('quantity deve ser um número positivo (até 4 casas decimais).');
+    return ok(toJsonSafe(await this.service.allocate(tenantId, new Date(), product, new Prisma.Decimal(quantity))));
   }
 
   @Post()

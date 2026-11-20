@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { allocateLots, type AllocationResult } from '../costs/lot-allocation';
 import { validityOf, type ValidityStatus } from '../costs/lot-validity';
 import type { CreateLotDto, UpdateLotDto } from './lots.dto';
 
@@ -14,14 +16,17 @@ interface LotRecord {
   ean: string | null;
   sku: string | null;
   lotNumber: string;
+  quantity: Prisma.Decimal | null;
   fabricationDate: Date | null;
   expiryDate: Date | null;
   notes: string | null;
+  createdAt: Date;
   updatedAt: Date;
 }
 
 const toIsoDay = (d: Date | null): string | null => (d === null ? null : d.toISOString().slice(0, 10));
 const toDay = (s: string | null | undefined): Date | null => (s ? new Date(`${s}T00:00:00.000Z`) : null);
+const toQty = (s: string | null | undefined): Prisma.Decimal | null => (s ? new Prisma.Decimal(s) : null);
 const clean = (v: string | null | undefined): string | null => {
   if (v === undefined || v === null) return null;
   const t = v.trim();
@@ -35,6 +40,7 @@ function toView(r: LotRecord) {
     ean: r.ean,
     sku: r.sku,
     lotNumber: r.lotNumber,
+    quantity: r.quantity === null ? null : r.quantity.toString(),
     fabricationDate: toIsoDay(r.fabricationDate),
     expiryDate: toIsoDay(r.expiryDate),
     notes: r.notes,
@@ -59,6 +65,22 @@ export class LotsService {
       .filter((v) => !filter.status || v.status === filter.status);
   }
 
+  /**
+   * Sugestão de alocação FEFO/FIFO para uma quantidade de um produto (EAN, SKU ou nome exato).
+   * Só leitura: não baixa estoque. Lotes vencidos e sem quantidade ficam de fora, com aviso.
+   */
+  async allocate(tenantId: string, now: Date, product: string, requested: Prisma.Decimal): Promise<AllocationResult & { product: string }> {
+    const key = product.trim().toLowerCase();
+    const rows = await this.prisma.productLot.findMany({
+      where: { tenantId },
+      select: { id: true, lotNumber: true, expiryDate: true, createdAt: true, quantity: true, productName: true, ean: true, sku: true },
+    });
+    const matching = rows.filter(
+      (r) => r.productName.trim().toLowerCase() === key || r.ean?.toLowerCase() === key || r.sku?.toLowerCase() === key,
+    );
+    return { product, ...allocateLots(matching, requested, now) };
+  }
+
   async create(tenantId: string, actorSub: string | null, dto: CreateLotDto) {
     const productName = dto.productName.trim();
     const lotNumber = dto.lotNumber.trim();
@@ -76,6 +98,7 @@ export class LotsService {
         ean: clean(dto.ean),
         sku: clean(dto.sku),
         lotNumber,
+        quantity: toQty(dto.quantity),
         fabricationDate,
         expiryDate,
         notes: clean(dto.notes),
@@ -111,6 +134,7 @@ export class LotsService {
         lotNumber,
         ean: dto.ean === undefined ? current.ean : clean(dto.ean),
         sku: dto.sku === undefined ? current.sku : clean(dto.sku),
+        quantity: dto.quantity === undefined ? current.quantity : toQty(dto.quantity),
         fabricationDate,
         expiryDate,
         notes: dto.notes === undefined ? current.notes : clean(dto.notes),

@@ -432,6 +432,7 @@ model ProductLot {
   ean             String?
   sku             String?
   lotNumber       String    @map("lot_number")
+  quantity        Decimal?  @db.Decimal(19, 4)
   fabricationDate DateTime? @map("fabrication_date") @db.Date
   expiryDate      DateTime? @map("expiry_date") @db.Date
   notes           String?

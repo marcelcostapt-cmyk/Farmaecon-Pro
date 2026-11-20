@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, ConflictException, Global, INestApplication, Module, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaService } from '../src/shared/prisma/prisma.service';
 import { inTenant } from '../src/shared/prisma/tenant-context';
@@ -109,6 +109,29 @@ describe('Lotes e validades — PostgreSQL real', () => {
 
     const collide: UpdateLotDto = { lotNumber: 'LOTE-001', productName: 'DIPIRONA 500MG' };
     await expect(inTenant(tenantA, () => lots.update(tenantA, id, collide))).rejects.toThrow(ConflictException);
+  });
+
+  it('alocação FEFO: consome o lote de validade mais próxima; vencidos e sem quantidade ficam de fora', async () => {
+    const base2 = { productName: 'ALLOC PROD', ean: '7890000000001', sku: null, fabricationDate: null, notes: null };
+    await inTenant(tenantA, () => lots.create(tenantA, actor, { ...base2, lotNumber: 'AL-B', expiryDate: '2027-02-01', quantity: '10' }));
+    await inTenant(tenantA, () => lots.create(tenantA, actor, { ...base2, lotNumber: 'AL-A', expiryDate: '2027-01-01', quantity: '4' }));
+    await inTenant(tenantA, () => lots.create(tenantA, actor, { ...base2, lotNumber: 'AL-SEMQTD', expiryDate: '2027-01-15' }));
+    await inTenant(tenantA, () => lots.create(tenantA, actor, { ...base2, lotNumber: 'AL-VENC', expiryDate: '2026-11-01', quantity: '50' }));
+
+    const r = await inTenant(tenantA, () => lots.allocate(tenantA, now, '7890000000001', new Prisma.Decimal(12)));
+    expect(r.allocations.map((a) => [a.lotNumber, a.take.toString(), a.rule])).toEqual([
+      ['AL-A', '4', 'FEFO'],
+      ['AL-B', '8', 'FEFO'],
+    ]);
+    expect(r.missing.toString()).toBe('0');
+    expect(r.warnings.some((w) => w.includes('AL-VENC'))).toBe(true);
+    expect(r.warnings.some((w) => w.includes('AL-SEMQTD'))).toBe(true);
+  });
+
+  it('alocação: quantidade acima do estoque reporta a falta; nome do produto sem diferenciar maiúsculas', async () => {
+    const r = await inTenant(tenantA, () => lots.allocate(tenantA, now, 'alloc prod', new Prisma.Decimal(30)));
+    expect(r.allocated.toString()).toBe('14');
+    expect(r.missing.toString()).toBe('16');
   });
 
   it('isolamento: tenant B não edita nem vê lotes de A', async () => {
