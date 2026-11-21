@@ -120,6 +120,8 @@ export class PurchaseInvoiceService {
             anvisaRegister: l.anvisaRegister,
             anvisaExemptionReason: l.anvisaExemptionReason,
             pmc: l.pmc,
+            ipiAmount: l.ipi,
+            icmsStAmount: l.icmsSt,
             fabricationDate: l.fabricationDate === null ? null : new Date(`${l.fabricationDate}T00:00:00.000Z`),
             expiryDate: l.expiryDate === null ? null : new Date(`${l.expiryDate}T00:00:00.000Z`),
             isBonus: l.isBonus,

@@ -26,6 +26,8 @@ export interface ParsedInvoiceLine {
   discount: Prisma.Decimal | null; // vDesc da linha
   otherExpense: Prisma.Decimal | null; // vOutro da linha
   lots: ParsedLot[];
+  ipi: Prisma.Decimal | null; // det/imposto/IPI/.../vIPI (valor do IPI da linha)
+  icmsSt: Prisma.Decimal | null; // det/imposto/ICMS/.../vICMSST (ICMS substituição tributária)
   anvisaRegister: string | null; // med/cProdANVISA: 11 ou 13 dígitos, ou ISENTO (validado pelo XSD)
   anvisaExemptionReason: string | null; // med/xMotivoIsencao: 1 a 255 caracteres
   pmc: Prisma.Decimal | null; // med/vPMC: preço máximo ao consumidor (TDec_1302)
@@ -64,6 +66,29 @@ const dec = (v: unknown): Prisma.Decimal | null => {
   const s = text(v);
   return s === null ? null : money(s);
 };
+
+// Soma um campo numérico em qualquer nível do bloco de impostos (ex.: vIPI em IPI/IPITrib).
+// Ausente → null; nunca inventa zero.
+function sumTaxField(node: unknown, key: string): Prisma.Decimal | null {
+  let total: Prisma.Decimal | null = null;
+  const visit = (n: unknown): void => {
+    if (Array.isArray(n)) {
+      n.forEach(visit);
+      return;
+    }
+    if (n === null || typeof n !== 'object') return;
+    for (const [k, v] of Object.entries(n as Record<string, unknown>)) {
+      if (k === key) {
+        const d = dec(v);
+        if (d !== null) total = (total ?? new Prisma.Decimal(0)).plus(d);
+      } else {
+        visit(v);
+      }
+    }
+  };
+  visit(node);
+  return total;
+}
 const BONUS_CFOP = '5910';
 const BONUS_TEXT = /\bBONIFIC/i;
 
@@ -101,6 +126,8 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
     const vItemAbsent = det.vItem === undefined;
     const totalLine = dec(det.vItem);
     const productsValue = dec(prod.vProd);
+    const ipi = sumTaxField(det.imposto, 'vIPI');
+    const icmsSt = sumTaxField(det.imposto, 'vICMSST');
     const quantity = dec(prod.qCom) ?? money('0');
     const cfop = text(prod.CFOP);
 
@@ -156,6 +183,8 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
       discount: dec(prod.vDesc),
       otherExpense: dec(prod.vOutro),
       lots,
+      ipi,
+      icmsSt,
       anvisaRegister,
       anvisaExemptionReason: exemptionReason,
       pmc,

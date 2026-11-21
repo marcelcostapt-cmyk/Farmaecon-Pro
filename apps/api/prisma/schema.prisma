@@ -309,6 +309,7 @@ model PurchaseInvoice {
   documentTotal           Decimal?               @map("document_total")
   paymentAmountInDocument Decimal?               @map("payment_amount_in_document")
   hasBonus                Boolean                @default(false) @map("has_bonus")
+  ipiRecoverable      Boolean?  @map("ipi_recoverable")
   bonusAmount             Decimal?               @map("bonus_amount")
   paidAmount              Decimal?               @map("paid_amount")
   status                  CostLifecycle          @default(EXTRACTED)
@@ -367,6 +368,8 @@ model PurchaseInvoiceItem {
   anvisaRegister      String?   @map("anvisa_register")
   anvisaExemptionReason String?  @map("anvisa_exemption_reason")
   pmc                 Decimal?  @db.Decimal(15, 4)
+  ipiAmount           Decimal?  @map("ipi_amount") @db.Decimal(19, 4)
+  icmsStAmount        Decimal?  @map("icms_st_amount") @db.Decimal(19, 4)
   fabricationDate     DateTime? @map("fabrication_date") @db.Date
   expiryDate          DateTime? @map("expiry_date") @db.Date
   isBonus             Boolean   @default(false) @map("is_bonus")

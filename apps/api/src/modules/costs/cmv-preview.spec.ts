@@ -42,7 +42,7 @@ describe('buildCostPoolFromInvoice', () => {
         lineNumber: '1', sourceRef: 'linha 1', supplierProductCode: '5080', ean: null, marketplaceSku: null,
         description: 'PRODUTO LUCIANA', ncm: null, unit: null, quantity: D('316'),
         unitCostExtracted: D('15.9852'), unitCostPaid: D('15.9852'), totalLine: D('5051.33'),
-        discount: null, otherExpense: null, cfop: null, lotNumber: null, fabricationDate: null, expiryDate: null, anvisaRegister: null, anvisaExemptionReason: null, pmc: null, isBonus: false,
+        discount: null, otherExpense: null, cfop: null, lotNumber: null, fabricationDate: null, expiryDate: null, ipi: null, icmsSt: null, anvisaRegister: null, anvisaExemptionReason: null, pmc: null, isBonus: false,
         approvedAcquisitionCost: null, warnings: [],
       }],
     };

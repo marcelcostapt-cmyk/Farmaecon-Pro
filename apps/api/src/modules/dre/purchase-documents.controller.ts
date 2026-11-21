@@ -102,6 +102,8 @@ function toPreview(doc: UnifiedInvoice) {
     anvisaRegister: l.anvisaRegister,
     anvisaExemptionReason: l.anvisaExemptionReason,
     pmc: dec(l.pmc),
+    ipi: dec(l.ipi),
+    icmsSt: dec(l.icmsSt),
     fabricationDate: l.fabricationDate,
     expiryDate: l.expiryDate,
     isBonus: l.isBonus,
