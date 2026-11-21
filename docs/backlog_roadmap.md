@@ -88,4 +88,4 @@ Esta secção substitui a ordem das épicas acima para decisões de execução. 
 | P3 | Escritório de agentes (WeStack) | Não implementado: não há agentes de produto no código da API nem da web. `.claude/agents/` tem só subagentes de desenvolvimento. A página `/escritorio` mostra setores sem dados (estados inventados removidos em 2026-11-21) | Definir modelo de agentes e política de autonomia (nível de observação) |
 | P3 | Multi-conta ML | Não iniciada | Decisão do Márcio |
 
-**Próxima ação:** decidir se a branch `feature/ml-rate-limit-retry` entra em `main` (sem deploy) e reexecutar o E2E no HEAD.
+**Próxima ação:** a branch `feature/ml-rate-limit-retry` está 168 commits à frente de `main`, sem commits exclusivos em `main` (base comum = `main` `4b658d8`). Um merge seria um fast-forward; simulação com `git merge-tree` sem conflitos (2026-11-21). Não foi feito: é uma integração de 168 commits em `main` e exige decisão do dono. Recomendado: abrir PR e rever antes de merge. E2E PostgreSQL no HEAD: 11 suites, 54 testes a passar (2026-11-21).
