@@ -11,6 +11,7 @@ const ITEMS: Array<{ label: string; href: string }> = [
   { label: '📊 Dashboard', href: '/observation' },
   { label: '🛒 Pedidos', href: '/orders' },
   { label: '📈 Margem por SKU', href: '/margin/preview' },
+  { label: '🧾 Lotes e validades', href: '/lots' },
   { label: '💰 Financeiro', href: '/finance' },
   { label: '🔗 Integrações', href: '/integrations' },
 ];

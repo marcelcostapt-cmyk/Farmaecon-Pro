@@ -11,6 +11,8 @@ import {
   type MarginPreview,
   type MarginRuleRow,
 } from '../costs/margin-preview';
+import { rankMarginLines, type MarginRanking } from '../costs/margin-ranking';
+import { computeFeeChanges, type FeeChange } from '../costs/fee-change';
 
 export interface MarginFilters {
   accountId?: string;
@@ -86,6 +88,21 @@ export class MarginService {
   async preview(tenantId: string, filters: MarginFilters): Promise<MarginPreview> {
     const [rows, pool] = await Promise.all([this.loadRows(tenantId, filters), this.approvedCostPool(tenantId, filters.accountId)]);
     return computeMarginPreview(rows, pool, undefined, filters.groupBy);
+  }
+
+  /** Heróis (maior margem %) e vilões (menor margem %) por SKU, sobre o mesmo cálculo do preview. */
+  async ranking(tenantId: string, filters: Omit<MarginFilters, 'groupBy'>): Promise<MarginRanking> {
+    const [rows, pool] = await Promise.all([
+      this.loadRows(tenantId, { ...filters, groupBy: 'sku' }),
+      this.approvedCostPool(tenantId, filters.accountId),
+    ]);
+    return rankMarginLines(computeMarginPreview(rows, pool, undefined, 'sku').lines);
+  }
+
+  /** Variações de taxa ML por SKU entre os dois últimos meses com dados (≥ 2 pp). Só leitura. */
+  async feeChanges(tenantId: string, filters: Omit<MarginFilters, 'groupBy'>): Promise<FeeChange[]> {
+    const rows = await this.loadRows(tenantId, { ...filters, groupBy: 'sku' });
+    return computeFeeChanges(rows);
   }
 
   async alerts(tenantId: string, filters: MarginFilters): Promise<MarginAlert[]> {

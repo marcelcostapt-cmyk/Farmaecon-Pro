@@ -5,6 +5,8 @@ import { money } from './cost-money';
 export interface ParsedLot {
   lot: string | null;
   quantity: Prisma.Decimal;
+  fabricationDate: string | null; // YYYY-MM-DD (rastro/dFab)
+  expiryDate: string | null; // YYYY-MM-DD (rastro/dVal)
 }
 
 export interface ParsedInvoiceLine {
@@ -24,6 +26,11 @@ export interface ParsedInvoiceLine {
   discount: Prisma.Decimal | null; // vDesc da linha
   otherExpense: Prisma.Decimal | null; // vOutro da linha
   lots: ParsedLot[];
+  ipi: Prisma.Decimal | null; // det/imposto/IPI/.../vIPI (valor do IPI da linha)
+  icmsSt: Prisma.Decimal | null; // det/imposto/ICMS/.../vICMSST (ICMS substituição tributária)
+  anvisaRegister: string | null; // med/cProdANVISA: 11 ou 13 dígitos, ou ISENTO (validado pelo XSD)
+  anvisaExemptionReason: string | null; // med/xMotivoIsencao: 1 a 255 caracteres
+  pmc: Prisma.Decimal | null; // med/vPMC: preço máximo ao consumidor (TDec_1302)
   isBonus: boolean;
   warnings: string[];
 }
@@ -50,15 +57,47 @@ export interface ParsedInvoice {
 
 const arr = <T>(x: T | T[] | undefined | null): T[] => (Array.isArray(x) ? x : x == null ? [] : [x]);
 const text = (v: unknown): string | null => (v == null ? null : String(v).trim() || null);
+// Data da NF-e (AAAA-MM-DD). Qualquer outro formato devolve null (nunca inventa data).
+const isoDate = (v: unknown): string | null => {
+  const t = text(v);
+  return t !== null && /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+};
 const dec = (v: unknown): Prisma.Decimal | null => {
   const s = text(v);
   return s === null ? null : money(s);
 };
+
+// Soma um campo numérico em qualquer nível do bloco de impostos (ex.: vIPI em IPI/IPITrib).
+// Ausente → null; nunca inventa zero.
+function sumTaxField(node: unknown, key: string): Prisma.Decimal | null {
+  let total: Prisma.Decimal | null = null;
+  const visit = (n: unknown): void => {
+    if (Array.isArray(n)) {
+      n.forEach(visit);
+      return;
+    }
+    if (n === null || typeof n !== 'object') return;
+    for (const [k, v] of Object.entries(n as Record<string, unknown>)) {
+      if (k === key) {
+        const d = dec(v);
+        if (d !== null) total = (total ?? new Prisma.Decimal(0)).plus(d);
+      } else {
+        visit(v);
+      }
+    }
+  };
+  visit(node);
+  return total;
+}
 const BONUS_CFOP = '5910';
 const BONUS_TEXT = /\bBONIFIC/i;
 
 // Non-validating parse: external entities / DTD are not resolved (XXE-safe); values kept as
 // strings so EANs keep leading zeros and money keeps full precision until an explicit Decimal.
+// Padrões do XSD oficial (leiauteNFe_v4.00): grupo med (medicamentos).
+const ANVISA_PATTERN = /^(\d{11}|\d{13}|ISENTO)$/;
+const PMC_PATTERN = /^(0|0\.\d{2}|[1-9]\d{0,12}(\.\d{2})?)$/;
+
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -87,6 +126,8 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
     const vItemAbsent = det.vItem === undefined;
     const totalLine = dec(det.vItem);
     const productsValue = dec(prod.vProd);
+    const ipi = sumTaxField(det.imposto, 'vIPI');
+    const icmsSt = sumTaxField(det.imposto, 'vICMSST');
     const quantity = dec(prod.qCom) ?? money('0');
     const cfop = text(prod.CFOP);
 
@@ -104,7 +145,20 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
     const lots = arr(prod.rastro as Record<string, unknown> | Record<string, unknown>[]).map((r) => ({
       lot: text(r.nLote),
       quantity: dec(r.qLote) ?? money('0'),
+      fabricationDate: isoDate(r.dFab),
+      expiryDate: isoDate(r.dVal),
     }));
+
+    // Grupo med: valores inválidos ficam de fora e geram aviso (nunca se grava dado fora do XSD).
+    const med = (prod.med ?? null) as Record<string, unknown> | null;
+    const anvisaRaw = med ? text(med.cProdANVISA) : null;
+    const anvisaRegister = anvisaRaw !== null && ANVISA_PATTERN.test(anvisaRaw) ? anvisaRaw : null;
+    if (anvisaRaw !== null && anvisaRegister === null)
+      w.push(`cProdANVISA inválido "${anvisaRaw}" (esperado 11 ou 13 dígitos, ou ISENTO): não gravado`);
+    const pmcRaw = med ? text(med.vPMC) : null;
+    const pmc = pmcRaw !== null && PMC_PATTERN.test(pmcRaw) ? new Prisma.Decimal(pmcRaw) : null;
+    if (pmcRaw !== null && pmc === null) w.push(`vPMC inválido "${pmcRaw}": não gravado`);
+    const exemptionReason = med ? text(med.xMotivoIsencao) : null; // opcional no XSD (1 a 255 caracteres)
 
     // Bonificação na linha: CFOP 5910, ou ausência de vItem (tag) com vProd > 0.
     const isBonus = cfop === BONUS_CFOP || (vItemAbsent && productsValue !== null && productsValue.gt(0));
@@ -129,6 +183,11 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
       discount: dec(prod.vDesc),
       otherExpense: dec(prod.vOutro),
       lots,
+      ipi,
+      icmsSt,
+      anvisaRegister,
+      anvisaExemptionReason: exemptionReason,
+      pmc,
       isBonus,
       warnings: w,
     };

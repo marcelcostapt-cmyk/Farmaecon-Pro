@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { Global, Module, INestApplication } from '@nestjs/common';
+import { BadRequestException, Global, Module, INestApplication } from '@nestjs/common';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -112,5 +112,40 @@ describe('DRE publicação de custos — PostgreSQL real', () => {
     await expect(inTenant(tenantA, () => publication.publishCosts(tenantA, inv.id, { sub: 'u1' }))).rejects.toThrow();
     const costs = await inTenant(tenantA, () => db.productCost.count({ where: { tenantId: tenantA } }));
     expect(costs).toBe(2);
+  });
+
+  it('regra GROUP_AVERAGE_NOMINAL (decisão #2): custo médio por EAN com bonificação do mesmo EAN; exige a decisão do IPI', async () => {
+    const tenantG = `${prefix}-grupo`;
+    await owner.tenant.create({ data: { id: tenantG, name: tenantG } });
+    const doc = await parseDocument('nfe-belajoyce.xml', readFileSync(join(__dirname, 'fixtures', 'nfe-belajoyce.xml')));
+    const ing = await inTenant(tenantG, () => ingest.ingest(tenantG, doc, null));
+
+    await expect(
+      inTenant(tenantG, () =>
+        publication.applyBonus(tenantG, ing.invoiceId, { hasBonus: true, bonusAmount: money('0'), rule: 'GROUP_AVERAGE_NOMINAL', ipiRecoverable: null }, { sub: 'u1' }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    const r = await inTenant(tenantG, () =>
+      publication.applyBonus(tenantG, ing.invoiceId, { hasBonus: true, bonusAmount: money('0'), rule: 'GROUP_AVERAGE_NOMINAL', ipiRecoverable: true }, { sub: 'u1' }),
+    );
+    // EAN 7897947607996: 1 un. paga (vItem 13,46) + 681 un. bonificadas (vProd 8315,01) → (13,46 + 8315,01) ÷ 682
+    const expected = money('8328.47').div(money('682'));
+    const l2 = r.items.find((i) => i.lineNumber === '2')!;
+    const l4 = r.items.find((i) => i.lineNumber === '4')!;
+    expect(l2.unitCostApproved!.equals(expected)).toBe(true);
+    expect(l4.unitCostApproved!.equals(expected)).toBe(true);
+    expect(l2.allocatedBonus.plus(l4.allocatedBonus).toString()).toBe('8315.01');
+
+    // unit_cost_approved é NUMERIC sem escala: guarda a precisão completa calculada.
+    const row = await inTenant(tenantG, () => db.purchaseInvoiceItem.findFirstOrThrow({ where: { tenantId: tenantG, lineNumber: '4' } }));
+    expect(row.unitCostApproved!.equals(expected)).toBe(true);
+    const inv = await inTenant(tenantG, () => db.purchaseInvoice.findFirstOrThrow({ where: { tenantId: tenantG, id: ing.invoiceId } }));
+    expect(inv.ipiRecoverable).toBe(true);
+
+    await owner.costAllocationRule.deleteMany({ where: { tenantId: tenantG } });
+    await owner.purchaseInvoiceItem.deleteMany({ where: { tenantId: tenantG } });
+    await owner.purchaseInvoice.deleteMany({ where: { tenantId: tenantG } });
+    await owner.tenant.delete({ where: { id: tenantG } });
   });
 });

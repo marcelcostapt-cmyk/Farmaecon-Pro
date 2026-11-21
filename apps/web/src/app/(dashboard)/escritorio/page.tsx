@@ -1,6 +1,7 @@
 import { AgentStatusList } from '@/components/escritorio/AgentStatusList';
 import { OfficeScene } from '@/components/escritorio/OfficeScene';
 import { MargemResumoCard } from '@/components/escritorio/MargemResumoCard';
+import { LotesResumoCard } from '@/components/escritorio/LotesResumoCard';
 
 export default function EscritorioPage() {
   return (
@@ -24,7 +25,10 @@ export default function EscritorioPage() {
         <AgentStatusList />
       </div>
 
-      <MargemResumoCard />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <MargemResumoCard />
+        <LotesResumoCard />
+      </div>
     </div>
   );
 }

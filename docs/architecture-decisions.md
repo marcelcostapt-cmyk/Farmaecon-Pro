@@ -13,3 +13,7 @@
 **Consequências:** a sincronização pode atravessar vários jobs, o relatório precisa mostrar cobertura e lacunas, e uma migration cria o estado persistente. A paginação por offset ainda deve usar uma janela temporal estável ou cursor oficial quando o adaptador Mercado Livre suportar esse contrato.
 
 **Escopo de segurança:** o adaptador continua somente leitura em `OBSERVATION`; OAuth e refresh permanecem permitidos, mas nenhuma escrita comercial é introduzida.
+
+**Repetição de 429 do Mercado Livre no cliente (2026-11-21, `d8448e5`):** o pedido repete até 3 vezes, com espera por `Retry-After` ou backoff de 2, 4 e 8 s e teto de 10 s. Motivo: as falhas concentravam-se num tick agendado com `attempts: 1`, que só voltava a tentar 15 min depois. Efeito conhecido: até ~30 s de espera por pedido, numa fila sem `concurrency` configurada. Valores heurísticos, não confirmados pela documentação do ML.
+
+**Painéis sem dados não mostram estados (2026-11-21):** a página `/escritorio` mostrava estados fixos ("Ativo", "Bloqueado") sem ligação a execuções. Passou a mostrar "Offline" com legenda explícita de que nenhum estado é medido. Regra: interface sem dados reais não exibe estado inventado.
