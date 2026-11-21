@@ -18,11 +18,11 @@ Seis agentes visíveis no Escritório C2 (nomes públicos aprovados). As especia
 
 | Nome público (C2) | Identificador técnico | Identificação interna | Serviços reutilizados | Responsabilidade | Estado |
 |---|---|---|---|---|---|
-| **Gestor** | `central-farma` | Central Farma | `Analista` (resultado consolidado) | orquestração, consolidação de resultados, prioridades e reuniões dos agentes. **Não recalcula** números financeiros. | implementado |
-| **Analista** | `dose-certa` | Dose Certa (custo, margem, CMV, análise financeira) + especialização Mix Ativo (produtos, estoque, giro, Full, ruptura) | `MarginService`, `product_costs`, `margin_rules`, `orders`/`order_items`; futuramente `DrePreviewService`, `LotService`, `ProductService` | análises determinísticas com evidências | implementado (margem); Mix Ativo não implementado |
+| **Gestor** | `central-farma` | Central Farma | últimas execuções persistidas de Analista e ADS da conta | orquestração, consolidação, prioridades, pendências e mesa de reunião. **Não recalcula** números. | implementado |
+| **Analista** | `dose-certa` | Dose Certa (custo, margem, CMV, análise financeira) + especialização Mix Ativo (produtos, estoque, giro, Full, ruptura) | `MarginService`, `product_costs`, `margin_rules`, `orders`/`order_items` | análises determinísticas com evidências | implementado (margem); Mix Ativo não implementado |
 | **Anúncios** | `vitrine-farma` | Vitrine Farma | `products` (cadastro); margem do Analista para preços | catálogo, qualidade dos anúncios, preços e Buy Box quando suportada | não implementado; Buy Box só em documentação |
 | **Criativo** | `criativo` | — (sem nome interno) | nenhum | conteúdos e imagens, com serviços próprios validados no futuro | não implementado |
-| **ADS** | `giro-ads` | Giro Ads | `AdsService` (importação CSV e resumo por SKU/período) | campanhas, ROAS, ACOS, promoções e margem após publicidade quando houver dados | não implementado; leitura possível |
+| **ADS** | `giro-ads` | Giro Ads | `AdsService.profile` (CSV importado); última execução do Analista para cruzar margem | investimento, distribuição por SKU e campanha, regras explícitas. ROAS e ACOS só com receita atribuída confiável | implementado (leitura) |
 | **SAC** | `balcao-digital` | Balcão Digital | nenhum | perguntas, mensagens, reclamações e atendimento | não implementado; só documentação |
 
 Regras:
@@ -125,10 +125,53 @@ Verificado no código. Só "pronto para construir" avança sem decisão adiciona
 | Analista | `MarginService` (implementado); Mix Ativo: estoque/Full/ruptura via `products` (stock_quantity manual) | estoque e Full do Mercado Livre não sincronizados; ruptura exige dados de anúncio | margem implementada; estoque/Full pendente |
 | Anúncios (Vitrine Farma) | `products`; margem do Analista para preços | anúncios do Mercado Livre não sincronizados; Buy Box sem API confirmada | não iniciado; Buy Box só documentação |
 | Criativo | nenhum | conteúdos e serviços próprios | não iniciado |
-| ADS (Giro Ads) | `AdsService` (importação CSV e resumo) | margem após publicidade (decisão pendente); fonte CSV manual | leitura possível |
+| ADS (Giro Ads) | `AdsService` (importação CSV e resumo) | receita atribuída às campanhas (ROAS/ACOS); margem após publicidade (decisão pendente) | implementado (leitura) |
 | SAC (Balcão Digital) | nenhum | perguntas e mensagens não sincronizadas; allowlist de observação não as cobre | só documentação até confirmar APIs e políticas |
 
 Regras para avançar:
 1. Cada agente novo começa em modo de recomendação, com o contrato do Gestor e do Analista: execução registada, estados reais, fontes e premissas.
 2. Allowlist de observação: estender só para leitura, com aprovação explícita e teste de que escritas continuam bloqueadas.
 3. Não recalcular: qualquer análise financeira nova vai para o Analista; o Gestor só consolida.
+
+## Giro Ads (ADS) — implementado em `feature/office-agent-giro-ads`
+
+Dados disponíveis: `ads_costs` (CSV importado: data, valor, SKU opcional, campanha opcional). Não há vendas atribuídas, cliques nem impressões nos dados. Por isso:
+
+- Investimento, período, origem (linhas e ficheiros) e distribuição por SKU e campanha vêm das linhas importadas da própria conta.
+- **ROAS = receita atribuída ÷ investimento** e **ACOS = investimento ÷ receita atribuída × 100** são funções puras testadas. Sem receita atribuída confiável, devolvem `null` e a UI mostra "indisponível" com o motivo. Nenhum valor é estimado.
+- Vendas orgânicas não são atribuídas à publicidade. Receita de campanhas não é tratada como lucro. O investimento não é misturado com o DRE.
+
+Regras explícitas (limites no código, `ADS_RULES`):
+- Gasto sem SKU acima de 20% do investimento: risco. Abaixo: pendência.
+- Uma campanha acima de 50% do investimento: concentração (informativo).
+- Investimento em SKU com alerta de margem no último resultado concluído do Analista: risco, com recomendação de **revisão** (nunca de pausa, aumento de verba ou alteração).
+- Sem resultado concluído do Analista: pendência "margem não avaliada", sem cruzamento inventado.
+
+Estados: BLOCKED `SEM_DADOS_ADS` (conta sem linhas importadas) ou `CONTA_DESCONECTADA`. Nunca um resultado com zero no lugar de ausência de dados.
+
+## Gestor como mesa de reunião
+
+O Gestor não recalcula. Lê a última execução persistida de cada agente da conta (Analista e ADS) e devolve em `consolidation.mesa`:
+- estado real de cada agente: Nunca executado, Em execução, Concluído, Bloqueado, Falhou;
+- data e identificador da execução usada (origem);
+- achados principais, problemas (riscos), prioridades (riscos primeiro, máximo cinco), recomendações e pendências de dados.
+
+Sem nenhum resultado concluído: BLOCKED `SEM_RESULTADOS`, sem números.
+
+## Correspondência de implementação (reconciliada em 2026-11-21)
+
+| Público | Estado real | Como executar |
+|---|---|---|
+| Gestor | implementado | `POST /agents/central-farma/runs` |
+| Analista | implementado (margem) | `POST /agents/dose-certa/runs` |
+| Anúncios | não implementado | — |
+| Criativo | não implementado | — |
+| ADS | implementado (leitura) | `POST /agents/giro-ads/runs` |
+| SAC | não implementado (só documentação) | — |
+
+Antes desta reconciliação, a secção "Prontidão" e o checkpoint 23 diziam que o ADS não estava implementado. Ficam corrigidos aqui e no checkpoint 26.
+
+## Anúncios (Vitrine Farma) — prontidão após o ADS
+
+Reutilizável: `products` (cadastro, `stock_quantity` manual), `MarginService` para preços e promoções. Falta: anúncios do Mercado Livre não são sincronizados, e Buy Box exige confirmação de API oficial e escopos. Não iniciar sem essa confirmação.
+

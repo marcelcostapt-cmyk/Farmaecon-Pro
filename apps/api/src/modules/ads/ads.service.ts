@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { parseAdsCsv } from '../costs/ads-csv';
+import type { AdsProfile } from '../agents/giro-ads/ads-analysis';
 
 export interface AdsSummary {
   total: string;
@@ -37,6 +38,46 @@ export class AdsService {
       skipDuplicates: true,
     });
     return { received: parsed.rows.length, imported: result.count, skipped: parsed.rows.length - result.count };
+  }
+
+  /**
+   * Perfil dos custos de ADS importados de UMA conta (para o agente Giro Ads). Só leitura.
+   * Período e origem vêm das próprias linhas; nada é estimado.
+   */
+  async profile(tenantId: string, accountId: string): Promise<AdsProfile> {
+    const rows = await this.prisma.adsCost.findMany({
+      where: { tenantId, marketplaceAccountId: accountId },
+      select: { day: true, sku: true, campaign: true, amount: true, sourceHash: true },
+    });
+    let total = new Prisma.Decimal(0);
+    let unallocated = new Prisma.Decimal(0);
+    const bySku = new Map<string, Prisma.Decimal>();
+    const byCampaign = new Map<string, Prisma.Decimal>();
+    const batches = new Set<string>();
+    let first: Date | null = null;
+    let last: Date | null = null;
+    for (const r of rows) {
+      const amount = new Prisma.Decimal(r.amount);
+      total = total.plus(amount);
+      batches.add(r.sourceHash);
+      if (!first || r.day < first) first = r.day;
+      if (!last || r.day > last) last = r.day;
+      if (r.sku === null) unallocated = unallocated.plus(amount);
+      else bySku.set(r.sku, (bySku.get(r.sku) ?? new Prisma.Decimal(0)).plus(amount));
+      const campaign = r.campaign ?? '(sem campanha)';
+      byCampaign.set(campaign, (byCampaign.get(campaign) ?? new Prisma.Decimal(0)).plus(amount));
+    }
+    const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+    return {
+      rows: rows.length,
+      firstDay: iso(first),
+      lastDay: iso(last),
+      importBatches: batches.size,
+      total,
+      unallocated,
+      bySku: [...bySku.entries()].map(([sku, amount]) => ({ sku, amount })),
+      byCampaign: [...byCampaign.entries()].map(([campaign, amount]) => ({ campaign, amount })),
+    };
   }
 
   async summary(tenantId: string, accountId: string, start?: Date, end?: Date): Promise<AdsSummary> {

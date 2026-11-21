@@ -1,5 +1,59 @@
 # Estado de implementação
 
+## Checkpoint 26 — Giro Ads (ADS) e Gestor como mesa de reunião (2026-11-21)
+
+Branch: `feature/office-agent-giro-ads` (a partir de `aeb3ec3`; PR #15 em draft, base `feature/office-agents-mvp`, PR #14).
+
+### Fase 1 — validação dos agentes existentes
+- PR #14 em `aeb3ec3`: CI **pass** nos dois runs (`44918062777`, `44918066514`).
+- Contrato de dados: Analista persiste `summary`, `findings` e `alerta-N` com `evidence.sku`. O Giro Ads lê os SKUs com alerta desse resultado; o Gestor lê o resultado persistido de ambos.
+- Estados BLOCKED, COMPLETED e FAILED cobertos por unitários e E2E; FAILED só com falha injetada.
+- Conta com dados reais: **não há ambiente seguro com dados reais de ADS**. Em produção a tabela `ads_costs` não existe (migração `20261124` não aplicada). No ensaio existem 3 linhas sintéticas (conta "Loja pipeline"). Nenhum dado de produção foi copiado. Pedidos e custos reais de produção não estão validados para margem: não há custos publicados.
+
+### Fase 2 — Giro Ads
+- `AdsService.profile` (leitura por conta). Pura: `agents/giro-ads/ads-analysis.ts`, com ROAS/ACOS e regras explícitas.
+- ROAS e ACOS: indisponíveis (os CSV não têm receita atribuída). Testes das fórmulas com receita e sem receita.
+- Regras: gasto sem SKU (>20% risco), concentração (>50%), SKU com investimento e alerta de margem do Analista (risco, revisão).
+
+### Fase 3 — Gestor
+- `agents/gestor/consolidacao.ts`: mesa de reunião com estado real por agente, achados, prioridades (máximo 5), pendências, recomendações e origem (execução e data).
+- O Gestor não recalcula: antes calculava a margem; agora lê o último resultado persistido do Analista. Os testes de regressão foram adaptados.
+
+### Fase 4 — segurança
+- Nenhuma escrita no Mercado Livre. Nenhum escopo OAuth novo. Nenhuma API paga de IA. Modo OBSERVATION preservado.
+- OPERATOR: executa a análise de leitura; escrita de regras de margem continua 403 (verificado no ensaio).
+
+### Fase 5 — testes (HEAD `e8cb97e`, código de `6114e6b` e correções)
+- API unitários: 60 suítes, **466 passam** (1 ignorado). Inclui 17 do ADS, 6 da consolidação e os do serviço.
+- Web: **16 passam**.
+- E2E PostgreSQL real: 13 suítes, **73 passam**. Novo `giro-ads.postgres.e2e-spec.ts`: investimento real, separação entre contas, isolamento entre tenants, ausência de dados, cruzamento com o Analista, consolidação do Gestor com estados reais.
+- Typecheck, `nest build`, `next build`, `security:scan`, `test:deployment`, testes Python: código 0.
+
+### Ensaio (imagens `6114e6b-ads1`, `1713122-ads2`, `e8cb97e-ads3`; backups em `/opt/farmaecon/backups/pre-ads-rehearsal-*`)
+- Health `OBSERVATION`. Migrações: `20261128_agent_runs` aplicada.
+- Browser, sessão ADMIN: cartão ADS presente; execução do ADS na conta com dados mostra investimento **170,00 BRL**, período 2026-11-10 a 2026-11-11, origem, ROAS e ACOS **indisponíveis** com motivo, achados (sem SKU 11,8%, concentração 88,2% na campanha Black) e recomendações de revisão.
+- Gestor na mesma conta: mesa com Analista e ADS, prioridades, pendências e origem.
+- Conta sem ADS: "Bloqueado por dependência" com texto legível e sem números.
+- OPERATOR: executa o ADS; escrita de regras de margem: **403**.
+- Nota: o script de validação teve falhas por seleção de agente; a página foi conferida diretamente (texto integral). Isso está registado e não altera o resultado.
+
+### Fase 6 — reconciliação
+- Corrigido o estado do ADS nos documentos: estava como "não implementado" no checkpoint 23 e na prontidão. Agora: implementado (leitura).
+- `docs/agentes-escritorio.md`, ADR-019, roadmap P3 atualizados.
+
+### Fase 7 — continuidade
+- **Anúncios (Vitrine Farma)**: reutilizável: `products`, `MarginService`. Não iniciar sem sincronização de anúncios e confirmação de API oficial. Buy Box: sem confirmação, só documentação.
+- **Próximo incremento executável sem integração nova**: interface de importação do CSV de ADS (ADMIN), reutilizando `POST /ads/import` e a validação existente. Não cria dados; ajuda a conta real a alimentar o Giro Ads.
+- **Gate externo**: ROAS e ACOS reais precisam de receita atribuída. Só com fonte confirmada e escopos aprovados.
+
+### Não comprovado
+- Dados reais de ADS e de margem em conta de produção.
+- ROAS e ACOS calculados (dependem de receita atribuída).
+- Estado FAILED de análise no browser (só E2E).
+
+### Próximo gate
+Revisão humana do Draft PR #15. Nenhum merge, deploy ou migração em produção.
+
 ## Checkpoint 25 — responsabilidades finais dos seis agentes C2 (2026-11-21)
 
 Branch: `feature/office-agents-mvp` (PR #14, Draft). Não está em produção.

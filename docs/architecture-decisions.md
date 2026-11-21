@@ -1,5 +1,22 @@
 # Decisões arquiteturais
 
+## ADR-019 — Giro Ads sem ROAS/ACOS inventados; Gestor só consolida resultados persistidos
+
+**Contexto:** o escritório precisa de um agente de publicidade (ADS) e de um Gestor que consolide os agentes. Os dados ADS existentes são custos importados por CSV (data, valor, SKU opcional, campanha opcional). Não há vendas atribuídas às campanhas.
+
+**Decisão:**
+- O Giro Ads apresenta investimento, período, origem e distribuição a partir das linhas importadas da própria conta.
+- ROAS e ACOS são calculados apenas com receita atribuída confiável. Sem essa receita, ficam `null` e a UI mostra "indisponível" com o motivo. Não há estimativa nem zero no lugar de ausência.
+- Investimento ADS não entra no DRE nem é tratado como lucro. Vendas orgânicas não são atribuídas à publicidade.
+- O cruzamento com a margem usa a última execução concluída do Analista (persistida). O ADS não recalcula margem.
+- O Gestor não recalcula nenhum agente: lê a última execução persistida de cada um e consolida, com estado, data e origem.
+
+**Consequências:** o Giro Ads só mostra retorno quando houver uma fonte de receita atribuída validada. Até lá, a análise é de investimento e de cruzamento com margem. Qualquer fonte nova de dados (relatórios de campanhas do Mercado Livre) exige decisão própria sobre escopos e permissões, e não entra por esta via.
+
+**Alternativas rejeitadas:** estimar receita atribuída a partir de vendas do SKU (inventa atribuição); somar ADS ao DRE (mistura regimes sem regra aprovada); recalcular margem no Gestor (duplica cálculo).
+
+Detalhe: `docs/agentes-escritorio.md`, secções "Giro Ads" e "Gestor como mesa de reunião".
+
 ## ADR-018 — agentes operacionais: execução determinística, só leitura, estado vindo do backend
 
 **Contexto:** o escritório mostrava agentes com estados fixos ("Ativo", "Bloqueado") sem nenhuma execução por trás. A Diretiva Mestre exige agentes que trabalhem sobre dados reais, com estados reais e sem respostas inventadas.

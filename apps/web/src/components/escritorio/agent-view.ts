@@ -28,4 +28,6 @@ export const BLOCK_REASON_TEXT: Record<string, string> = {
   CONTA_DESCONECTADA: 'A conta está desligada do Mercado Livre. Reconecte-a em Integrações.',
   SEM_PEDIDOS: 'Ainda não há pedidos sincronizados para esta conta.',
   SEM_CUSTOS_APROVADOS: 'Não há custos aprovados. Sem custo, a margem não é calculada.',
+  SEM_DADOS_ADS: 'Não há custos de ADS importados para esta conta. Importe o relatório de campanhas para analisar o investimento.',
+  SEM_RESULTADOS: 'Nenhum agente tem resultado concluído para esta conta. Execute o Analista e o Giro Ads antes da reunião.',
 };

@@ -66,8 +66,8 @@ export const AGENT_CATALOG: readonly AgentDefinition[] = [
     internalName: 'Giro Ads',
     accent: 'ads',
     sector: 'Campanhas e publicidade',
-    description: 'Campanhas, ROAS, ACOS, promoções e margem após publicidade quando houver dados suficientes.',
-    implemented: false,
+    description: 'Investimento em ADS importado, distribuição por SKU e campanha, e cruzamento com a margem do Analista. ROAS e ACOS só com vendas atribuídas confiáveis.',
+    implemented: true,
   },
   {
     key: 'balcao-digital',
