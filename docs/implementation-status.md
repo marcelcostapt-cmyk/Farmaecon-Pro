@@ -19,7 +19,7 @@ Branch: `feature/office-agents-mvp` (PR #14, Draft). Não está em produção.
 - Análise movida para `agents/analista/margem-analysis.ts`.
 - Catálogo: seis agentes públicos; Mix Ativo removido como agente separado.
 - Painel de execução escolhe entre Gestor e Analista.
-- Commits: `87` (API) e `9c68c99` (web) na sequência; ver histórico do branch.
+- Commits: `42da413` (API, refactor do Analista) e `9c68c99` (web, painel com Gestor e Analista).
 
 ### Evidências (HEAD `9c68c99`)
 - API: 58 suítes, **440 passam** (1 ignorado). Módulo agents: 25.
