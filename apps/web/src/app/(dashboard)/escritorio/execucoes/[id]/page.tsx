@@ -222,7 +222,7 @@ function AdsSection({ result }: { result: AdsRunResult }) {
           Período: {displayPeriod(result.period.inicio, result.period.fim)} · Origem: {result.origem.fonte} · {result.origem.linhasImportadas} linha(s) em {result.origem.ficheirosImportados} ficheiro(s)
         </p>
         <p className="mt-1 text-xs text-[var(--fa-muted)]">
-          Análise de margem: {result.analista.status === 'COMPLETED' ? `cruzada com o Analista de ${result.analista.runAt}` : `não cruzada (Analista: ${result.analista.status})`}
+          Análise de margem: {result.analista.status === 'COMPLETED' ? `cruzada com o Analista de ${when(result.analista.runAt)}` : `não cruzada (Analista: ${result.analista.status})`}
         </p>
       </section>
       <Findings items={result.findings} />
