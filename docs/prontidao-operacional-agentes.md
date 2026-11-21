@@ -80,7 +80,13 @@ Cadeia de dependências (cada PR é base do seguinte):
 - Schema: as migrações são aditivas. Não há reversão automática. Desfazer exige restauro do dump, e só com autorização explícita. Como as tabelas novas estão vazias antes da primeira execução, reverter o código deixa as tabelas sem uso.
 - Dados de ADS importados: podem ser removidos apenas por ordem explícita, por `source_hash`.
 
-## 4. Anúncios (Vitrine Farma): próximo incremento recomendado
+## 4. Anúncios (Vitrine Farma): implementado no catálogo local (PR #17)
+
+Implementado: qualidade do catálogo local dos SKUs vendidos pela conta, com regras explícitas (ver `docs/agentes-escritorio.md`). Não cobre anúncios publicados no Mercado Livre nem Buy Box.
+
+Do plano original, a recomendação está executada. O restante continua bloqueado por confirmação de API e escopos.
+
+### Versão histórica da recomendação
 
 **Contexto**: o Anúncios precisa de catálogo, qualidade dos anúncios e preços. Buy Box e dados de anúncios do Mercado Livre exigem API oficial e possivelmente escopos novos. Não iniciar sem essa confirmação.
 

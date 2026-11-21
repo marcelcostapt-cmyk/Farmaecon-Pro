@@ -20,7 +20,7 @@ Seis agentes visíveis no Escritório C2 (nomes públicos aprovados). As especia
 |---|---|---|---|---|---|
 | **Gestor** | `central-farma` | Central Farma | últimas execuções persistidas de Analista e ADS da conta | orquestração, consolidação, prioridades, pendências e mesa de reunião. **Não recalcula** números. | implementado |
 | **Analista** | `dose-certa` | Dose Certa (custo, margem, CMV, análise financeira) + especialização Mix Ativo (produtos, estoque, giro, Full, ruptura) | `MarginService`, `product_costs`, `margin_rules`, `orders`/`order_items` | análises determinísticas com evidências | implementado (margem); Mix Ativo não implementado |
-| **Anúncios** | `vitrine-farma` | Vitrine Farma | `products` (cadastro); margem do Analista para preços | catálogo, qualidade dos anúncios, preços e Buy Box quando suportada | não implementado; Buy Box só em documentação |
+| **Anúncios** | `vitrine-farma` | Vitrine Farma | `order_items` da conta, `products` do tenant, `product_costs` APPROVED da conta | qualidade do catálogo local dos SKUs vendidos; preço contra custo aprovado. Buy Box só em documentação | implementado (catálogo local) |
 | **Criativo** | `criativo` | — (sem nome interno) | nenhum | conteúdos e imagens, com serviços próprios validados no futuro | não implementado |
 | **ADS** | `giro-ads` | Giro Ads | `AdsService.profile` (CSV importado); última execução do Analista para cruzar margem | investimento, distribuição por SKU e campanha, regras explícitas. ROAS e ACOS só com receita atribuída confiável | implementado (leitura) |
 | **SAC** | `balcao-digital` | Balcão Digital | nenhum | perguntas, mensagens, reclamações e atendimento | não implementado; só documentação |
@@ -123,7 +123,7 @@ Verificado no código. Só "pronto para construir" avança sem decisão adiciona
 |---|---|---|---|
 | Gestor | `Analista` (consolidação) | — | implementado |
 | Analista | `MarginService` (implementado); Mix Ativo: estoque/Full/ruptura via `products` (stock_quantity manual) | estoque e Full do Mercado Livre não sincronizados; ruptura exige dados de anúncio | margem implementada; estoque/Full pendente |
-| Anúncios (Vitrine Farma) | `products`; margem do Analista para preços | anúncios do Mercado Livre não sincronizados; Buy Box sem API confirmada | não iniciado; Buy Box só documentação |
+| Anúncios (Vitrine Farma) | `order_items`, `products`, `product_costs` APPROVED | anúncios do Mercado Livre não sincronizados; Buy Box sem API confirmada | implementado (catálogo local) |
 | Criativo | nenhum | conteúdos e serviços próprios | não iniciado |
 | ADS (Giro Ads) | `AdsService` (importação CSV e resumo) | receita atribuída às campanhas (ROAS/ACOS); margem após publicidade (decisão pendente) | implementado (leitura) |
 | SAC (Balcão Digital) | nenhum | perguntas e mensagens não sincronizadas; allowlist de observação não as cobre | só documentação até confirmar APIs e políticas |
@@ -164,7 +164,7 @@ Sem nenhum resultado concluído: BLOCKED `SEM_RESULTADOS`, sem números.
 |---|---|---|
 | Gestor | implementado | `POST /agents/central-farma/runs` |
 | Analista | implementado (margem) | `POST /agents/dose-certa/runs` |
-| Anúncios | não implementado | — |
+| Anúncios | implementado (catálogo local) | `POST /agents/vitrine-farma/runs` |
 | Criativo | não implementado | — |
 | ADS | implementado (leitura) | `POST /agents/giro-ads/runs` |
 | SAC | não implementado (só documentação) | — |
@@ -178,4 +178,19 @@ Reutilizável: `products` (cadastro, `stock_quantity` manual), `MarginService` p
 ## Importação de publicidade (ADS) — PR #16
 
 Entrada: `/ads` (ADMIN importa; todos os papéis leem). Fluxo: escolher ficheiro → pré-visualizar (nada é gravado) → confirmar. Formato, limites e erros estão descritos na própria página. Campos entre aspas são suportados; campos com quebra de linha não são. Reimportar o mesmo ficheiro não duplica. Um ficheiro diferente cujas linhas coincidem com despesas já importadas de outro ficheiro só é importado após confirmação explícita do ADMIN, validada no servidor e registada em auditoria. Nenhuma linha é eliminada automaticamente.
+
+## Anúncios (Vitrine Farma) — catálogo local — PR #17
+
+Análise determinística da qualidade do **catálogo local** dos SKUs que a conta **vendeu** (vendas = `order_items` da conta; cadastro = `products` do tenant, só para esses SKUs; custo = `product_costs` APPROVED da conta). Nenhuma chamada ao Mercado Livre; nenhum escopo novo; nada é alterado.
+
+Regras (limites no código, `CATALOGO_RULES`):
+- título com menos de 10 caracteres: pendência; títulos repetidos em SKUs diferentes: pendência;
+- sem registo Anvisa: pendência (a regra não é aplicada automaticamente; a categoria pode não exigir);
+- preço-base zero ou negativo: risco;
+- venda com estoque zero: risco de ruptura; estoque abaixo do mínimo: risco;
+- SKU vendido sem cadastro ou sem custo publicado aprovado: pendência;
+- preço-base abaixo do custo publicado aprovado: risco individual, com as duas cifras;
+- oportunidade (informativa): margem bruta ≥ 40% sobre o preço-base e estoque ≥ 3x o mínimo; até cinco.
+
+O campo legado `products.cost_price` **não** é usado. Buy Box não é avaliado (API oficial não confirmada).
 
