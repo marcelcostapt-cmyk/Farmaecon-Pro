@@ -17,7 +17,7 @@ export type AgentAccent = 'gestor' | 'analista' | 'anuncios' | 'criativo' | 'ads
 export interface AgentCatalogItem {
   key: string;
   publicName: string;
-  internalName: string;
+  internalName: string | null;
   accent: AgentAccent;
   sector: string;
   description: string;

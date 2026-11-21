@@ -21,7 +21,7 @@ export function agentStatus(agent: AgentCatalogItem | null, unavailable = false)
 
 /** Rótulo público (C2) de cada agente e a identificação interna correspondente. */
 export function agentTitle(agent: Pick<AgentCatalogItem, 'publicName' | 'internalName'>): string {
-  return `${agent.publicName} (${agent.internalName})`;
+  return agent.internalName ? `${agent.publicName} (${agent.internalName})` : agent.publicName;
 }
 
 export const BLOCK_REASON_TEXT: Record<string, string> = {

@@ -41,7 +41,8 @@ export function OfficeScene({ agents, unavailable = false }: { agents: AgentCata
                 <h3 className="text-[14px] font-extrabold text-[var(--fa-navy)]">{agent.publicName}</h3>
                 <p className="mt-1 text-sm text-[var(--fa-muted)]">{agent.description}</p>
                 <p className="mt-2 text-xs text-[var(--fa-muted-2)]">
-                  {agent.latestRun ? `Última execução: ${when(agent.latestRun.startedAt)}` : 'Sem execução registada.'} · interno: {agent.internalName}
+                  {agent.latestRun ? `Última execução: ${when(agent.latestRun.startedAt)}` : 'Sem execução registada.'}
+                  {agent.internalName ? ` · interno: ${agent.internalName}` : ''}
                 </p>
               </div>
               <div className="mt-3">

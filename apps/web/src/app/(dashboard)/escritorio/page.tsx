@@ -64,7 +64,11 @@ export default async function EscritorioPage({ searchParams }: { searchParams: P
         </button>
       </form>
 
-      <RunAgentPanel accounts={accounts} selectedId={selected?.id ?? null} />
+      <RunAgentPanel
+        accounts={accounts}
+        selectedId={selected?.id ?? null}
+        agents={(agents ?? []).filter((a) => a.implemented).map((a) => ({ key: a.key, publicName: a.publicName, internalName: a.internalName }))}
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <OfficeScene agents={agents} unavailable={agents === null} />

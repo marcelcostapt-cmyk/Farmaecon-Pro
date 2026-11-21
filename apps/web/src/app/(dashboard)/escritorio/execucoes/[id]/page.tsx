@@ -7,7 +7,10 @@ import { fetchApi } from '@/lib/api';
 import { isNextControlError } from '@/lib/next-errors';
 
 // Execução registada: agente, conta, data/hora, estado, fontes, resultado, problemas, recomendações e histórico.
-const AGENT_LABEL: Record<string, string> = { 'central-farma': 'Gestor (interno: Central Farma)' };
+const AGENT_LABEL: Record<string, string> = {
+  'central-farma': 'Gestor (interno: Central Farma)',
+  'dose-certa': 'Analista (interno: Dose Certa)',
+};
 const SEVERITY_LABEL: Record<string, string> = { risco: 'Risco', pendencia: 'Pendência', info: 'Informação' };
 
 const RUN_BADGE: Record<AgentRunStatus, AgentStatus> = {

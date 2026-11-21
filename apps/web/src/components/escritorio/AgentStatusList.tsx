@@ -27,7 +27,7 @@ export function AgentStatusList({ agents, unavailable = false }: { agents: Agent
           >
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-[var(--fa-navy)]">{agent.publicName}</p>
-              <p className="truncate text-xs text-[var(--fa-muted)]">{agent.sector} · interno: {agent.internalName}</p>
+              <p className="truncate text-xs text-[var(--fa-muted)]">{agent.sector}{agent.internalName ? ` · interno: ${agent.internalName}` : ''}</p>
               {agent.latestRun ? (
                 <Link href={`/escritorio/execucoes/${agent.latestRun.id}`} className="text-xs font-semibold text-[var(--fa-orange-700)]">
                   ver última execução →
