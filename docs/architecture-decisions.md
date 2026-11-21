@@ -17,3 +17,10 @@
 **Repetição de 429 do Mercado Livre no cliente (2026-11-21, `d8448e5`):** o pedido repete até 3 vezes, com espera por `Retry-After` ou backoff de 2, 4 e 8 s e teto de 10 s. Motivo: as falhas concentravam-se num tick agendado com `attempts: 1`, que só voltava a tentar 15 min depois. Efeito conhecido: até ~30 s de espera por pedido, numa fila sem `concurrency` configurada. Valores heurísticos, não confirmados pela documentação do ML.
 
 **Painéis sem dados não mostram estados (2026-11-21):** a página `/escritorio` mostrava estados fixos ("Ativo", "Bloqueado") sem ligação a execuções. Passou a mostrar "Offline" com legenda explícita de que nenhum estado é medido. Regra: interface sem dados reais não exibe estado inventado.
+
+
+**Sem prefetch em rotas protegidas (2026-11-21, `975cfa3`):** a barra lateral usa `prefetch={false}`. O refresh de sessão é de uso único e a API revoga a sessão na reutilização; prefetches concorrentes com o mesmo refresh token derrubavam a sessão. Regra: navegação para rotas protegidas não faz prefetch.
+
+**Verificação de restauro = mesma lista que o arranque da API (2026-11-21, `888bdd2`):** a contagem de tabelas RLS esperadas usa a lista canónica de 17 tabelas, igual a `prisma.service.ts`. Qualquer tabela nova com RLS entra nas duas listas.
+
+**Conta dentro de pedidos é resumida (2026-11-21, `45ebcdd`):** `orderAccountSelect` (id, nome, plataforma, estado) em `publicOrderSelect`. Identidade fiscal (`cnpj`, `businessName`, `externalSellerId`, `displayName`) só em `publicAccountSelect`, usado pela área de integrações do mesmo tenant.

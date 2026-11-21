@@ -1,5 +1,27 @@
 # Estado de implementação
 
+## Checkpoint 22 — integração PR #13 e CI (2026-11-21)
+
+Branch: `integration/pr12-main-reconciliation` (PR #13, Draft, base `main`). Referencia o PR #12 (histórico).
+
+### Commits desta etapa
+- `30be37c` merge com `origin/main` (27 conflitos resolvidos com a versão da branch, após verificação de superset).
+- `7891135` smoke de browser usa o item de navegação atual para o relatório (a entrada duplicada foi removida em `e1f35bf`).
+- `888bdd2` verificação de restauro usa a lista canónica de 17 tabelas com RLS (14 estava desatualizada).
+- `975cfa3` barra lateral sem prefetch de rotas protegidas (ver decisões).
+- `45ebcdd` listagem de pedidos não expõe identidade fiscal da conta (minimização).
+
+### Evidência
+- `test:production-stack`: PASS (imagens, migrações, bootstrap, login, relatório privado, renovação de sessão, backup cifrado e restauro isolado).
+- Unitários API: 56 suites, 415 passam, 1 ignorado. E2E PostgreSQL: 11 suites, 54 passam.
+- Build web OK; testes web 5/5.
+- CI do GitHub: ver a secção de resultados do PR #13 (confirmado só após o run do último commit).
+
+### Problemas encontrados e estado
+- Renovação de sessão: a causa é a concorrência de prefetch com refresh de uso único (ver decisões). Corrigida na barra lateral.
+- Exposição: identidade fiscal chegava a todas as listagens de pedidos. Corrigida; integrações mantêm os campos.
+- `main` (`e1f35bf`) falhava o mesmo CI desde a subida para Next 16.4.6 e a remoção do link de observação.
+
 ## Checkpoint 21 — estado verificado em 2026-11-21
 
 Branch: `feature/ml-rate-limit-retry` (base `8cbab63`). Commits desta sessão: `d8448e5` (repetição de 429 do Mercado Livre), `1fb44a7` (secção de estado no `CLAUDE.md`). Nenhum deploy.
