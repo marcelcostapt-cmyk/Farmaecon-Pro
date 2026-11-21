@@ -7,13 +7,15 @@ export interface Agent {
   status: AgentStatus;
 }
 
+// Nenhum agente está ligado a execuções reais nesta versão: o estado é "offline" por
+// omissão, sem valores inventados. Os estados reais devem vir de dados (ex.: execuções registadas).
 const AGENTS: Agent[] = [
-  { id: 'gestor', name: 'Gestor', sector: 'Coordenação', status: 'active' },
-  { id: 'analista', name: 'Analista', sector: 'Preços e desempenho', status: 'active' },
-  { id: 'anuncios', name: 'Anúncios', sector: 'Catálogo e conteúdo', status: 'attention' },
-  { id: 'criativo', name: 'Criativo', sector: 'Peças e identidade', status: 'idle' },
-  { id: 'ads', name: 'ADS', sector: 'Campanhas e métricas', status: 'idle' },
-  { id: 'sac', name: 'SAC', sector: 'Perguntas e reclamações', status: 'blocked' },
+  { id: 'gestor', name: 'Gestor', sector: 'Coordenação', status: 'offline' },
+  { id: 'analista', name: 'Analista', sector: 'Preços e desempenho', status: 'offline' },
+  { id: 'anuncios', name: 'Anúncios', sector: 'Catálogo e conteúdo', status: 'offline' },
+  { id: 'criativo', name: 'Criativo', sector: 'Peças e identidade', status: 'offline' },
+  { id: 'ads', name: 'ADS', sector: 'Campanhas e métricas', status: 'offline' },
+  { id: 'sac', name: 'SAC', sector: 'Perguntas e reclamações', status: 'offline' },
 ];
 
 export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
@@ -27,7 +29,7 @@ export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
           Setores e agentes
         </h2>
         <p className="mt-1 text-xs text-[var(--fa-muted)]">
-          Estado demonstrativo até a sincronização real.
+          Agentes ainda não estão ligados a execuções reais; nenhum estado é medido nesta versão.
         </p>
       </div>
 
