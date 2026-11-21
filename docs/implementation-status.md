@@ -2,7 +2,7 @@
 
 ## Checkpoint 28 — sobreposição de despesas ADS com confirmação explícita (2026-11-21)
 
-Branch: `feature/ads-csv-import-ui` (PR #16). Commits: `04e575b` (API), `953046a` e `479fb5d`, `27a71e9` (web), `01ab4a6` (sobreposição, API), e o commit da web com a revisão de duplicação.
+Branch: `feature/ads-csv-import-ui` (PR #16). Commits desta etapa: `f6776e0` (API: sobreposição e confirmação) e `01ab4a6` (web: revisão e confirmação). Anteriores: `04e575b`, `953046a`, `479fb5d`, `27a71e9`.
 
 ### Regra aprovada
 - Mesmo ficheiro: idempotente, sem confirmação.
