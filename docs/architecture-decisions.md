@@ -1,5 +1,20 @@
 # Decisões arquiteturais
 
+## ADR-020 — importação de CSV de publicidade em duas fases, tudo ou nada, sem bibliotecas
+
+**Contexto:** o investimento em publicidade chega por relatório CSV exportado pelo utilizador. Um ficheiro com erros não pode deixar dados parciais; o utilizador precisa de ver o resumo antes de gravar; e o parser não tinha campos entre aspas.
+
+**Decisão:**
+- Duas fases: pré-visualização (valida, resume e avisa, sem gravar) e confirmação (mesmo ficheiro, mesma validação, gravação idempotente por hash e linha).
+- Tudo ou nada: qualquer linha inválida rejeita o ficheiro, e a interface mostra todos os erros com o número da linha.
+- Campos entre aspas tratados por um separador próprio e testado; campos com quebra de linha recusados explicitamente.
+- A interface valida extensão, tamanho e vazio no navegador; o servidor valida o restante. O ficheiro nunca sai da API própria.
+- Reimportação do mesmo ficheiro não duplica. Ficheiro re-exportado com outro hash é avisado, não bloqueado, porque pode ser uma correção legítima.
+
+**Alternativas rejeitadas:** importação parcial (deixa dados inconsistentes); deduplicação por conteúdo das linhas (apaga despesas legítimas repetidas no mesmo dia); biblioteca de CSV (uma dependência para um formato simples).
+
+Detalhe: `docs/prontidao-operacional-agentes.md`.
+
 ## ADR-019 — Giro Ads sem ROAS/ACOS inventados; Gestor só consolida resultados persistidos
 
 **Contexto:** o escritório precisa de um agente de publicidade (ADS) e de um Gestor que consolide os agentes. Os dados ADS existentes são custos importados por CSV (data, valor, SKU opcional, campanha opcional). Não há vendas atribuídas às campanhas.

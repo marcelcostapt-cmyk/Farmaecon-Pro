@@ -175,3 +175,7 @@ Antes desta reconciliação, a secção "Prontidão" e o checkpoint 23 diziam qu
 
 Reutilizável: `products` (cadastro, `stock_quantity` manual), `MarginService` para preços e promoções. Falta: anúncios do Mercado Livre não são sincronizados, e Buy Box exige confirmação de API oficial e escopos. Não iniciar sem essa confirmação.
 
+## Importação de publicidade (ADS) — PR #16
+
+Entrada: `/ads` (ADMIN importa; todos os papéis leem). Fluxo: escolher ficheiro → pré-visualizar (nada é gravado) → confirmar. Formato, limites e erros estão descritos na própria página. Campos entre aspas são suportados; campos com quebra de linha não são. Reimportar o mesmo ficheiro não duplica; um ficheiro re-exportado é avisado como possível duplicação.
+
