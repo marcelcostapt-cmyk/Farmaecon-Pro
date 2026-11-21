@@ -12,11 +12,24 @@ Não está em produção. Modo do produto: `OBSERVATION` (leitura).
 
 Só os segundos fazem parte do produto. Nenhum deles executa uma ação no Mercado Livre.
 
-## Nomes
+## Nomes e correspondência
 
-Nomes de produto da Diretiva Mestre: Central Farma (orquestração), Dose Certa (custos, CMV, DRE), Mix Ativo (produtos, estoque, Full), Vitrine Farma (anúncios), Giro Ads (publicidade), Balcão Digital (atendimento).
+A interface pública segue o design C2 (`docs/design/tokens.css`, acentos `--fa-ag-*`): **Gestor, Analista, Anúncios, Criativo, ADS e SAC**. Os nomes da Diretiva Mestre são identificações internas. Correspondência 1:1, sem duplicações; a mesma tabela está em `apps/api/src/modules/agents/agent-catalog.ts`.
 
-Divergência a confirmar: `.claude/referencias-farmaecon-pro.md` e a UI anterior usavam Gestor, Analista, Anúncios, Criativo, ADS e SAC. Este incremento usa os nomes da Diretiva. O catálogo (`agent-catalog.ts`) é a única fonte desses nomes.
+| Nome público (C2) | Chave técnica | Nome interno (Diretiva) | Responsabilidade | Estado |
+|---|---|---|---|---|
+| Gestor | `central-farma` | Central Farma | orquestração e análise financeira de leitura por conta | **implementado** |
+| Analista | `dose-certa` | Dose Certa | preço, custo, CMV e rentabilidade | não implementado |
+| Anúncios | `mix-ativo` | Mix Ativo | revisão de anúncios e promoções com base na margem validada | não implementado |
+| Criativo | `vitrine-farma` | Vitrine Farma | briefings, imagens e infográficos para anúncios | não implementado |
+| ADS | `giro-ads` | Giro Ads | campanhas e verba (depende de ADS na margem) | não implementado |
+| SAC | `balcao-digital` | Balcão Digital | classificação de solicitações e rascunhos com revisão humana | não implementado |
+
+Pontos a confirmar antes de construir:
+- **Full e estoque.** A referência C2 atribui ruptura e Full ao Analista; a Diretiva atribui estoque, giro e Full ao Mix Ativo (Anúncios). Hoje nenhum dos dois existe.
+- A chave técnica `central-farma` não muda: é a rota e o registo já em produção de ensaio.
+
+A referência anterior (`.claude/referencias-farmaecon-pro.md`) usava Gestor, Analista, Anúncios, Criativo, ADS e SAC com a mesma lista de funções; a correspondência acima segue essa referência.
 
 ## Camadas
 
@@ -66,15 +79,33 @@ Regra de ouro: SKU sem taxa ML ou sem custo APPROVED fica fora da conta, com o m
 
 ## Limitações conhecidas
 
-- A execução é síncrona, no pedido HTTP. Não há fila. Uma execução interrompida pode deixar `RUNNING` sem fecho; a UI mostra "Em execução" sem tempo limite.
+- A execução é síncrona, no pedido HTTP. Não há fila. Uma execução interrompida fica `RUNNING` até passar o limite de 10 minutos e ser fechada como `FAILED` (ver "Recuperação").
 - `MarginService.loadRows` faz uma consulta de itens por pedido (N+1). Aceitável para contas pequenas; a medir antes de contas grandes.
 - A análise usa os dados já sincronizados. Não consulta o Mercado Livre.
 - `agent_runs` tem `ON DELETE CASCADE` na conta: remover uma conta remove o histórico dela.
-- Nenhum agente além da Central Farma executa. Dose Certa, Mix Ativo, Vitrine Farma, Giro Ads e Balcão Digital estão no catálogo como não implementados.
+- Nenhum agente além do Gestor (Central Farma) executa. Os outros cinco estão no catálogo como não implementados.
 
 ## Próximos passos (cada um com validação própria)
 
-1. Dose Certa: ligar a DRE quando houver reconciliação de liquidações (hoje a DRE é só preview).
-2. Mix Ativo: estoque e giro. Depende de dados de estoque que ainda não existem.
-3. Giro Ads: depende da integração ADS na margem (decisão pendente).
+1. Analista (Dose Certa): preço, custo e rentabilidade; ligar a DRE quando houver reconciliação de liquidações (hoje a DRE é só preview).
+2. Anúncios (Mix Ativo): revisão de anúncios e promoções sobre a margem validada. Estoque e Full dependem de dados que ainda não existem.
+3. ADS (Giro Ads): depende da integração ADS na margem (decisão pendente).
 4. Qualquer agente com ação real exige um gate próprio: autorização comercial pré-definida, modo de recomendação antes de ação e auditoria da alteração.
+
+## Permissões
+
+- Ver o escritório, executar a análise e ver execuções: qualquer utilizador autenticado do tenant, incluindo OPERATOR. A análise é de leitura e a única escrita é o registo da execução.
+- Definir regras de margem continua reservado a ADMIN. Verificado no ensaio: OPERATOR recebe 403 em `PUT /margin/rules`.
+- Conta de outro tenant: 404 na execução; margem e execuções pedidas com essa conta voltam vazias (verificado em PostgreSQL real).
+
+## Escopo por conta
+
+- O seletor "Conta em análise" grava `?conta=<id>`. Só aceita ids da lista do próprio tenant; senão usa a primeira conta.
+- O cartão Margem por SKU, o catálogo (`GET /agents?account_id=`) e o painel de execução usam essa conta. O cartão mostra "Conta: <nome>" ou "Sem conta".
+
+## Recuperação de execuções RUNNING
+
+- Uma análise dura segundos. `RUNNING` com mais de 10 minutos foi interrompido (processo reiniciado, falha a meio).
+- Essas execuções passam a `FAILED` com mensagem explícita (`STALE_RUN_MESSAGE`). Acontece ao listar o catálogo, listar execuções, consultar uma execução e antes de criar nova execução da mesma conta.
+- Não há reexecução automática. Não há exclusão: o histórico fica. Só afeta o tenant da chamada.
+

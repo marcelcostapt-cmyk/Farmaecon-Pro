@@ -1,5 +1,47 @@
 # Estado de implementação
 
+## Checkpoint 24 — nomes C2, recuperação de execuções e validação de estados (2026-11-21)
+
+Branch: `feature/office-agents-mvp` (PR #14, Draft, base `integration/pr12-main-reconciliation`).
+
+### Decisão de nomenclatura
+- Interface pública: Gestor, Analista, Anúncios, Criativo, ADS e SAC (design C2).
+- Identificações internas: Central Farma, Dose Certa, Mix Ativo, Vitrine Farma, Giro Ads, Balcão Digital. Correspondência 1:1 em `docs/agentes-escritorio.md`.
+- O agente implementado mantém a chave técnica `central-farma` e continua a executar; passa a aparecer como Gestor (interno: Central Farma).
+
+### Entregue
+- Catálogo com `publicName`, `internalName` e `accent` (tokens `--fa-ag-*`).
+- Recuperação segura: RUNNING com mais de 10 minutos passa a FAILED, dentro do tenant, sem reexecução e sem apagar histórico.
+- Seletor "Conta em análise" (`?conta=`). Cartão Margem por SKU e catálogo (`GET /agents?account_id=`) seguem a conta; o cartão mostra o escopo.
+- Permissões: OPERATOR pode ver e executar a análise de leitura; escrita de regras de margem continua ADMIN.
+- Ids de conta não UUID são aceites e resolvidos sempre dentro do tenant (a conta de seed do ensaio tinha id não UUID e o escritório falhava ao carregar).
+
+### Evidências (HEAD `051a44d`)
+- CI de `db71c37` (correção do typecheck): **success** nos dois runs (`44913340620`, `44913336303`).
+- Testes: API 58 suítes, 439 passam (1 ignorado); web 13 passam; E2E PostgreSQL real 12 suítes, 63 passam.
+- Typecheck (`npm run typecheck`), `nest build`, `next build`, `security:scan`, `test:deployment`, testes Python: todos com código 0.
+- Isolamento: teste E2E com conta de outro tenant devolve margem e execuções vazias, e recuperação de outro tenant não toca em RUNNING alheio.
+- Recuperação: teste unitário (escopo, cutoff exato) e E2E (RUNNING antigo fechado; recente intacto).
+- Estado FAILED real: E2E com falha injetada na margem. Mensagem persistida genérica, sem detalhe interno.
+- Ensaio (imagem `farmaecon-api:051a44d-agents4`, dados sintéticos, backup `/opt/farmaecon/backups/pre-agents4-rehearsal-*`):
+  - Nomes públicos e interno visíveis; sem "Offline"; "Nunca executado" quando não há execução.
+  - Execução presa (criada no ensaio com 1 h) aparece como "Falhou" com mensagem de interrupção.
+  - Conta sem pedidos ("Loja sem pedidos (ensaio)", criada no ensaio): "Bloqueado por dependência", motivo "Ainda não há pedidos sincronizados", sem números.
+  - Conta com pedidos: cartão de margem com escopo "Conta: Loja pipeline" e 1 SKU abaixo do limite.
+  - OPERATOR (`teste-operador@ensaio.local`): vê o escritório, executa e obtém "Concluído"; `PUT /api/margin/rules` → 403.
+
+### Ainda não comprovado
+- Estado FAILED de análise falhada no browser (só em E2E com falha injetada).
+- Dados reais de conta Mercado Livre (ensaio sintético).
+- Apresentação C2 completa (figura SVG do design não existe no repositório; mantidos cartões e tokens).
+
+### Pontos a confirmar
+- Full e estoque: referência C2 atribui ao Analista; Diretiva atribui ao Mix Ativo (Anúncios).
+- Cartão de margem continua a somar todas as contas quando nenhuma é escolhida.
+
+### Próximo gate
+Revisão humana do Draft PR #14. Nenhum merge, deploy ou migração em produção.
+
 ## Checkpoint 23 — primeiro agente operacional: Central Farma (2026-11-21)
 
 Branch: `feature/office-agents-mvp` (a partir de `integration/pr12-main-reconciliation` @ `d9ba6f2`). Draft PR contra a branch de integração. Não está em produção.
