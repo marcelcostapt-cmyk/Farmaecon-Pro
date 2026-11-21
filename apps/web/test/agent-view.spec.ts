@@ -2,7 +2,7 @@ import { agentStatus } from '../src/components/escritorio/agent-view';
 import type { AgentCatalogItem, AgentRunSummary } from '../src/components/escritorio/agent-types';
 
 function agent(partial: Partial<AgentCatalogItem> = {}): AgentCatalogItem {
-  return { key: 'central-farma', name: 'Central Farma', sector: 'Orquestração', description: '', implemented: true, latestRun: null, ...partial };
+  return { key: 'central-farma', publicName: 'Gestor', internalName: 'Central Farma', accent: 'gestor', sector: 'Orquestração', description: '', implemented: true, latestRun: null, ...partial };
 }
 
 function run(status: AgentRunSummary['status']): AgentRunSummary {

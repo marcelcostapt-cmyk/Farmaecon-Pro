@@ -12,9 +12,13 @@ export interface AgentRunSummary {
   finishedAt: string | null;
 }
 
+export type AgentAccent = 'gestor' | 'analista' | 'anuncios' | 'criativo' | 'ads' | 'sac';
+
 export interface AgentCatalogItem {
   key: string;
-  name: string;
+  publicName: string;
+  internalName: string;
+  accent: AgentAccent;
   sector: string;
   description: string;
   implemented: boolean;

@@ -26,8 +26,8 @@ export function AgentStatusList({ agents, unavailable = false }: { agents: Agent
             className="flex items-center justify-between gap-3 rounded-[var(--fa-r-md)] px-3 py-2 hover:bg-[var(--fa-bg)]"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-[var(--fa-navy)]">{agent.name}</p>
-              <p className="truncate text-xs text-[var(--fa-muted)]">{agent.sector}</p>
+              <p className="truncate text-sm font-semibold text-[var(--fa-navy)]">{agent.publicName}</p>
+              <p className="truncate text-xs text-[var(--fa-muted)]">{agent.sector} · interno: {agent.internalName}</p>
               {agent.latestRun ? (
                 <Link href={`/escritorio/execucoes/${agent.latestRun.id}`} className="text-xs font-semibold text-[var(--fa-orange-700)]">
                   ver última execução →

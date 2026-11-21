@@ -4,14 +4,9 @@ import type { AgentCatalogItem } from '@/components/escritorio/agent-types';
 import { MargemResumoCard } from '@/components/escritorio/MargemResumoCard';
 import { LotesResumoCard } from '@/components/escritorio/LotesResumoCard';
 import { fetchApi } from '@/lib/api';
+import { accountLabel, resolveSelectedAccount, type AccountOption } from '@/lib/escritorio-account';
 import { isNextControlError } from '@/lib/next-errors';
 import { RunAgentPanel } from './run-agent-panel';
-
-interface AccountOption {
-  id: string;
-  name: string;
-  displayName: string | null;
-}
 
 async function loadAgents(): Promise<AgentCatalogItem[] | null> {
   try {
@@ -31,8 +26,10 @@ async function loadAccounts(): Promise<AccountOption[]> {
   }
 }
 
-export default async function EscritorioPage() {
+export default async function EscritorioPage({ searchParams }: { searchParams: Promise<{ conta?: string }> }) {
+  const { conta } = await searchParams;
   const [agents, accounts] = await Promise.all([loadAgents(), loadAccounts()]);
+  const selected = resolveSelectedAccount(accounts, conta);
 
   return (
     <div className="space-y-6">
@@ -49,7 +46,23 @@ export default async function EscritorioPage() {
         </p>
       </header>
 
-      <RunAgentPanel accounts={accounts} />
+      <form method="get" className="flex flex-wrap items-end gap-3 rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-4">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-semibold text-[var(--fa-muted)]">
+          Conta em análise
+          <select name="conta" defaultValue={selected?.id ?? ''} className="rounded-[var(--fa-r-md)] border border-[var(--fa-border)] bg-[var(--fa-bg)] px-3 py-2 text-sm text-[var(--fa-navy)]">
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {accountLabel(account)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" className="rounded-[var(--fa-r-md)] border border-[var(--fa-border)] px-4 py-2 text-sm font-semibold text-[var(--fa-navy)]">
+          Ver conta
+        </button>
+      </form>
+
+      <RunAgentPanel accounts={accounts} selectedId={selected?.id ?? null} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <OfficeScene agents={agents} unavailable={agents === null} />
@@ -57,7 +70,10 @@ export default async function EscritorioPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <MargemResumoCard />
+        <MargemResumoCard
+          accountId={selected?.id ?? null}
+          scopeLabel={selected ? `Conta: ${accountLabel(selected)}` : 'Sem conta: nenhum dado de margem'}
+        />
         <LotesResumoCard />
       </div>
     </div>

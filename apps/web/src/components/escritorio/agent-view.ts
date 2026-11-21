@@ -19,6 +19,11 @@ export function agentStatus(agent: AgentCatalogItem | null, unavailable = false)
   }
 }
 
+/** Rótulo público (C2) de cada agente e a identificação interna correspondente. */
+export function agentTitle(agent: Pick<AgentCatalogItem, 'publicName' | 'internalName'>): string {
+  return `${agent.publicName} (${agent.internalName})`;
+}
+
 export const BLOCK_REASON_TEXT: Record<string, string> = {
   CONTA_DESCONECTADA: 'A conta está desligada do Mercado Livre. Reconecte-a em Integrações.',
   SEM_PEDIDOS: 'Ainda não há pedidos sincronizados para esta conta.',

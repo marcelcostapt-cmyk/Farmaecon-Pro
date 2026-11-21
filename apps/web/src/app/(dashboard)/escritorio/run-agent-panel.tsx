@@ -3,16 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-interface AccountOption {
-  id: string;
-  name: string;
-  displayName: string | null;
-}
+import { accountLabel, type AccountOption } from '@/lib/escritorio-account';
 
 // Disparo explícito pelo utilizador. A execução é de leitura: nunca altera o Mercado Livre.
-export function RunAgentPanel({ accounts }: { accounts: AccountOption[] }) {
+export function RunAgentPanel({ accounts, selectedId }: { accounts: AccountOption[]; selectedId: string | null }) {
   const router = useRouter();
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [accountId, setAccountId] = useState(selectedId ?? accounts[0]?.id ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,9 +43,9 @@ export function RunAgentPanel({ accounts }: { accounts: AccountOption[] }) {
   }
 
   return (
-    <section aria-labelledby="run-agent-title" className="rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-5 shadow-[var(--fa-sh-1)]">
+    <section id="executar-agente" aria-labelledby="run-agent-title" className="rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-5 shadow-[var(--fa-sh-1)]">
       <h2 id="run-agent-title" className="text-[13px] font-extrabold text-[var(--fa-navy)]">
-        Executar Central Farma
+        Executar Gestor <span className="font-normal text-[var(--fa-muted)]">(interno: Central Farma)</span>
       </h2>
       <p className="mt-1 text-xs text-[var(--fa-muted)]">
         Análise de leitura com os dados já sincronizados da conta: margem por SKU, alertas de limite e variação de taxas ML.
@@ -64,7 +60,7 @@ export function RunAgentPanel({ accounts }: { accounts: AccountOption[] }) {
           >
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
-                {account.displayName ?? account.name}
+                {accountLabel(account)}
               </option>
             ))}
           </select>
