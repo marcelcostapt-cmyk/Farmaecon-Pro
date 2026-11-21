@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
-import { parseAdsCsv } from '../costs/ads-csv';
+import { parseAdsCsv, summarizeAdsRows, type AdsCsvSummary } from '../costs/ads-csv';
 import type { AdsProfile } from '../agents/giro-ads/ads-analysis';
 
 export interface AdsSummary {
@@ -14,6 +14,38 @@ export interface AdsSummary {
 @Injectable()
 export class AdsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Pré-visualização SEM gravar: valida tudo, resume e avisa sobre duplicação.
+   * Um ficheiro já importado (mesmo hash) não duplica linhas; um ficheiro diferente
+   * com linhas no mesmo período é avisado, porque pode ser a mesma informação re-exportada.
+   */
+  async preview(tenantId: string, accountId: string, csvText: string, sourceHash: string) {
+    const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { id: true } });
+    if (!account) throw new NotFoundException('Conta não encontrada.');
+    const parsed = parseAdsCsv(csvText);
+    const warnings: string[] = [];
+    if (parsed.errors.length > 0) {
+      return { valid: false as const, errors: parsed.errors, summary: null, warnings, sourceHash, alreadyImported: false, overlappingRows: 0 };
+    }
+    const summary: AdsCsvSummary = summarizeAdsRows(parsed.rows);
+    const alreadyImported = (await this.prisma.adsCost.count({ where: { tenantId, marketplaceAccountId: accountId, sourceHash } })) > 0;
+    let overlappingRows = 0;
+    if (summary.firstDay && summary.lastDay && !alreadyImported) {
+      overlappingRows = await this.prisma.adsCost.count({
+        where: {
+          tenantId,
+          marketplaceAccountId: accountId,
+          day: { gte: new Date(`${summary.firstDay}T00:00:00.000Z`), lte: new Date(`${summary.lastDay}T00:00:00.000Z`) },
+        },
+      });
+    }
+    if (alreadyImported) warnings.push('Este ficheiro já foi importado. Nenhuma linha será duplicada.');
+    if (overlappingRows > 0) {
+      warnings.push(`Já existem ${overlappingRows} linha(s) de outro ficheiro neste período. Confirme que não é a mesma informação re-exportada, para evitar duplicar o investimento.`);
+    }
+    return { valid: true as const, errors: [], summary, warnings, sourceHash, alreadyImported, overlappingRows };
+  }
 
   async importCsv(tenantId: string, accountId: string, csvText: string, sourceHash: string) {
     const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { id: true } });
