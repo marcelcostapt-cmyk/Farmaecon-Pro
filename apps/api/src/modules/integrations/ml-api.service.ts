@@ -13,6 +13,18 @@ const RATE_LIMIT_MAX_RETRIES = 3;
 const RATE_LIMIT_BASE_WAIT_MS = 2000;
 const RATE_LIMIT_MAX_WAIT_MS = 10000;
 
+/**
+ * Resume os cabeçalhos de limite de uma resposta 429 para o log (nomes e valores truncados).
+ * Só inclui cabeçalhos cujo nome contém rate, limit ou retry; não inclui autorização nem cookies.
+ */
+export function rateLimitHeaders(headers: { forEach?: (cb: (value: string, name: string) => void) => void } | undefined): string {
+  const parts: string[] = [];
+  headers?.forEach?.((value, name) => {
+    if (/rate|limit|retry/i.test(name)) parts.push(`${name.toLowerCase()}=${String(value).slice(0, 80)}`);
+  });
+  return parts.length > 0 ? `headers ${parts.join(' ')}` : 'headers none';
+}
+
 export interface MlOrderSearchResult extends RemoteOrder {
   date_closed?: string;
   total_amount_with_shipping?: number;
@@ -323,7 +335,7 @@ export class MlApiService {
     if (response.status === 429 && rateLimitRetries < RATE_LIMIT_MAX_RETRIES) {
       const waitMs = this.rateLimitWaitMs(response.headers?.get?.('retry-after') ?? null, rateLimitRetries);
       this.logger.warn(
-        `Mercado Livre rate limit for account ${accountId}; retry ${rateLimitRetries + 1}/${RATE_LIMIT_MAX_RETRIES} in ${waitMs}ms`,
+        `Mercado Livre rate limit for account ${accountId}; retry ${rateLimitRetries + 1}/${RATE_LIMIT_MAX_RETRIES} in ${waitMs}ms; ${rateLimitHeaders(response.headers)}`,
       );
       await this.sleep(waitMs);
       return this.requestForAccount<T>(accountId, tenantId, url, retried, rateLimitRetries + 1);

@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { MlApiService } from './ml-api.service';
+import { MlApiService, rateLimitHeaders } from './ml-api.service';
 
 // Respostas simuladas do Mercado Livre: 429 com ou sem Retry-After, depois 200.
 function response(status: number, retryAfter: string | null = null) {
@@ -62,5 +62,27 @@ describe('MlApiService — 429 do Mercado Livre', () => {
     expect(service.rateLimitWaitMs('Wed, 21 Nov 2026 10:00:00 GMT', 1)).toBe(4000);
     expect(service.rateLimitWaitMs(null, 2)).toBe(8000);
     expect(service.rateLimitWaitMs(null, 5)).toBe(10000);
+  });
+});
+
+describe('rateLimitHeaders — cabeçalhos de limite para o log', () => {
+  it('inclui só cabeçalhos de limite e nunca autorização ou cookies', () => {
+    const map = new Map<string, string>([
+      ['Retry-After', '2'],
+      ['X-RateLimit-Limit', '100'],
+      ['Authorization', 'Bearer secret-token'],
+      ['Set-Cookie', 'session=abc'],
+    ]);
+    const out = rateLimitHeaders({ forEach: (cb) => map.forEach((v, k) => cb(v, k)) });
+    expect(out).toContain('retry-after=2');
+    expect(out).toContain('x-ratelimit-limit=100');
+    expect(out).not.toMatch(/secret-token|session=abc|authorization|set-cookie/i);
+  });
+
+  it('sem cabeçalhos devolve "headers none" e trunca valores longos', () => {
+    expect(rateLimitHeaders(undefined)).toBe('headers none');
+    const long = 'x'.repeat(200);
+    const out = rateLimitHeaders({ forEach: (cb) => cb(long, 'retry-after') });
+    expect(out.length).toBeLessThan(120);
   });
 });
