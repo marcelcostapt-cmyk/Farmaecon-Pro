@@ -15,7 +15,7 @@ Branch: `integration/pr12-main-reconciliation` (PR #13, Draft, base `main`). Ref
 - `test:production-stack`: PASS (imagens, migrações, bootstrap, login, relatório privado, renovação de sessão, backup cifrado e restauro isolado).
 - Unitários API: 56 suites, 415 passam, 1 ignorado. E2E PostgreSQL: 11 suites, 54 passam.
 - Build web OK; testes web 5/5.
-- CI do GitHub: ver a secção de resultados do PR #13 (confirmado só após o run do último commit).
+- CI do GitHub no commit `8fc82e0`: dois runs (`44904237108`, `44904233227`), ambos success, 34/34 passos cada (inclui security:scan, test:postgres, test:browser, test:production-stack).
 
 ### Problemas encontrados e estado
 - Renovação de sessão: a causa é a concorrência de prefetch com refresh de uso único (ver decisões). Corrigida na barra lateral.
