@@ -1,24 +1,10 @@
-import { StatusBadge, type AgentStatus } from './StatusBadge';
+import Link from 'next/link';
+import { StatusBadge } from './StatusBadge';
+import { agentStatus } from './agent-view';
+import type { AgentCatalogItem } from './agent-types';
 
-export interface Agent {
-  id: string;
-  name: string;
-  sector: string;
-  status: AgentStatus;
-}
-
-// Nenhum agente está ligado a execuções reais nesta versão: o estado é "offline" por
-// omissão, sem valores inventados. Os estados reais devem vir de dados (ex.: execuções registadas).
-const AGENTS: Agent[] = [
-  { id: 'gestor', name: 'Gestor', sector: 'Coordenação', status: 'offline' },
-  { id: 'analista', name: 'Analista', sector: 'Preços e desempenho', status: 'offline' },
-  { id: 'anuncios', name: 'Anúncios', sector: 'Catálogo e conteúdo', status: 'offline' },
-  { id: 'criativo', name: 'Criativo', sector: 'Peças e identidade', status: 'offline' },
-  { id: 'ads', name: 'ADS', sector: 'Campanhas e métricas', status: 'offline' },
-  { id: 'sac', name: 'SAC', sector: 'Perguntas e reclamações', status: 'offline' },
-];
-
-export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
+// Lista dos agentes com o estado vindo do backend. Sem dados (`unavailable`), mostra "Estado indisponível".
+export function AgentStatusList({ agents, unavailable = false }: { agents: AgentCatalogItem[] | null; unavailable?: boolean }) {
   return (
     <section
       aria-labelledby="agent-status-title"
@@ -29,23 +15,31 @@ export function AgentStatusList({ agents = AGENTS }: { agents?: Agent[] }) {
           Setores e agentes
         </h2>
         <p className="mt-1 text-xs text-[var(--fa-muted)]">
-          Agentes ainda não estão ligados a execuções reais; nenhum estado é medido nesta versão.
+          Estados vindos de execuções registadas. Agente sem execução aparece como “Nunca executado”.
         </p>
       </div>
 
       <ul className="space-y-2">
-        {agents.map((agent) => (
+        {(agents ?? []).map((agent) => (
           <li
-            key={agent.id}
+            key={agent.key}
             className="flex items-center justify-between gap-3 rounded-[var(--fa-r-md)] px-3 py-2 hover:bg-[var(--fa-bg)]"
           >
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-[var(--fa-navy)]">{agent.name}</p>
               <p className="truncate text-xs text-[var(--fa-muted)]">{agent.sector}</p>
+              {agent.latestRun ? (
+                <Link href={`/escritorio/execucoes/${agent.latestRun.id}`} className="text-xs font-semibold text-[var(--fa-orange-700)]">
+                  ver última execução →
+                </Link>
+              ) : null}
             </div>
-            <StatusBadge status={agent.status} />
+            <StatusBadge status={agentStatus(agent, unavailable)} />
           </li>
         ))}
+        {agents === null ? (
+          <li className="px-3 py-2 text-sm text-[var(--fa-muted)]">Não foi possível carregar os agentes agora.</li>
+        ) : null}
       </ul>
     </section>
   );
