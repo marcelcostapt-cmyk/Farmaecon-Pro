@@ -176,3 +176,22 @@ Critérios: alinhamento com o nicho farmácia (fármacos, validade, lote, Anvisa
 - [x] Top 8 priorizada e justificada.
 - [x] Nenhum código, design, marca ou texto copiado.
 - [x] Próximo passo pronto para execução.
+
+## 8. Verificação de 2026-11-21 (pesquisa web)
+
+Fonte: resultados de pesquisa web (`WebSearch`) com domínio restrito a cada site. **Não abri as páginas completas**; as afirmações abaixo são as declaradas nos resultados e continuam a ser marketing não verificado.
+
+| Ponto | Situação anterior (secções 2 e 3) | Verificação de hoje |
+|---|---|---|
+| WeStack: limites de autonomia | Descrito como execução autónoma dentro de regras de margem | Declara um semáforo: verde age sozinho dentro das regras de margem; amarelo pede aprovação no painel; vermelho não age. Rastreabilidade do antes/depois. Alinha-se com os níveis 1 a 4 da diretiva. |
+| WeStack: credenciais | Não tratado | Declara aceleração Google for Startups e um mentor do NASA Space Apps. Sem fonte independente. **Não usar como argumento.** |
+| MercadoTurbo: DRE | Catálogo incompleto (SPA sem conteúdo) | A página de funcionalidades declara um "Resumo Financeiro e DRE" com tarifa, frete, custo, imposto e lucro líquido, e identificação de anúncios com prejuízo. Também declara margem de contribuição numa extensão de navegador. |
+| MercadoTurbo: multicontas | Não tratado | Declara baixa de estoque sincronizada entre contas que vendem o mesmo SKU, troca de conta sem novo login e operadores com 2FA. Relevante para a gestão multi-conta (secção 3, linha de multi-conta). |
+| JoddaIA: DRE | Listada como "Finanças", sem confirmação | **Não confirmado.** Nenhuma fonte confirma um módulo de DRE; o menu cita "Finanças" sem detalhe. Não tratar a DRE da Jodda como referência verificada. |
+
+Fontes:
+- https://www.westack.com.br/
+- https://joddaia.com.br/
+- https://joddaia.com.br/calcular-lucro-mercado-livre/
+- https://www.mercadoturbo.com.br/funcionalidades/
+- https://www.mercadoturbo.com.br/extensao/
