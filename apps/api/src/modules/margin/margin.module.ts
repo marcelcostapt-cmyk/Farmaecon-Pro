@@ -5,5 +5,6 @@ import { MarginService } from './margin.service';
 @Module({
   controllers: [MarginController],
   providers: [MarginService],
+  exports: [MarginService],
 })
 export class MarginModule {}
