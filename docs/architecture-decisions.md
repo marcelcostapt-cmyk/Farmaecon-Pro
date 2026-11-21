@@ -1,5 +1,17 @@
 # Decisões arquiteturais
 
+## ADR-018 — agentes operacionais: execução determinística, só leitura, estado vindo do backend
+
+**Contexto:** o escritório mostrava agentes com estados fixos ("Ativo", "Bloqueado") sem nenhuma execução por trás. A Diretiva Mestre exige agentes que trabalhem sobre dados reais, com estados reais e sem respostas inventadas.
+
+**Decisão:** o primeiro agente operacional (Central Farma) é uma função pura sobre serviços de leitura já existentes (margem por SKU, alertas, variação de taxa). Cada execução é gravada em `agent_runs` com estado, bloqueio, fontes e resultado. Não há modelo de linguagem. A UI só mostra estados presentes na base de dados. Agentes sem implementação são recusados pela API e aparecem como "Ainda não implementado".
+
+**Consequências:** a análise é reproduzível a partir dos mesmos dados. Limitação: depende de dados sincronizados e não reconcilia liquidações (a margem não é DRE). Ações comerciais continuam fora de escopo e exigem um gate próprio.
+
+**Alternativas rejeitadas:** usar um LLM para redigir recomendações (respostas não verificáveis e custo sem autorização); fila de jobs nesta fase (complexidade sem ganho para uma análise de leitura); manter estados visuais fixos (fabricação de estado).
+
+Detalhe: `docs/agentes-escritorio.md`.
+
 ## ADR-017 — sincronização de pedidos retomável e idempotente
 
 **Contexto:** o sincronizador anterior acumulava todas as páginas em memória e só gravava ao final. Com 50 pedidos por página e quatro páginas por job, contas com mais de 200 pedidos falhavam com `ORDER_SYNC_INCOMPLETE` e terminavam com zero pedidos importados.

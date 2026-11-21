@@ -1,5 +1,47 @@
 # Estado de implementação
 
+## Checkpoint 23 — primeiro agente operacional: Central Farma (2026-11-21)
+
+Branch: `feature/office-agents-mvp` (a partir de `integration/pr12-main-reconciliation` @ `d9ba6f2`). Draft PR contra a branch de integração. Não está em produção.
+
+### Auditoria antes de implementar
+- `/escritorio` mostrava estados fixos ("offline") e, na versão anterior, "Ativo"/"Bloqueado" sem execução. Substituídos por estados vindos da API.
+- Nomes de produto: a Diretiva usa Central Farma, Dose Certa, Mix Ativo, Vitrine Farma, Giro Ads e Balcão Digital. A referência e a UI anterior usavam Gestor, Analista, Anúncios, Criativo, ADS e SAC. Adotados os nomes da Diretiva; divergência registada em `docs/agentes-escritorio.md`.
+- `.claude/agents/` são subagentes de desenvolvimento, não agentes do produto.
+- Serviços reutilizados: `MarginService` (`preview`, `alerts`, `feeChanges`), `product_costs` APPROVED, `margin_rules`, contas ML. Nenhum serviço financeiro foi recriado.
+
+### Entregue
+- Tabela `agent_runs` (migração `20261128_agent_runs`, aditiva, RLS, grant) e enum de estado. Sem desvio de schema nesta tabela.
+- `central-farma-analysis.ts`: função pura; bloqueios `CONTA_DESCONECTADA`, `SEM_PEDIDOS`, `SEM_CUSTOS_APROVADOS`; achados com severidade; recomendações ligadas a achados; fontes com contagens; premissas (não é DRE).
+- `agents.service.ts`: valida conta do tenant (404 se não for), grava `RUNNING`, lê dados, grava estado final ou `FAILED` com mensagem genérica.
+- API: `GET /agents`, `POST /agents/:key/runs`, `GET /agents/runs`, `GET /agents/runs/:id`.
+- Web: `/escritorio` com estados reais; painel para executar; `/escritorio/execucoes/[id]` com resultado, achados, recomendações, fontes, premissas e histórico.
+- Arquitetura: `docs/agentes-escritorio.md`. Decisão: ADR-018.
+
+### Evidências
+- Commits: `c68268a` (API, migração, testes), `61458e9` (web).
+- Testes em HEAD: API 58 suítes, 435 passam (1 ignorado); web 9 passam; E2E PostgreSQL real 12 suítes, 59 passam.
+- Mutação: removido o filtro por tenant na validação da conta. O teste "conta de outro tenant" falhou. Código restaurado.
+- Migração: base migrada do zero; diff do `agent_runs` contra o schema vazio após alinhar nomes de restrições ao padrão Prisma. O diff restante (`margin_rules` e outras) já existia antes deste trabalho e não foi alterado.
+- Build: `nest build` e `next build` com código 0. Imagens `farmaecon-api:61458e9-agents` e `farmaecon-web:61458e9-agents`.
+- Ensaio (não produção): backup `/opt/farmaecon/backups/pre-agents-rehearsal-20261121-141151`. Migração `20261128` aplicada, health `OBSERVATION`, `/agents` sem token → 401.
+- Browser (ensaio, ADMIN de teste, dados sintéticos): `/escritorio` mostra Central Farma "Nunca executado" antes e "Concluído" depois; Dose Certa e demais "Ainda não implementado"; sem "Offline" fabricado. Execução sobre a conta "Loja pipeline": 2 SKUs analisados, 2 com margem calculável, 1 abaixo do limite (SKU ML-B, 28,0% contra 40,0%), receita R$ 200,00, fontes `orders` 2, `product_costs` 2, `margin_rules` 1.
+
+### Ainda não comprovado
+- O caminho `BLOCKED` não foi exercido no browser; está coberto por E2E e unitários.
+- Papel OPERATOR no fluxo de execução não foi testado no browser (a regra é: qualquer utilizador autenticado do tenant pode executar a análise de leitura).
+- Dados do ensaio são sintéticos. Não houve sincronização nem comparação com uma conta real do Mercado Livre.
+- Execução síncrona: sem fila; uma interrupção pode deixar `RUNNING` sem fecho.
+
+### Observações
+- O cartão "Margem por SKU" conta alertas de todas as contas do tenant; a execução é por conta. No ensaio: cartão 2, execução 1. Não é erro, mas pode confundir.
+- Na conta de seed `acc-westack` do ensaio o id não é UUID; a API recusa esse id com "accountId must be a UUID". Em produção os ids são gerados pelo Prisma como UUID.
+
+### Próximo gate
+1. Revisão humana do Draft PR.
+2. Só depois, avaliar Dose Certa (DRE) quando houver reconciliação de liquidações.
+3. Qualquer agente com ação real exige gate próprio (autorização comercial pré-definida e modo recomendação antes de ação).
+
 ## Checkpoint 22 — integração PR #13 e CI (2026-11-21)
 
 Branch: `integration/pr12-main-reconciliation` (PR #13, Draft, base `main`). Referencia o PR #12 (histórico).
