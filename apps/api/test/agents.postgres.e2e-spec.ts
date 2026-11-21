@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaService } from '../src/shared/prisma/prisma.service';
 import { inTenant } from '../src/shared/prisma/tenant-context';
 import { MarginService } from '../src/modules/margin/margin.service';
+import { STALE_RUN_MESSAGE, STALE_RUN_MS } from '../src/modules/agents/agents.service';
 import { AgentsService } from '../src/modules/agents/agents.service';
 import { money } from '../src/modules/costs/cost-money';
 
@@ -20,6 +21,7 @@ describe('Escritório de agentes — Central Farma em PostgreSQL real', () => {
   let app: INestApplication;
   let owner: PrismaClient;
   let agents: AgentsService;
+  let margin: MarginService;
   const prefix = `agents-${randomUUID()}`;
   const tenantA = `${prefix}-a`; // com dados
   const tenantB = `${prefix}-b`; // conta sem pedidos
@@ -73,6 +75,7 @@ describe('Escritório de agentes — Central Farma em PostgreSQL real', () => {
     app = module.createNestApplication();
     await app.init();
     agents = module.get(AgentsService);
+    margin = module.get(MarginService);
 
     for (const id of [tenantA, tenantB, tenantC]) await owner.tenant.create({ data: { id, name: id } });
     await owner.marketplaceAccount.create({
@@ -152,5 +155,54 @@ describe('Escritório de agentes — Central Farma em PostgreSQL real', () => {
     const catalog = await inTenant(tenantB, () => agents.listCatalog(tenantB));
     expect(catalog.find((a) => a.key === 'central-farma')?.latestRun?.status).toBe('BLOCKED');
     expect(catalog.filter((a) => !a.implemented).every((a) => a.latestRun === null)).toBe(true);
+  });
+
+  it('RUNNING antigo é fechado como FAILED ao consultar; RUNNING recente não é tocado', async () => {
+    const old = await owner.agentRun.create({
+      data: { tenantId: tenantA, marketplaceAccountId: accountA, agentKey: 'central-farma', status: 'RUNNING', startedAt: new Date(Date.now() - STALE_RUN_MS - 60_000) },
+    });
+    const fresh = await owner.agentRun.create({
+      data: { tenantId: tenantA, marketplaceAccountId: accountA, agentKey: 'central-farma', status: 'RUNNING', startedAt: new Date() },
+    });
+    const recovered = await inTenant(tenantA, () => agents.getRun(tenantA, old.id));
+    expect(recovered.status).toBe('FAILED');
+    expect(recovered.errorMessage).toBe(STALE_RUN_MESSAGE);
+    expect(recovered.finishedAt).not.toBeNull();
+    const stillRunning = await owner.agentRun.findUniqueOrThrow({ where: { id: fresh.id } });
+    expect(stillRunning.status).toBe('RUNNING');
+  });
+
+  it('tenant alheio não consegue fechar nem ver execução RUNNING antiga de outro tenant', async () => {
+    const old = await owner.agentRun.create({
+      data: { tenantId: tenantA, marketplaceAccountId: accountA, agentKey: 'central-farma', status: 'RUNNING', startedAt: new Date(Date.now() - STALE_RUN_MS - 60_000) },
+    });
+    await inTenant(tenantC, () => agents.recoverStaleRuns(tenantC));
+    const row = await owner.agentRun.findUniqueOrThrow({ where: { id: old.id } });
+    expect(row.status).toBe('RUNNING');
+    await expect(inTenant(tenantC, () => agents.getRun(tenantC, old.id))).rejects.toBeInstanceOf(NotFoundException);
+    await owner.agentRun.delete({ where: { id: old.id } });
+  });
+
+  it('falha real da análise persiste FAILED com mensagem genérica (sem detalhe interno)', async () => {
+    const spy = jest.spyOn(margin, 'preview').mockRejectedValueOnce(new Error('connection to db.internal refused'));
+    try {
+      const run = await inTenant(tenantA, () => agents.run(tenantA, 'user-a', 'central-farma', accountA));
+      expect(run.status).toBe('FAILED');
+      expect(run.errorMessage).not.toMatch(/db\.internal|refused/);
+      const persisted = await owner.agentRun.findUniqueOrThrow({ where: { id: run.id } });
+      expect(persisted.status).toBe('FAILED');
+      expect(persisted.errorMessage).toBe(run.errorMessage);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('isolamento de conta: margem e execuções pedidas com conta de outro tenant ficam vazias', async () => {
+    const preview = await inTenant(tenantC, () => margin.preview(tenantC, { accountId: accountA, groupBy: 'sku' }));
+    expect(preview.lines).toEqual([]);
+    const alerts = await inTenant(tenantC, () => margin.alerts(tenantC, { accountId: accountA, groupBy: 'sku' }));
+    expect(alerts).toEqual([]);
+    const runsOfA = await inTenant(tenantC, () => agents.listRuns(tenantC, { limit: 20, accountId: accountA }));
+    expect(runsOfA).toEqual([]);
   });
 });

@@ -1,11 +1,18 @@
-// Catálogo dos agentes operacionais do Farmaecon Pro (nomes de produto da Diretiva Mestre).
-// `implemented: false` = sem execução no produto; a API recusa executá-los e a UI mostra
-// "Ainda não implementado", nunca um estado ativo. Não confundir com `.claude/agents/`
-// (subagentes de desenvolvimento do Claude Code).
+// Catálogo dos agentes do Escritório Virtual.
+//
+// `publicName` é a interface pública definida no design C2 (docs/design/tokens.css, --fa-ag-*):
+// Gestor, Analista, Anúncios, Criativo, ADS e SAC. `internalName` é a identificação interna usada
+// pela Diretiva Mestre. Correspondência 1:1 (sem duplicações) documentada em docs/agentes-escritorio.md.
+//
+// `key` é o identificador técnico estável (rotas, banco). Não mudar: a Central Farma já executa.
+// `implemented: false` = sem execução no produto; a API recusa a execução e a UI mostra
+// "Ainda não implementado", nunca um estado ativo. Não confundir com `.claude/agents/`.
 
 export interface AgentDefinition {
   key: string;
-  name: string;
+  publicName: string;
+  internalName: string;
+  accent: 'gestor' | 'analista' | 'anuncios' | 'criativo' | 'ads' | 'sac';
   sector: string;
   description: string;
   implemented: boolean;
@@ -14,16 +21,58 @@ export interface AgentDefinition {
 export const AGENT_CATALOG: readonly AgentDefinition[] = [
   {
     key: 'central-farma',
-    name: 'Central Farma',
+    publicName: 'Gestor',
+    internalName: 'Central Farma',
+    accent: 'gestor',
     sector: 'Orquestração e gestão',
-    description: 'Análise financeira de leitura por conta: margem por SKU, alertas de limite e variação de taxas ML.',
+    description: 'Orquestra a análise financeira de leitura por conta: margem por SKU, alertas de limite e variação de taxas ML.',
     implemented: true,
   },
-  { key: 'dose-certa', name: 'Dose Certa', sector: 'Custos, CMV, DRE e rentabilidade', description: 'Custos, CMV, DRE e rentabilidade.', implemented: false },
-  { key: 'mix-ativo', name: 'Mix Ativo', sector: 'Produtos, estoque, giro e Full', description: 'Produtos, estoque, giro e Full.', implemented: false },
-  { key: 'vitrine-farma', name: 'Vitrine Farma', sector: 'Anúncios e catálogo', description: 'Anúncios e catálogo.', implemented: false },
-  { key: 'giro-ads', name: 'Giro Ads', sector: 'Publicidade e desempenho', description: 'Publicidade e desempenho.', implemented: false },
-  { key: 'balcao-digital', name: 'Balcão Digital', sector: 'Atendimento', description: 'Atendimento.', implemented: false },
+  {
+    key: 'dose-certa',
+    publicName: 'Analista',
+    internalName: 'Dose Certa',
+    accent: 'analista',
+    sector: 'Preço, custo e rentabilidade',
+    description: 'Custos, CMV e rentabilidade. Buy Box e ruptura ainda não implementados.',
+    implemented: false,
+  },
+  {
+    key: 'mix-ativo',
+    publicName: 'Anúncios',
+    internalName: 'Mix Ativo',
+    accent: 'anuncios',
+    sector: 'Catálogo e promoções',
+    description: 'Revisa anúncios e avalia promoções com base na margem validada.',
+    implemented: false,
+  },
+  {
+    key: 'vitrine-farma',
+    publicName: 'Criativo',
+    internalName: 'Vitrine Farma',
+    accent: 'criativo',
+    sector: 'Peças e identidade',
+    description: 'Briefings, imagens e infográficos para anúncios.',
+    implemented: false,
+  },
+  {
+    key: 'giro-ads',
+    publicName: 'ADS',
+    internalName: 'Giro Ads',
+    accent: 'ads',
+    sector: 'Campanhas e desempenho',
+    description: 'Campanhas de publicidade e proposta de verba. Depende da integração ADS na margem.',
+    implemented: false,
+  },
+  {
+    key: 'balcao-digital',
+    publicName: 'SAC',
+    internalName: 'Balcão Digital',
+    accent: 'sac',
+    sector: 'Perguntas e reclamações',
+    description: 'Classifica solicitações e prepara rascunhos de resposta para revisão humana.',
+    implemented: false,
+  },
 ];
 
 export function findAgent(key: string): AgentDefinition | undefined {

@@ -30,6 +30,10 @@ interface AccountRef {
 }
 
 const FAILURE_MESSAGE = 'A análise falhou. Tente novamente; se persistir, consulte os registos do servidor.';
+// Uma análise dura segundos. RUNNING mais antigo do que isto foi interrompido (processo reiniciado,
+// falha de rede a meio): fica FAILED, sem reexecução automática e sem apagar o histórico.
+export const STALE_RUN_MS = 10 * 60 * 1000;
+export const STALE_RUN_MESSAGE = 'Execução interrompida: sem conclusão registada dentro do limite de 10 minutos. Execute novamente se necessário.';
 
 /**
  * Orquestra execuções de agentes operacionais. Nesta versão só a Central Farma executa, e só
@@ -47,6 +51,7 @@ export class AgentsService {
 
   /** Catálogo com a última execução de cada agente (null = nunca executado). */
   async listCatalog(tenantId: string) {
+    await this.recoverStaleRuns(tenantId);
     return Promise.all(
       AGENT_CATALOG.map(async (agent) => {
         const latest = await this.prisma.agentRun.findFirst({
@@ -69,6 +74,7 @@ export class AgentsService {
       select: { id: true, name: true, displayName: true, status: true },
     });
     if (!account) throw new NotFoundException('Conta não encontrada.');
+    await this.recoverStaleRuns(tenantId, { agentKey: agent.key, marketplaceAccountId: account.id });
 
     const run = await this.prisma.agentRun.create({
       data: { tenantId, marketplaceAccountId: account.id, agentKey: agent.key, status: 'RUNNING', requestedBy },
@@ -97,7 +103,31 @@ export class AgentsService {
     }
   }
 
+  /**
+   * Fecha como FAILED as execuções RUNNING mais antigas do que STALE_RUN_MS, dentro do tenant
+   * (e opcionalmente do agente/conta). Idempotente; só altera estado, nunca apaga nem reexecuta.
+   */
+  async recoverStaleRuns(
+    tenantId: string,
+    scope: { agentKey?: string; marketplaceAccountId?: string } = {},
+    now: Date = new Date(),
+  ): Promise<number> {
+    const result = await this.prisma.agentRun.updateMany({
+      where: {
+        tenantId,
+        status: 'RUNNING',
+        startedAt: { lt: new Date(now.getTime() - STALE_RUN_MS) },
+        ...(scope.agentKey ? { agentKey: scope.agentKey } : {}),
+        ...(scope.marketplaceAccountId ? { marketplaceAccountId: scope.marketplaceAccountId } : {}),
+      },
+      data: { status: 'FAILED', errorMessage: STALE_RUN_MESSAGE, finishedAt: now },
+    });
+    if (result.count > 0) this.logger.warn(`Execuções interrompidas recuperadas: ${result.count}`);
+    return result.count;
+  }
+
   async listRuns(tenantId: string, filter: { agentKey?: string; accountId?: string; limit: number }) {
+    await this.recoverStaleRuns(tenantId);
     const runs = await this.prisma.agentRun.findMany({
       where: {
         tenantId,
@@ -111,6 +141,7 @@ export class AgentsService {
   }
 
   async getRun(tenantId: string, id: string) {
+    await this.recoverStaleRuns(tenantId);
     const run = await this.prisma.agentRun.findFirst({ where: { id, tenantId } });
     if (!run) throw new NotFoundException('Execução não encontrada.');
     return toRunView(run);

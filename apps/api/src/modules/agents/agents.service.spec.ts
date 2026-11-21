@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { AgentsService } from './agents.service';
+import { AgentsService, STALE_RUN_MESSAGE, STALE_RUN_MS } from './agents.service';
 
 const TENANT = 'tenant-a';
 const ACCOUNT = { id: 'acc-1', name: 'ML #1', displayName: 'Loja Central', status: 'ACTIVE' as const };
@@ -13,6 +13,7 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
       update: jest.fn(async ({ data }) => ({ id: 'run-1', agentKey: 'central-farma', marketplaceAccountId: ACCOUNT.id, startedAt: new Date('2026-11-21T10:00:00Z'), errorMessage: null, blockReason: null, result: null, status: 'RUNNING', ...data })),
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     order: { count: jest.fn().mockResolvedValue(3) },
     productCost: { count: jest.fn().mockResolvedValue(2) },
@@ -111,5 +112,38 @@ describe('AgentsService — execução da Central Farma', () => {
     expect(prisma.agentRun.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: TENANT, agentKey: 'central-farma' });
     await expect(service.getRun(TENANT, 'run-de-outro')).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.agentRun.findFirst).toHaveBeenCalledWith({ where: { id: 'run-de-outro', tenantId: TENANT } });
+  });
+
+  it('recuperação: RUNNING antigo vira FAILED, dentro do tenant e sem apagar nada', async () => {
+    const prisma = makePrisma();
+    prisma.agentRun.updateMany = jest.fn().mockResolvedValue({ count: 2 });
+    const service = new AgentsService(prisma as any, makeMargin() as any);
+    const now = new Date('2026-11-21T12:00:00Z');
+    const count = await service.recoverStaleRuns(TENANT, { agentKey: 'central-farma' }, now);
+    expect(count).toBe(2);
+    const call = prisma.agentRun.updateMany.mock.calls[0][0];
+    expect(call.where).toMatchObject({ tenantId: TENANT, status: 'RUNNING', agentKey: 'central-farma' });
+    expect(call.where.startedAt.lt.getTime()).toBe(now.getTime() - STALE_RUN_MS);
+    expect(call.data).toMatchObject({ status: 'FAILED', errorMessage: STALE_RUN_MESSAGE, finishedAt: now });
+    expect(prisma.agentRun).not.toHaveProperty('delete');
+  });
+
+  it('run() antes de criar uma execução recupera apenas RUNNING antigo da mesma conta', async () => {
+    const prisma = makePrisma();
+    prisma.agentRun.updateMany = jest.fn().mockResolvedValue({ count: 0 });
+    const service = new AgentsService(prisma as any, makeMargin() as any);
+    await service.run(TENANT, 'user-1', 'central-farma', ACCOUNT.id);
+    const call = prisma.agentRun.updateMany.mock.calls[0][0];
+    expect(call.where).toMatchObject({ tenantId: TENANT, marketplaceAccountId: ACCOUNT.id, agentKey: 'central-farma', status: 'RUNNING' });
+  });
+
+  it('execução recente (dentro do limite) não é tocada', async () => {
+    const prisma = makePrisma();
+    prisma.agentRun.updateMany = jest.fn().mockResolvedValue({ count: 0 });
+    const service = new AgentsService(prisma as any, makeMargin() as any);
+    const now = new Date('2026-11-21T12:00:00Z');
+    await service.recoverStaleRuns(TENANT, {}, now);
+    const cutoff = prisma.agentRun.updateMany.mock.calls[0][0].where.startedAt.lt;
+    expect(now.getTime() - cutoff.getTime()).toBe(STALE_RUN_MS);
   });
 });
