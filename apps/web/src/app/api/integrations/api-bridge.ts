@@ -45,3 +45,48 @@ export async function proxyToApi(
   }
   return NextResponse.json({ ok: true, data: (payload as { data?: unknown } | null)?.data ?? null });
 }
+
+/**
+ * Reencaminha um ficheiro (multipart) para a API, com a mesma verificação de origem e sessão de
+ * proxyToApi. O conteúdo não é registado nem enviado a nenhum outro serviço.
+ */
+export async function proxyFileToApi(request: Request, apiPath: string, maxBytes: number): Promise<NextResponse<ProxyResult>> {
+  const expectedOrigin = process.env.FRONTEND_URL ?? new URL(request.url).origin;
+  if (request.headers.get('origin') !== expectedOrigin) return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
+
+  const token = (await cookies()).get('access_token')?.value;
+  if (!token) return NextResponse.json({ ok: false, message: 'Sessão expirada' }, { status: 401 });
+
+  let incoming: FormData;
+  try {
+    incoming = await request.formData();
+  } catch {
+    return NextResponse.json({ ok: false, message: 'Envio inválido.' }, { status: 400 });
+  }
+  const file = incoming.get('file');
+  if (!(file instanceof File)) return NextResponse.json({ ok: false, message: 'Envie um ficheiro CSV.' }, { status: 400 });
+  if (file.size > maxBytes) return NextResponse.json({ ok: false, message: 'O ficheiro excede o limite de 2 MB.' }, { status: 413 });
+
+  const outgoing = new FormData();
+  outgoing.append('file', file, file.name);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${apiPath}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      body: outgoing,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch {
+    return NextResponse.json({ ok: false, message: 'Serviço indisponível. Tente novamente.' }, { status: 502 });
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const code = (payload as { code?: unknown } | null)?.code;
+    return NextResponse.json({ ok: false, ...(typeof code === 'string' ? { code } : {}), message: messageOf(payload, response.status) }, { status: response.status });
+  }
+  return NextResponse.json({ ok: true, data: (payload as { data?: unknown } | null)?.data ?? null });
+}
