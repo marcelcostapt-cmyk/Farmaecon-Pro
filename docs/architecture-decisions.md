@@ -9,9 +9,11 @@
 - Tudo ou nada: qualquer linha inválida rejeita o ficheiro, e a interface mostra todos os erros com o número da linha.
 - Campos entre aspas tratados por um separador próprio e testado; campos com quebra de linha recusados explicitamente.
 - A interface valida extensão, tamanho e vazio no navegador; o servidor valida o restante. O ficheiro nunca sai da API própria.
-- Reimportação do mesmo ficheiro não duplica. Ficheiro re-exportado com outro hash é avisado, não bloqueado, porque pode ser uma correção legítima.
+- Reimportação do mesmo ficheiro não duplica (idempotente, sem confirmação).
+- Ficheiro diferente com linhas que coincidem (dia, SKU, campanha, valor) com despesas já importadas de outro ficheiro: exige confirmação explícita do ADMIN, validada no servidor (409 sem ela). A confirmação e as contagens ficam registadas em `ads_import_batches`. Nenhuma linha é eliminada automaticamente, porque despesas legítimas podem ter valores iguais.
+- Correspondência 1 para 1 entre linhas (multiconjunto): uma linha existente só coincide uma vez.
 
-**Alternativas rejeitadas:** importação parcial (deixa dados inconsistentes); deduplicação por conteúdo das linhas (apaga despesas legítimas repetidas no mesmo dia); biblioteca de CSV (uma dependência para um formato simples).
+**Alternativas rejeitadas:** importação parcial (deixa dados inconsistentes); deduplicação automática por conteúdo (apaga despesas legítimas repetidas no mesmo dia); bloquear reexportações sem possibilidade de confirmação (impede correções legítimas); biblioteca de CSV (uma dependência para um formato simples).
 
 Detalhe: `docs/prontidao-operacional-agentes.md`.
 

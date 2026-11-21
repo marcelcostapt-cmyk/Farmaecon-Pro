@@ -34,7 +34,8 @@ Auditoria de 2026-11-21 sobre o HEAD `27a71e9` (branch `feature/ads-csv-import-u
 | Gestor, Analista e ADS: lógica | sim | unitários (496 na API) e E2E PostgreSQL (81) |
 | Importação ADS: formato, erros por linha, tudo ou nada | sim | unitários do parser (19) e E2E |
 | Reimportação sem duplicar | sim | E2E e browser no ensaio |
-| Ficheiro re-exportado: aviso de possível duplicação | sim (aviso) | E2E e browser; **não** impede a duplicação, só avisa |
+| Ficheiro re-exportado: sobreposição exige confirmação explícita do ADMIN | sim | unitários, E2E, browser e teste de servidor (409 sem confirmação) |
+| Auditoria de cada importação ADS (`ads_import_batches`) | sim | E2E e consulta direta na base do ensaio |
 | Isolamento por tenant e conta | sim | E2E e testes de controlador |
 | Permissões ADMIN/OPERATOR | sim | unitários e browser (403 e ausência do painel) |
 | Dados reais de produção | **não** | sem ambiente seguro autorizado para copiar dados |
@@ -53,7 +54,7 @@ Cadeia de dependências (cada PR é base do seguinte):
 
 **Migrações em produção** (ordem obrigatória; todas aditivas):
 - Já aplicadas em produção: 16 migrações (auditoria de 2026-11-21, `.claude/auditoria-farmaecon-2026-11-21.md`).
-- Em falta, pela ordem: `20261120_purchase_item_lot_dates`, `20261121_product_lots`, `20261122_product_lots_quantity`, `20261123_product_anvisa`, `20261124_ads_costs`, `20261125_purchase_item_anvisa`, `20261126_purchase_tax_fields`, `20261127_purchase_items_products_value`, `20261128_agent_runs`.
+- Em falta, pela ordem (10): `20261120_purchase_item_lot_dates`, `20261121_product_lots`, `20261122_product_lots_quantity`, `20261123_product_anvisa`, `20261124_ads_costs`, `20261125_purchase_item_anvisa`, `20261126_purchase_tax_fields`, `20261127_purchase_items_products_value`, `20261128_agent_runs`, `20261129_ads_import_batches`.
 - Confirmar antes de aplicar: `SELECT migration_name FROM _prisma_migrations` em produção (leitura).
 
 **Backups** (antes de qualquer alteração em produção, sem exceção):

@@ -177,5 +177,5 @@ Reutilizável: `products` (cadastro, `stock_quantity` manual), `MarginService` p
 
 ## Importação de publicidade (ADS) — PR #16
 
-Entrada: `/ads` (ADMIN importa; todos os papéis leem). Fluxo: escolher ficheiro → pré-visualizar (nada é gravado) → confirmar. Formato, limites e erros estão descritos na própria página. Campos entre aspas são suportados; campos com quebra de linha não são. Reimportar o mesmo ficheiro não duplica; um ficheiro re-exportado é avisado como possível duplicação.
+Entrada: `/ads` (ADMIN importa; todos os papéis leem). Fluxo: escolher ficheiro → pré-visualizar (nada é gravado) → confirmar. Formato, limites e erros estão descritos na própria página. Campos entre aspas são suportados; campos com quebra de linha não são. Reimportar o mesmo ficheiro não duplica. Um ficheiro diferente cujas linhas coincidem com despesas já importadas de outro ficheiro só é importado após confirmação explícita do ADMIN, validada no servidor e registada em auditoria. Nenhuma linha é eliminada automaticamente.
 

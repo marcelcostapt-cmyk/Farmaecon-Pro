@@ -1,5 +1,33 @@
 # Estado de implementação
 
+## Checkpoint 28 — sobreposição de despesas ADS com confirmação explícita (2026-11-21)
+
+Branch: `feature/ads-csv-import-ui` (PR #16). Commits: `04e575b` (API), `953046a` e `479fb5d`, `27a71e9` (web), `01ab4a6` (sobreposição, API), e o commit da web com a revisão de duplicação.
+
+### Regra aprovada
+- Mesmo ficheiro: idempotente, sem confirmação.
+- Ficheiro diferente com sobreposição (dia, SKU, campanha, valor iguais a linha de outro ficheiro da mesma conta): exige confirmação explícita do ADMIN. Sem ela, o servidor responde 409 `OVERLAP_CONFIRMATION_REQUIRED` e não grava.
+- Nada é eliminado automaticamente. Correspondência 1 para 1 (multiconjunto).
+- Auditoria: `ads_import_batches` (migração `20261129`, aditiva, RLS), gravada na mesma transação das linhas.
+
+### Evidências
+- API unitários: 63 suítes, **508 passam** (1 ignorado). Regra pura: 7. Serviço e controlador: incluídos.
+- Web: **25 passam**.
+- E2E PostgreSQL: 14 suítes, **85 passam**. Cobre: reexportação recusada sem confirmação (sem gravar), sobreposição parcial confirmada com auditoria, ficheiro legítimo sem sobreposição, idempotência após confirmação, isolamento da auditoria entre tenants.
+- Typecheck, builds, `security:scan`, `test:deployment`: código 0.
+- Diff de schema da tabela nova: sem desvio (após alinhar nomes de índices com o Prisma).
+- Ensaio (imagem `01ab4a6-ovl`, backup `/opt/farmaecon/backups/pre-overlap-rehearsal-*`), browser e servidor:
+  - Mesmo ficheiro: "0 nova(s), 2 ignorada(s)", sem caixa de confirmação.
+  - Re-exportação: "Possível duplicação: 2 linha(s), R$ 75,25", botão bloqueado até marcar a confirmação; após confirmar, 2 linhas novas. Auditoria: `overlap_count=2`, `overlap_confirmed=t`.
+  - Ficheiro legítimo: sem aviso, importado.
+  - POST direto sem confirmação: **409**. OPERATOR com `confirm_overlap=true`: **403**.
+
+### Relatório de consolidação
+`docs/relatorio-consolidacao-prs-2026-11-21.md`: ordem dos PRs, migrações, conflitos (nenhum), segurança multiempresa e consistência financeira.
+
+### Próximo gate
+Revisão humana dos PRs #13–#16, por ordem. Nenhum merge, deploy ou migração em produção.
+
 ## Checkpoint 27 — importação de CSV de publicidade (ADS) e prontidão operacional (2026-11-21)
 
 Branch: `feature/ads-csv-import-ui` (a partir de `f6c85e6`, PR #15). PR #16 em draft, base `feature/office-agent-giro-ads`.
