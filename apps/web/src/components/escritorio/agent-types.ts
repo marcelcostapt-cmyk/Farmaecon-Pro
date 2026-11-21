@@ -54,3 +54,48 @@ export interface AgentResult {
   sources: Array<{ name: string; description: string; count: number }>;
   caveats: string[];
 }
+
+export interface AdsRunResult {
+  agentKey: 'giro-ads';
+  status: 'COMPLETED' | 'BLOCKED';
+  blockReason: string | null;
+  account: { id: string; name: string };
+  metrics: { investimento: string | null; receitaAtribuida: null; roas: null; acos: null; motivoRoasAcos: string };
+  period: { inicio: string | null; fim: string | null };
+  origem: { linhasImportadas: number; ficheirosImportados: number; fonte: string };
+  findings: AgentResult['findings'];
+  recommendations: AgentResult['recommendations'];
+  analista: { status: string; runId: string | null; runAt: string | null };
+  caveats: string[];
+}
+
+export interface MesaReuniao {
+  temResultados: boolean;
+  agentes: Array<{
+    agentKey: string;
+    publicName: string;
+    internalName: string;
+    estado: 'NUNCA_EXECUTADO' | 'EM_EXECUCAO' | 'CONCLUIDO' | 'BLOQUEADO' | 'FALHOU';
+    execucaoId: string | null;
+    dataExecucao: string | null;
+    motivo: string | null;
+    achadosPrincipais: string[];
+  }>;
+  problemas: Array<{ agente: string; titulo: string }>;
+  prioridades: Array<{ ordem: number; agente: string; titulo: string; severidade: 'risco' | 'pendencia' }>;
+  recomendacoes: Array<{ agente: string; texto: string }>;
+  pendencias: Array<{ agente: string; titulo: string }>;
+}
+
+export interface GestorRunResult {
+  agentKey: 'central-farma';
+  status: 'COMPLETED' | 'BLOCKED';
+  blockReason: string | null;
+  account: { id: string; name: string };
+  summary: AgentResult['summary'] | null;
+  findings: AgentResult['findings'];
+  recommendations: AgentResult['recommendations'];
+  consolidation: { responsavelCalculo: string | null; papelGestor: string; mesa: MesaReuniao };
+  sources: Array<{ name: string; description: string; count: number }>;
+  caveats: string[];
+}
