@@ -27,6 +27,7 @@ const models = new Set([
   'productLot',
   'adsCost',
   'agentRun',
+  'adsImportBatch',
 ]);
 interface LoginRecord {
   id: string;
@@ -137,8 +138,8 @@ export class PrismaService
       SELECT count(*)::int AS count FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relname IN ('tenants','users','marketplace_accounts','orders',
         'products','financial_transactions','auth_sessions','oauth_states','marketplace_sync_states','order_items',
-        'purchase_invoices','purchase_invoice_items','cost_allocation_rules','product_costs','margin_rules','product_lots','ads_costs','agent_runs') AND c.relrowsecurity`;
-    if (policies[0]?.count !== 18)
+        'purchase_invoices','purchase_invoice_items','cost_allocation_rules','product_costs','margin_rules','product_lots','ads_costs','agent_runs','ads_import_batches') AND c.relrowsecurity`;
+    if (policies[0]?.count !== 19)
       throw new Error('Required tenant RLS policies are missing');
     this.logger.log('✅ Prisma connected to database');
   }

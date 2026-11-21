@@ -1,5 +1,83 @@
 # Estado de implementação
 
+## Checkpoint 28 — sobreposição de despesas ADS com confirmação explícita (2026-11-21)
+
+Branch: `feature/ads-csv-import-ui` (PR #16). Commits desta etapa: `f6776e0` (API: sobreposição e confirmação) e `01ab4a6` (web: revisão e confirmação). Anteriores: `04e575b`, `953046a`, `479fb5d`, `27a71e9`.
+
+### Regra aprovada
+- Mesmo ficheiro: idempotente, sem confirmação.
+- Ficheiro diferente com sobreposição (dia, SKU, campanha, valor iguais a linha de outro ficheiro da mesma conta): exige confirmação explícita do ADMIN. Sem ela, o servidor responde 409 `OVERLAP_CONFIRMATION_REQUIRED` e não grava.
+- Nada é eliminado automaticamente. Correspondência 1 para 1 (multiconjunto).
+- Auditoria: `ads_import_batches` (migração `20261129`, aditiva, RLS), gravada na mesma transação das linhas.
+
+### Evidências
+- API unitários: 63 suítes, **508 passam** (1 ignorado). Regra pura: 7. Serviço e controlador: incluídos.
+- Web: **25 passam**.
+- E2E PostgreSQL: 14 suítes, **85 passam**. Cobre: reexportação recusada sem confirmação (sem gravar), sobreposição parcial confirmada com auditoria, ficheiro legítimo sem sobreposição, idempotência após confirmação, isolamento da auditoria entre tenants.
+- Typecheck, builds, `security:scan`, `test:deployment`: código 0.
+- Diff de schema da tabela nova: sem desvio (após alinhar nomes de índices com o Prisma).
+- Ensaio (imagem `01ab4a6-ovl`, backup `/opt/farmaecon/backups/pre-overlap-rehearsal-*`), browser e servidor:
+  - Mesmo ficheiro: "0 nova(s), 2 ignorada(s)", sem caixa de confirmação.
+  - Re-exportação: "Possível duplicação: 2 linha(s), R$ 75,25", botão bloqueado até marcar a confirmação; após confirmar, 2 linhas novas. Auditoria: `overlap_count=2`, `overlap_confirmed=t`.
+  - Ficheiro legítimo: sem aviso, importado.
+  - POST direto sem confirmação: **409**. OPERATOR com `confirm_overlap=true`: **403**.
+
+### Relatório de consolidação
+`docs/relatorio-consolidacao-prs-2026-11-21.md`: ordem dos PRs, migrações, conflitos (nenhum), segurança multiempresa e consistência financeira.
+
+### Próximo gate
+Revisão humana dos PRs #13–#16, por ordem. Nenhum merge, deploy ou migração em produção.
+
+## Checkpoint 27 — importação de CSV de publicidade (ADS) e prontidão operacional (2026-11-21)
+
+Branch: `feature/ads-csv-import-ui` (a partir de `f6c85e6`, PR #15). PR #16 em draft, base `feature/office-agent-giro-ads`.
+
+### Auditoria
+- `AdsController`, `AdsService`, `parseAdsCsv`, `POST /ads/import`, `GET /ads/summary`.
+- Parser sem campos entre aspas: cada linha era dividida pelo delimitador. Corrigido com separador próprio (sem biblioteca); campos com quebra de linha continuam **não suportados** e são declarados.
+- Limites confirmados no código: 2 MB (controlador) e 20 000 linhas (parser). A interface aplica os mesmos valores.
+- Reimportação do mesmo ficheiro: idempotente pela chave (hash do ficheiro, linha). Um ficheiro re-exportado com outro hash **não** é detetado como duplicado: a interface avisa, mas não bloqueia.
+
+### Entregue
+- `POST /ads/import/preview` (ADMIN): valida tudo, devolve todos os erros por linha e o resumo. Não grava.
+- `GET /ads/overview` (qualquer papel): indicadores da conta.
+- `POST /ads/import` (ADMIN): exige extensão `.csv`; ids de conta inválidos são recusados.
+- Página `/ads` (Publicidade): seletor de conta, indicadores, distribuição por SKU e campanha, importação em duas fases (ADMIN), execução do Giro Ads e histórico.
+- Rotas same-origin `/api/ads/import/preview` e `/api/ads/import` com ponte multipart; o ficheiro não é registado nem enviado a outros serviços.
+- Entrada "Publicidade (ADS)" na navegação.
+
+### Defeitos encontrados e corrigidos
+- Após uma importação, o campo de ficheiro mantinha a seleção anterior; reimportar o mesmo ficheiro deixava o botão desativado. Corrigido remontando o campo.
+- A execução do Giro Ads mostrava "245.50 BRL" em vez de "R$ 245,50". Corrigido.
+- Um script de validação selecionava o agente errado. Repetido; registado.
+
+### Evidências (HEAD `27a71e9`)
+- API unitários: 62 suítes, **496 passam** (1 ignorado). Inclui parser (19), controlador (permissões, ids inválidos, extensão) e serviço (pré-visualização sem gravação, duplicados, sobreposição, idempotência).
+- Web: **25 passam**.
+- E2E PostgreSQL real: 14 suítes, **81 passam** (novo: `ads-import.postgres.e2e-spec.ts`).
+- Typecheck, `nest build`, `next build`, `security:scan`, `test:deployment`: código 0.
+- Ensaio (imagens `953046a-csv1`, `479fb5d-csv2`, `27a71e9-csv3`; backups em `/opt/farmaecon/backups/pre-csv-rehearsal-*`), browser:
+  - Extensão errada e ficheiro acima de 2 MB rejeitados no navegador.
+  - Ficheiro inválido: "Ficheiro rejeitado", erros por linha, sem botão de confirmação.
+  - Importação de 3 linhas com campanha entre aspas ("Black; Friday") e CRLF: investimento de R$ 170,00 para R$ 245,50.
+  - Reimportação: "0 nova(s), 3 ignorada(s)" com aviso "Nenhuma linha será duplicada".
+  - Ficheiro re-exportado: aviso de possível duplicação.
+  - Nova importação de 2 linhas: R$ 245,50 para R$ 320,75; indicadores atualizados.
+  - Giro Ads executado depois: concluído, com período e investimento importados; ROAS e ACOS indisponíveis.
+  - OPERATOR: vê os indicadores e executa o ADS; sem painel de importação; POST forjado a `/api/ads/import` → **403**.
+
+### Não comprovado
+- Importação com dados reais de uma conta de produção (sem ambiente autorizado).
+- Campos com quebra de linha: não suportados (declarado).
+- Detecção de duplicação entre ficheiros diferentes com o mesmo conteúdo: só aviso.
+
+### Prontidão e plano
+- `docs/prontidao-operacional-agentes.md`: estado de Gestor, Analista e ADS; dependências de dados reais, de migrações e de decisões; ordem dos PRs #13–#16; backups, testes e rollback.
+- Próximo incremento recomendado para o Anúncios: qualidade do catálogo local (`products`), com custo publicado do Analista, sem escopos novos.
+
+### Próximo gate
+Revisão humana dos PRs #13–#16, por ordem. Nenhum merge, deploy ou migração em produção.
+
 ## Checkpoint 26 — Giro Ads (ADS) e Gestor como mesa de reunião (2026-11-21)
 
 Branch: `feature/office-agent-giro-ads` (a partir de `aeb3ec3`; PR #15 em draft, base `feature/office-agents-mvp`, PR #14).

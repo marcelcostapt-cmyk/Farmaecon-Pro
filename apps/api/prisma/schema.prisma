@@ -58,6 +58,7 @@ model Tenant {
   orders                Order[]
   marginRules           MarginRule[]
   agentRuns             AgentRun[]
+  adsImportBatches      AdsImportBatch[]
   productLots          ProductLot[]
   adsCosts             AdsCost[]
 
@@ -104,6 +105,7 @@ model MarketplaceAccount {
   lastSyncError     String?                @map("last_sync_error")
   syncStates        MarketplaceSyncState[]
   agentRuns         AgentRun[]
+  adsImportBatches  AdsImportBatch[]
 
   /// Razão social da empresa COMPRADORA (destinatário da NF-e), para o vínculo fiscal. Origem/revisão registadas em auditoria.
   businessName           String? @map("business_name") @db.VarChar(255)
@@ -510,3 +512,27 @@ model AgentRun {
   @@index([marketplaceAccountId])
   @@map("agent_runs")
 }
+
+// Auditoria de cada importação de CSV de ADS: ficheiro, contagens, sobreposição e confirmação explícita.
+model AdsImportBatch {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  marketplaceAccountId String   @map("marketplace_account_id")
+  sourceHash           String   @map("source_hash")
+  fileName             String?  @map("file_name")
+  rowsReceived         Int      @map("rows_received")
+  rowsImported         Int      @map("rows_imported")
+  rowsSkipped          Int      @map("rows_skipped")
+  overlapCount         Int      @map("overlap_count")
+  overlapConfirmed     Boolean  @map("overlap_confirmed")
+  requestedBy          String?  @map("requested_by")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, marketplaceAccountId, createdAt])
+  @@index([tenantId, marketplaceAccountId, sourceHash])
+  @@map("ads_import_batches")
+}
+

@@ -12,6 +12,7 @@ import type {
   MesaReuniao,
 } from '@/components/escritorio/agent-types';
 import { displayMetric, displayPeriod } from '@/lib/agent-result-view';
+import { formatBrl } from '@/lib/ads-upload';
 import { fetchApi } from '@/lib/api';
 import { isNextControlError } from '@/lib/next-errors';
 
@@ -212,7 +213,7 @@ function AdsSection({ result }: { result: AdsRunResult }) {
       <section aria-labelledby="ads-metrics" className="rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-5">
         <h2 id="ads-metrics" className="text-[13px] font-extrabold text-[var(--fa-navy)]">Publicidade (ADS)</h2>
         <dl className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-          <Metric label="Investimento importado" value={displayMetric(result.metrics.investimento, ' BRL')} />
+          <Metric label="Investimento importado" value={formatBrl(result.metrics.investimento)} />
           <Metric label="Receita atribuída" value={displayMetric(result.metrics.receitaAtribuida)} />
           <Metric label="ROAS" value={displayMetric(result.metrics.roas)} />
           <Metric label="ACOS" value={displayMetric(result.metrics.acos, '%')} />
