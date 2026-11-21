@@ -47,6 +47,7 @@ export interface DbPurchaseInvoiceItem {
   anvisaRegister: string | null;
   anvisaExemptionReason: string | null;
   pmc: Prisma.Decimal | null;
+  productsValue: Prisma.Decimal | null;
   ipiAmount: Prisma.Decimal | null;
   icmsStAmount: Prisma.Decimal | null;
   isBonus: boolean;
@@ -81,6 +82,7 @@ export function dbToUnifiedInvoice(inv: DbPurchaseInvoice, items: DbPurchaseInvo
     anvisaRegister: i.anvisaRegister,
     anvisaExemptionReason: i.anvisaExemptionReason,
     pmc: i.pmc,
+    productsValue: i.productsValue,
     ipi: i.ipiAmount,
     icmsSt: i.icmsStAmount,
     isBonus: i.isBonus,

@@ -370,6 +370,7 @@ model PurchaseInvoiceItem {
   pmc                 Decimal?  @db.Decimal(15, 4)
   ipiAmount           Decimal?  @map("ipi_amount") @db.Decimal(19, 4)
   icmsStAmount        Decimal?  @map("icms_st_amount") @db.Decimal(19, 4)
+  productsValue       Decimal?  @map("products_value") @db.Decimal(19, 4)
   fabricationDate     DateTime? @map("fabrication_date") @db.Date
   expiryDate          DateTime? @map("expiry_date") @db.Date
   isBonus             Boolean   @default(false) @map("is_bonus")

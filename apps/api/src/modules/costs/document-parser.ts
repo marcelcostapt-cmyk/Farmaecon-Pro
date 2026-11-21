@@ -24,6 +24,7 @@ export interface UnifiedInvoiceLine {
   otherExpense: Prisma.Decimal | null;
   cfop: string | null;
   lotNumber: string | null;
+  productsValue: Prisma.Decimal | null; // NF-e vProd (bruto)
   ipi: Prisma.Decimal | null; // NF-e vIPI da linha
   icmsSt: Prisma.Decimal | null; // NF-e vICMSST da linha
   anvisaRegister: string | null; // NF-e med/cProdANVISA (11 ou 13 dígitos, ou ISENTO)
@@ -97,7 +98,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
         quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, unitCostPaid: l.unitCostPaid,
         totalLine: l.totalLine ?? l.productsValue, discount: l.discount, otherExpense: l.otherExpense, cfop: l.cfop,
         lotNumber: l.lots.length === 1 ? l.lots[0].lot : l.lots.length ? l.lots.map((x) => x.lot).join('+') : null,
-        ipi: l.ipi, icmsSt: l.icmsSt,
+        productsValue: l.productsValue, ipi: l.ipi, icmsSt: l.icmsSt,
         anvisaRegister: l.anvisaRegister, anvisaExemptionReason: l.anvisaExemptionReason, pmc: l.pmc,
         fabricationDate: l.lots.length === 1 ? l.lots[0].fabricationDate : null,
         expiryDate: l.lots.length === 1 ? l.lots[0].expiryDate : null,
@@ -125,7 +126,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
         ncm: null, unit: null,
         quantity: l.quantity, unitCostExtracted: l.unitCostExtracted, unitCostPaid: l.unitCostExtracted,
         totalLine: l.totalLine, discount: null, otherExpense: null, cfop: null, lotNumber: l.lot,
-        fabricationDate: null, expiryDate: null, ipi: null, icmsSt: null, anvisaRegister: null, anvisaExemptionReason: null, pmc: null,
+        fabricationDate: null, expiryDate: null, productsValue: null, ipi: null, icmsSt: null, anvisaRegister: null, anvisaExemptionReason: null, pmc: null,
         isBonus: false, approvedAcquisitionCost: null, warnings: l.warnings,
       })),
     };
@@ -147,7 +148,7 @@ export async function parseDocument(filename: string, buffer: Buffer): Promise<U
       ncm: null, unit: null,
       quantity: null, unitCostExtracted: r.unitCost, unitCostPaid: null, totalLine: null,
       discount: null, otherExpense: null, cfop: null, lotNumber: null,
-      fabricationDate: null, expiryDate: null, ipi: null, icmsSt: null, anvisaRegister: null, anvisaExemptionReason: null, pmc: null,
+      fabricationDate: null, expiryDate: null, productsValue: null, ipi: null, icmsSt: null, anvisaRegister: null, anvisaExemptionReason: null, pmc: null,
       isBonus: false, approvedAcquisitionCost: null, warnings: r.warnings,
     })),
   };
