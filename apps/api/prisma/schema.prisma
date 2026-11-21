@@ -364,6 +364,9 @@ model PurchaseInvoiceItem {
   unit                String?
   cfop                String?
   lotNumber           String?   @map("lot_number")
+  anvisaRegister      String?   @map("anvisa_register")
+  anvisaExemptionReason String?  @map("anvisa_exemption_reason")
+  pmc                 Decimal?  @db.Decimal(15, 4)
   fabricationDate     DateTime? @map("fabrication_date") @db.Date
   expiryDate          DateTime? @map("expiry_date") @db.Date
   isBonus             Boolean   @default(false) @map("is_bonus")

@@ -129,4 +129,23 @@ describe('DRE ingest — PostgreSQL real', () => {
     const vistosPorA = await inTenant(tenantA, () => db.purchaseInvoice.findMany({ where: {} }));
     expect(vistosPorA).toHaveLength(1);
   });
+
+  it('persiste o grupo med (registo ANVISA e PMC) na linha, sem criar custo', async () => {
+    const base = readFileSync(join(__dirname, 'fixtures', 'nfe-belajoyce.xml'), 'utf8');
+    const from = '<rastro><nLote>L1</nLote><qLote>250</qLote></rastro></prod>';
+    expect(base.includes(from)).toBe(true);
+    const xml = base.replace(from, '<rastro><nLote>L1</nLote><qLote>250</qLote></rastro><med><cProdANVISA>0123456789012</cProdANVISA><vPMC>25.90</vPMC></med></prod>');
+    const doc = await parseDocument('nfe-med-ingest.xml', Buffer.from(xml));
+    const result = await inTenant(tenantA, () => ingest.ingest(tenantA, doc, null));
+    expect(result.created).toBe(true);
+
+    const item = await inTenant(tenantA, () =>
+      db.purchaseInvoiceItem.findFirstOrThrow({ where: { tenantId: tenantA, lineNumber: '1', anvisaRegister: '0123456789012' } }),
+    );
+    expect(item.pmc?.toString()).toBe('25.9');
+    expect(item.anvisaExemptionReason).toBeNull();
+
+    const custos = await inTenant(tenantA, () => db.productCost.count({ where: { tenantId: tenantA } }));
+    expect(custos).toBe(0);
+  });
 });

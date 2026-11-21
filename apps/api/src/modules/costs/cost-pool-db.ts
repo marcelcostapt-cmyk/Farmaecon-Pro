@@ -44,6 +44,9 @@ export interface DbPurchaseInvoiceItem {
   lotNumber: string | null;
   fabricationDate: Date | null;
   expiryDate: Date | null;
+  anvisaRegister: string | null;
+  anvisaExemptionReason: string | null;
+  pmc: Prisma.Decimal | null;
   isBonus: boolean;
 }
 
@@ -73,6 +76,9 @@ export function dbToUnifiedInvoice(inv: DbPurchaseInvoice, items: DbPurchaseInvo
     lotNumber: i.lotNumber,
     fabricationDate: toIsoDay(i.fabricationDate),
     expiryDate: toIsoDay(i.expiryDate),
+    anvisaRegister: i.anvisaRegister,
+    anvisaExemptionReason: i.anvisaExemptionReason,
+    pmc: i.pmc,
     isBonus: i.isBonus,
     approvedAcquisitionCost: null,
     warnings: [],
