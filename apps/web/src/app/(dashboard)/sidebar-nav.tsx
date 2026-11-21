@@ -31,6 +31,9 @@ export function SidebarNav() {
           <Link
             key={item.href}
             href={item.href}
+            // Sem prefetch: cada prefetch renova a sessão via proxy; em paralelo, o refresh de uso único
+            // revoga a sessão (replay). Mantém o comportamento da barra antiga (âncoras simples).
+            prefetch={false}
             aria-current={active ? 'page' : undefined}
             className={[
               'flex items-center gap-2 px-3 py-2 rounded-[var(--fa-r-sm)] text-sm font-semibold transition-colors',
