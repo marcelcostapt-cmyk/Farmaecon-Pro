@@ -67,3 +67,25 @@ A implementação será dividida em fases (Milestones) para garantir entregas in
 - **Previsão de Demanda (Sazonalidade):** Machine learning para sugerir quantidade de compras do fornecedor baseando-se no histórico de vendas e tendências (Joom Pulse).
 - **Análise de Sentimento:** IA classificando reviews de clientes e sugerindo melhorias de produtos.
 - **Integração Adicional:** Shopee, Amazon, Magalu e TikTok Shop.
+
+---
+
+## Prioridades verificadas (2026-11-21)
+
+Esta secção substitui a ordem das épicas acima para decisões de execução. O detalhe e as evidências estão em `.claude/auditoria-farmaecon-2026-11-21.md` e em `implementation-status.md`.
+
+**Fora de escopo atual:** itens que mencionam Amazon, FBA, Shopee ou outros marketplaces (ex.: US 2.2, US 4.2, US 4.3). O foco é o Mercado Livre.
+
+| Prioridade | Tarefa | Estado | Bloqueio |
+|---|---|---|---|
+| P0 | Repetição de 429 do Mercado Livre | Implementada em `d8448e5` (branch) | Deploy em produção, com autorização |
+| P0 | Deploy das migrations `20261120`–`20261127` e do código `8cbab63` em produção | Não iniciado | Autorização explícita e backup prévio |
+| P0 | Reexecutar E2E em PostgreSQL real no HEAD | Não iniciado | Nenhum |
+| P1 | Vínculo documento fiscal ↔ conta ML: UI de edição e regra de ingestão ponta a ponta | Parcial | Confirmar campos e endpoint `PATCH /integrations/:id` |
+| P1 | Publicação de custos reais | Bloqueada | Decisões IPI, vigência (#5) e código fornecedor↔SKU (#6) |
+| P2 | Integração ADS na margem | Não iniciada | Decisão do Márcio |
+| P2 | Ficha de produto na web (registo Anvisa) | Não iniciada | Decisão #6 |
+| P3 | Escritório de agentes (WeStack) | Não implementado: não há agentes de produto no código da API nem da web. `.claude/agents/` tem só subagentes de desenvolvimento. A página `/escritorio` mostra setores sem dados (estados inventados removidos em 2026-11-21) | Definir modelo de agentes e política de autonomia (nível de observação) |
+| P3 | Multi-conta ML | Não iniciada | Decisão do Márcio |
+
+**Próxima ação:** decidir se a branch `feature/ml-rate-limit-retry` entra em `main` (sem deploy) e reexecutar o E2E no HEAD.
