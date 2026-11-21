@@ -1,5 +1,44 @@
 # Estado de implementação
 
+## Checkpoint 25 — responsabilidades finais dos seis agentes C2 (2026-11-21)
+
+Branch: `feature/office-agents-mvp` (PR #14, Draft). Não está em produção.
+
+### CI
+- `cdb2ece`: **success** nos dois runs (`44916449341` com pass em 8m33s e `44916452919` com pass em 9m05s). Verificado com `gh pr checks 14`.
+
+### Decisões aplicadas
+- Gestor (`central-farma`) coordena e consolida; não recalcula. O resultado é o do Analista, com `consolidation`.
+- Analista (`dose-certa`) executa a análise determinística de margem. Mix Ativo é especialização (estoque, giro, Full, ruptura), ainda não implementada.
+- Anúncios = `vitrine-farma` (catálogo, qualidade, preços; Buy Box só após confirmação oficial).
+- Criativo = `criativo` (novo, sem serviço próprio).
+- ADS = `giro-ads`; SAC = `balcao-digital`.
+- Buy Box e SAC: apenas documentação. Nenhum endpoint novo, nenhum escopo OAuth novo.
+
+### Código
+- Análise movida para `agents/analista/margem-analysis.ts`.
+- Catálogo: seis agentes públicos; Mix Ativo removido como agente separado.
+- Painel de execução escolhe entre Gestor e Analista.
+- Commits: `87` (API) e `9c68c99` (web) na sequência; ver histórico do branch.
+
+### Evidências (HEAD `9c68c99`)
+- API: 58 suítes, **440 passam** (1 ignorado). Módulo agents: 25.
+- Web: **13 passam**.
+- E2E PostgreSQL real: 12 suítes, **64 passam** (inclui Analista e consolidação do Gestor com mesmos summary/findings).
+- Typecheck, `nest build`, `next build`: código 0.
+- Ensaio (`9c68c99-agents5`, dados sintéticos, backup `/opt/farmaecon/backups/pre-agents5-rehearsal-*`):
+  - Seis nomes públicos visíveis; "Mix Ativo" não aparece como agente; Vitrine Farma aparece como Anúncios.
+  - Painel oferece Gestor (interno: Central Farma) e Analista (interno: Dose Certa).
+  - Execução do Analista: "Concluído" com achados.
+
+### Não comprovado
+- Buy Box e SAC: sem implementação, por decisão.
+- Estoque e Full do Mercado Livre: sem dados sincronizados.
+- Dados reais de conta Mercado Livre: o ensaio é sintético.
+
+### Próximo gate
+Revisão humana do Draft PR #14. Nenhum merge, deploy ou migração em produção.
+
 ## Checkpoint 24 — nomes C2, recuperação de execuções e validação de estados (2026-11-21)
 
 Branch: `feature/office-agents-mvp` (PR #14, Draft, base `integration/pr12-main-reconciliation`).

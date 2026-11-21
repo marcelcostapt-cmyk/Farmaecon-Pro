@@ -12,24 +12,29 @@ Não está em produção. Modo do produto: `OBSERVATION` (leitura).
 
 Só os segundos fazem parte do produto. Nenhum deles executa uma ação no Mercado Livre.
 
-## Nomes e correspondência
+## Nomes, identificadores e serviços
 
-A interface pública segue o design C2 (`docs/design/tokens.css`, acentos `--fa-ag-*`): **Gestor, Analista, Anúncios, Criativo, ADS e SAC**. Os nomes da Diretiva Mestre são identificações internas. Correspondência 1:1, sem duplicações; a mesma tabela está em `apps/api/src/modules/agents/agent-catalog.ts`.
+Seis agentes visíveis no Escritório C2 (nomes públicos aprovados). As especializações não são agentes autónomos e não têm registo próprio.
 
-| Nome público (C2) | Chave técnica | Nome interno (Diretiva) | Responsabilidade | Estado |
-|---|---|---|---|---|
-| Gestor | `central-farma` | Central Farma | orquestração e análise financeira de leitura por conta | **implementado** |
-| Analista | `dose-certa` | Dose Certa | preço, custo, CMV e rentabilidade | não implementado |
-| Anúncios | `mix-ativo` | Mix Ativo | revisão de anúncios e promoções com base na margem validada | não implementado |
-| Criativo | `vitrine-farma` | Vitrine Farma | briefings, imagens e infográficos para anúncios | não implementado |
-| ADS | `giro-ads` | Giro Ads | campanhas e verba (depende de ADS na margem) | não implementado |
-| SAC | `balcao-digital` | Balcão Digital | classificação de solicitações e rascunhos com revisão humana | não implementado |
+| Nome público (C2) | Identificador técnico | Identificação interna | Serviços reutilizados | Responsabilidade | Estado |
+|---|---|---|---|---|---|
+| **Gestor** | `central-farma` | Central Farma | `Analista` (resultado consolidado) | orquestração, consolidação de resultados, prioridades e reuniões dos agentes. **Não recalcula** números financeiros. | implementado |
+| **Analista** | `dose-certa` | Dose Certa (custo, margem, CMV, análise financeira) + especialização Mix Ativo (produtos, estoque, giro, Full, ruptura) | `MarginService`, `product_costs`, `margin_rules`, `orders`/`order_items`; futuramente `DrePreviewService`, `LotService`, `ProductService` | análises determinísticas com evidências | implementado (margem); Mix Ativo não implementado |
+| **Anúncios** | `vitrine-farma` | Vitrine Farma | `products` (cadastro); margem do Analista para preços | catálogo, qualidade dos anúncios, preços e Buy Box quando suportada | não implementado; Buy Box só em documentação |
+| **Criativo** | `criativo` | — (sem nome interno) | nenhum | conteúdos e imagens, com serviços próprios validados no futuro | não implementado |
+| **ADS** | `giro-ads` | Giro Ads | `AdsService` (importação CSV e resumo por SKU/período) | campanhas, ROAS, ACOS, promoções e margem após publicidade quando houver dados | não implementado; leitura possível |
+| **SAC** | `balcao-digital` | Balcão Digital | nenhum | perguntas, mensagens, reclamações e atendimento | não implementado; só documentação |
 
-Pontos a confirmar antes de construir:
-- **Full e estoque.** A referência C2 atribui ruptura e Full ao Analista; a Diretiva atribui estoque, giro e Full ao Mix Ativo (Anúncios). Hoje nenhum dos dois existe.
-- A chave técnica `central-farma` não muda: é a rota e o registo já em produção de ensaio.
+Regras:
+- Chaves técnicas já implementadas preservadas (`central-farma`, `dose-certa`, `giro-ads`, `balcao-digital`). `vitrine-farma` passa a Anúncios (antes estava como Criativo). `criativo` é novo.
+- O Gestor consolida: o resultado do Analista é a fonte. O Gestor só acrescenta `consolidation` (`responsavelCalculo: dose-certa`). Testes garantem que `summary` e `findings` são iguais nos dois.
+- Full e estoque pertencem ao Analista na interface; a implementação interna pode usar a especialização Mix Ativo, sem serviços duplicados.
 
-A referência anterior (`.claude/referencias-farmaecon-pro.md`) usava Gestor, Analista, Anúncios, Criativo, ADS e SAC com a mesma lista de funções; a correspondência acima segue essa referência.
+Antes de implementar Buy Box e SAC:
+- Confirmar endpoints oficiais, permissões e políticas do Mercado Livre Brasil.
+- Não solicitar escopos OAuth novos e não implementar endpoints incertos.
+- Até lá, ficam apenas em documentação, em modo de observação. O levantamento de 2026-11-21 encontrou candidatos (perguntas em `/questions/search`, competição de preço em `/items/{id}/price_to_win`), mas as páginas consultadas são de sites regionais e de datas diferentes, por isso não estão confirmados para o MLB.
+- A allowlist de observação atual permite apenas `GET /orders/search` e `GET /users/{id}`.
 
 ## Camadas
 
@@ -109,3 +114,21 @@ Regra de ouro: SKU sem taxa ML ou sem custo APPROVED fica fora da conta, com o m
 - Essas execuções passam a `FAILED` com mensagem explícita (`STALE_RUN_MESSAGE`). Acontece ao listar o catálogo, listar execuções, consultar uma execução e antes de criar nova execução da mesma conta.
 - Não há reexecução automática. Não há exclusão: o histórico fica. Só afeta o tenant da chamada.
 
+
+## Prontidão por agente (levantamento de 2026-11-21)
+
+Verificado no código. Só "pronto para construir" avança sem decisão adicional.
+
+| Agente (público) | Serviços a reutilizar | Dados que faltam | Situação |
+|---|---|---|---|
+| Gestor | `Analista` (consolidação) | — | implementado |
+| Analista | `MarginService` (implementado); Mix Ativo: estoque/Full/ruptura via `products` (stock_quantity manual) | estoque e Full do Mercado Livre não sincronizados; ruptura exige dados de anúncio | margem implementada; estoque/Full pendente |
+| Anúncios (Vitrine Farma) | `products`; margem do Analista para preços | anúncios do Mercado Livre não sincronizados; Buy Box sem API confirmada | não iniciado; Buy Box só documentação |
+| Criativo | nenhum | conteúdos e serviços próprios | não iniciado |
+| ADS (Giro Ads) | `AdsService` (importação CSV e resumo) | margem após publicidade (decisão pendente); fonte CSV manual | leitura possível |
+| SAC (Balcão Digital) | nenhum | perguntas e mensagens não sincronizadas; allowlist de observação não as cobre | só documentação até confirmar APIs e políticas |
+
+Regras para avançar:
+1. Cada agente novo começa em modo de recomendação, com o contrato do Gestor e do Analista: execução registada, estados reais, fontes e premissas.
+2. Allowlist de observação: estender só para leitura, com aprovação explícita e teste de que escritas continuam bloqueadas.
+3. Não recalcular: qualquer análise financeira nova vai para o Analista; o Gestor só consolida.
