@@ -48,8 +48,8 @@ export const AGENT_CATALOG: readonly AgentDefinition[] = [
     internalName: 'Vitrine Farma',
     accent: 'anuncios',
     sector: 'Catálogo, qualidade e preços',
-    description: 'Catálogo, qualidade dos anúncios e preços. Análise de Buy Box apenas após confirmação das APIs oficiais.',
-    implemented: false,
+    description: 'Qualidade do catálogo local dos SKUs vendidos pela conta: cadastro, títulos, Anvisa, estoque e preço contra custo aprovado. Buy Box só após confirmação das APIs oficiais.',
+    implemented: true,
   },
   {
     key: 'criativo',

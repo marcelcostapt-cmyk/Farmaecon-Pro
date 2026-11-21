@@ -1,6 +1,18 @@
 # Decisões arquiteturais
 
-## ADR-020 — importação de CSV de publicidade em duas fases, tudo ou nada, sem bibliotecas
+## ADR-021 — Anúncios sobre o catálogo local, sem escopos novos e sem custo legado
+
+**Contexto:** o agente Anúncios deveria cuidar do catálogo e dos preços. Os anúncios publicados e o Buy Box exigem APIs do Mercado Livre não confirmadas, e possivelmente escopos novos. Existe um cadastro local (`products`) com um campo `cost_price` legado, sem regra de publicação.
+
+**Decisão:**
+- Análise determinística do catálogo local, restrita aos SKUs que a conta vendeu. Os produtos são do tenant; a conta limita o escopo pelas vendas.
+- Custo só de `product_costs` APPROVED da conta. O campo legado não é usado, e um teste garante isso.
+- Nenhuma chamada ao Mercado Livre, nenhum escopo novo, Buy Box declarado como não avaliado.
+
+**Alternativas rejeitadas:** usar `cost_price` (sem regra de publicação, diverge do custo aprovado); sincronizar anúncios sem API confirmada (risco de dados inventados e de escopo não aprovado).
+
+**Consequências:** o agente não vê anúncios publicados nem preços efetivos no Mercado Livre. Os achados dizem respeito ao cadastro do utilizador, e a interface declara isso.
+ — importação de CSV de publicidade em duas fases, tudo ou nada, sem bibliotecas
 
 **Contexto:** o investimento em publicidade chega por relatório CSV exportado pelo utilizador. Um ficheiro com erros não pode deixar dados parciais; o utilizador precisa de ver o resumo antes de gravar; e o parser não tinha campos entre aspas.
 

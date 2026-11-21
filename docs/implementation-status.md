@@ -1,5 +1,42 @@
 # Estado de implementação
 
+## Checkpoint 29 — Anúncios (Vitrine Farma) sobre o catálogo local (2026-11-21)
+
+Branch: `feature/office-agent-anuncios` (a partir de `3b80fbf`, PR #16). PR #17 em draft, base `feature/ads-csv-import-ui`.
+
+### Decisões
+- Anúncios = `vitrine-farma` (interno Vitrine Farma). Análise do **catálogo local** dos SKUs que a conta **vendeu**. Nenhum escopo OAuth novo; nenhuma chamada ao Mercado Livre; Buy Box não avaliado.
+- Custo só de `product_costs` APPROVED da conta. O campo legado `products.cost_price` não é usado (verificado em E2E).
+- ADR-021.
+
+### Entregue
+- `agents/anuncios/catalogo-analysis.ts` (pura) com regras explícitas e limites no código (`CATALOGO_RULES`).
+- Execução via `POST /agents/vitrine-farma/runs`; Gestor consolida o Anúncios (estado, origem e data).
+- Página de execução com secção própria (resumo, achados, recomendações, origem e premissas).
+
+### Evidências
+- API unitários: 64 suítes, **524 passam** (1 ignorado). Regras do Anúncios: 16.
+- Web: **25 passam**.
+- E2E PostgreSQL: 15 suítes, **93 passam**. Cobre: separação entre contas da mesma empresa, SKU nunca vendido fora da análise, custo legado ignorado, isolamento entre empresas, tenant alheio recusado (404), persistência, consolidação pelo Gestor. O E2E do Giro Ads foi atualizado para a mesa com três agentes.
+- Typecheck, builds da API e da web, `security:scan`, `test:deployment`: código 0.
+- Ensaio (imagem `792a0a5-anu`; backup `/opt/farmaecon/backups/pre-anuncios-rehearsal-*`), browser:
+  - Cartão e painel com "Anúncios (interno: Vitrine Farma)".
+  - Conta "Loja pipeline": concluído; 2 SKUs vendidos, **0 com cadastro** e **0 com custo aprovado**; achados de pendência (sem cadastro, sem custo publicado) e recomendações de cadastro. Os dados são os sintéticos do ensaio; o resultado é o real desses dados.
+  - Conta sem vendas: bloqueada, com texto legível e sem números.
+  - Gestor: mesa com o Anúncios.
+  - OPERATOR: executa a análise.
+- Nota de método: o primeiro comando de build ficou sem contexto e falhou; não foi aplicado ao ensaio (a web anterior continuou ativa). Corrigido e repetido.
+
+### Ambiente
+- Disco do host chegou a 0 MB livres durante a sessão (cache de build do Docker e worktrees). Libertados ~11 GB com `docker builder prune` (cache não usada) e limpeza de ficheiros temporários da própria sessão. Nenhuma imagem com tag, backup ou contentor em execução foi removido. O disco ficou em 95%: é preciso acompanhar.
+
+### Não comprovado
+- Anúncios publicados e Buy Box no Mercado Livre (fora de escopo, sem API confirmada).
+- Produtos reais: o ensaio não tem cadastro para os SKUs vendidos.
+
+### Próximo gate
+Revisão humana dos PRs #13–#17, por ordem. Nenhum merge, deploy ou migração em produção.
+
 ## Checkpoint 28 — sobreposição de despesas ADS com confirmação explícita (2026-11-21)
 
 Branch: `feature/ads-csv-import-ui` (PR #16). Commits desta etapa: `f6776e0` (API: sobreposição e confirmação) e `01ab4a6` (web: revisão e confirmação). Anteriores: `04e575b`, `953046a`, `479fb5d`, `27a71e9`.

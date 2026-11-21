@@ -166,9 +166,10 @@ describe('Giro Ads (ADS) e Gestor — PostgreSQL real', () => {
     expect(mesa.temResultados).toBe(true);
     expect(mesa.agentes.map((a) => [a.publicName, a.estado])).toEqual([
       ['Analista', 'CONCLUIDO'],
+      ['Anúncios', 'NUNCA_EXECUTADO'],
       ['ADS', 'CONCLUIDO'],
     ]);
-    expect(mesa.agentes.every((a) => a.dataExecucao !== null)).toBe(true);
+    expect(mesa.agentes.filter((a) => a.estado === 'CONCLUIDO').every((a) => a.dataExecucao !== null)).toBe(true);
     expect(mesa.prioridades.length).toBeGreaterThan(0);
   });
 
@@ -179,6 +180,7 @@ describe('Giro Ads (ADS) e Gestor — PostgreSQL real', () => {
     const mesa = (gestor.result as { consolidation: { mesa: { agentes: Array<{ publicName: string; estado: string }>; pendencias: Array<{ titulo: string }> } } }).consolidation.mesa;
     expect(mesa.agentes.map((a) => [a.publicName, a.estado])).toEqual([
       ['Analista', 'NUNCA_EXECUTADO'],
+      ['Anúncios', 'NUNCA_EXECUTADO'],
       ['ADS', 'BLOQUEADO'],
     ]);
     expect(mesa.pendencias.some((p) => /Nunca executado/.test(p.titulo))).toBe(true);
