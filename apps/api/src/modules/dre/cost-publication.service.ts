@@ -8,6 +8,7 @@ import {
   type BonusDecision,
   type AllocationLineResult,
 } from '../costs/bonus-allocation';
+import { groupAverageCosts, paidValueOf, type GroupCostInput } from '../costs/group-average-cost';
 import { resolveValidFrom } from './cost-validity';
 
 type Actor = { sub?: string } | null;
@@ -17,6 +18,7 @@ const RULE_MAP: Record<BonusDecision['rule'], AllocationRuleType> = {
   PROPORTIONAL: AllocationRuleType.PROPORTIONAL_SPREAD,
   IGNORE: AllocationRuleType.ZERO_BONUS,
   SPECIFIC_SKU: AllocationRuleType.MANUAL,
+  GROUP_AVERAGE_NOMINAL: AllocationRuleType.PROPORTIONAL_SPREAD,
 };
 
 @Injectable()
@@ -45,15 +47,45 @@ export class CostPublicationService {
       where: { tenantId, purchaseInvoiceId: invoiceId },
       select: {
         id: true, lineNumber: true, ean: true, marketplaceSku: true, supplierProductCode: true,
-        quantity: true, totalLine: true, isBonus: true, bonusQuantity: true,
+        quantity: true, totalLine: true, productsValue: true, otherExpense: true, ipiAmount: true, icmsStAmount: true,
+        isBonus: true, bonusQuantity: true,
       },
     });
-    const lines: BonusAllocationLine[] = items.map((i) => ({
-      lineNumber: i.lineNumber, ean: i.ean, marketplaceSku: i.marketplaceSku, supplierCode: i.supplierProductCode,
-      quantity: i.quantity ?? money('0'), totalLine: i.totalLine ?? money('0'),
-      isBonus: i.isBonus, bonusQuantity: i.bonusQuantity ?? money('0'),
-    }));
-    const results = applyBonusAllocation(lines, invoice.documentTotal ?? money('0'), decision);
+
+    let results: AllocationLineResult[];
+    let storedBonusAmount: Prisma.Decimal = decision.bonusAmount;
+    if (decision.rule === 'GROUP_AVERAGE_NOMINAL') {
+      // Decisão #2 aprovada: custo médio por grupo de EAN (ver group-average-cost.ts).
+      if (decision.ipiRecoverable === null || decision.ipiRecoverable === undefined) {
+        throw new BadRequestException('Informe se o IPI é recuperável para aplicar esta regra.');
+      }
+      const inputs: GroupCostInput[] = items.map((i) => ({
+        lineNumber: i.lineNumber, ean: i.ean, supplierCode: i.supplierProductCode,
+        quantity: i.quantity, totalLine: i.totalLine, productsValue: i.productsValue,
+        otherExpense: i.otherExpense, icmsSt: i.icmsStAmount, ipi: i.ipiAmount, isBonus: i.isBonus,
+      }));
+      const grouped = groupAverageCosts(inputs, { ipiRecoverable: decision.ipiRecoverable });
+      const bonusQtyByLine = new Map(items.map((i) => [i.lineNumber, i.bonusQuantity ?? money('0')]));
+      results = grouped.map((g) => {
+        const manualValue = decision.manual?.[g.lineNumber];
+        return {
+          lineNumber: g.lineNumber,
+          allocatedBonus: g.allocatedBonus,
+          bonusQuantity: bonusQtyByLine.get(g.lineNumber) ?? money('0'),
+          unitCostApproved: manualValue != null ? manualValue : g.unitCost,
+        };
+      });
+      storedBonusAmount = inputs
+        .filter((l) => l.isBonus)
+        .reduce((sum, l) => sum.plus(paidValueOf(l)), money('0'));
+    } else {
+      const lines: BonusAllocationLine[] = items.map((i) => ({
+        lineNumber: i.lineNumber, ean: i.ean, marketplaceSku: i.marketplaceSku, supplierCode: i.supplierProductCode,
+        quantity: i.quantity ?? money('0'), totalLine: i.totalLine ?? money('0'),
+        isBonus: i.isBonus, bonusQuantity: i.bonusQuantity ?? money('0'),
+      }));
+      results = applyBonusAllocation(lines, invoice.documentTotal ?? money('0'), decision);
+    }
     const byLine = new Map(results.map((r) => [r.lineNumber, r]));
 
     await this.prisma.$transaction(async (tx) => {
@@ -66,14 +98,19 @@ export class CostPublicationService {
       }
       await tx.purchaseInvoice.updateMany({
         where: { id: invoiceId, tenantId },
-        data: { hasBonus: decision.hasBonus, bonusAmount: decision.hasBonus ? decision.bonusAmount : null },
+        data: {
+          hasBonus: decision.hasBonus,
+          bonusAmount: decision.hasBonus ? storedBonusAmount : null,
+          ...(decision.rule === 'GROUP_AVERAGE_NOMINAL' ? { ipiRecoverable: decision.ipiRecoverable ?? null } : {}),
+        },
       });
       await tx.costAllocationRule.deleteMany({ where: { tenantId, purchaseInvoiceId: invoiceId, approvedAt: null } });
       await tx.costAllocationRule.create({
         data: {
           tenantId, purchaseInvoiceId: invoiceId, ruleType: RULE_MAP[decision.rule],
           parameters: {
-            rule: decision.rule, bonusAmount: decision.bonusAmount.toString(), specificSkuEan: decision.specificSkuEan ?? null,
+            rule: decision.rule, bonusAmount: storedBonusAmount.toString(), specificSkuEan: decision.specificSkuEan ?? null,
+            ipiRecoverable: decision.ipiRecoverable ?? null,
           } as unknown as Prisma.InputJsonValue,
           approvedBy: null, approvedAt: null,
         },

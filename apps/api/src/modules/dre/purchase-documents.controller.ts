@@ -27,7 +27,7 @@ import { CostPublicationService } from './cost-publication.service';
 // O principal injetado por @CurrentUser é o AuthPrincipal: o id do utilizador é `sub`.
 type RequestUser = AuthPrincipal;
 
-const BONUS_RULES: BonusRule[] = ['PROPORTIONAL', 'SPECIFIC_SKU', 'IGNORE'];
+const BONUS_RULES: BonusRule[] = ['PROPORTIONAL', 'SPECIFIC_SKU', 'IGNORE', 'GROUP_AVERAGE_NOMINAL'];
 
 class AssociateAccountDto {
   @IsUUID() accountId: string;
@@ -41,6 +41,7 @@ class BonusDecisionDto {
   @IsOptional() @IsString() bonusAmount?: string;
   @IsIn(BONUS_RULES) rule: BonusRule;
   @IsOptional() @IsString() specificSkuEan?: string;
+  @IsOptional() @IsBoolean() ipiRecoverable?: boolean;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => BonusItemDto) items?: BonusItemDto[];
 }
 class PublishDto {
@@ -200,6 +201,7 @@ export class PurchaseDocumentsController {
       bonusAmount: money(dto.bonusAmount ?? '0'),
       rule: dto.rule,
       specificSkuEan: dto.specificSkuEan ?? null,
+      ipiRecoverable: dto.ipiRecoverable ?? null,
       manual,
     };
     return ok(await this.publication.applyBonus(user.tenantId, id, decision, { sub: user.sub }));

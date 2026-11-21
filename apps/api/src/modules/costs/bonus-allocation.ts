@@ -2,7 +2,8 @@ import { Prisma } from '@prisma/client';
 import { money } from './cost-money';
 
 // Regra de bonificação escolhida pelo utilizador no momento da aprovação (Decisão #2).
-export type BonusRule = 'PROPORTIONAL' | 'SPECIFIC_SKU' | 'IGNORE';
+// GROUP_AVERAGE_NOMINAL = decisão #2 aprovada (rateio por grupo de EAN; ver group-average-cost.ts).
+export type BonusRule = 'PROPORTIONAL' | 'SPECIFIC_SKU' | 'IGNORE' | 'GROUP_AVERAGE_NOMINAL';
 
 // Linha mínima que a alocação lê (reconstruível a partir de purchase_invoice_items).
 export interface BonusAllocationLine {
@@ -21,6 +22,8 @@ export interface BonusDecision {
   bonusAmount: Prisma.Decimal;
   rule: BonusRule;
   specificSkuEan?: string | null;
+  // Só para GROUP_AVERAGE_NOMINAL: se o IPI é recuperável (não entra na base quando true).
+  ipiRecoverable?: boolean | null;
   // Sobreposição manual do custo unitário por linha (null = usar o calculado).
   manual?: Record<string, Prisma.Decimal | null>;
 }
@@ -51,6 +54,9 @@ export function applyBonusAllocation(
   decision: BonusDecision,
 ): AllocationLineResult[] {
   const { hasBonus, bonusAmount, rule, specificSkuEan, manual } = decision;
+  if (rule === 'GROUP_AVERAGE_NOMINAL') {
+    throw new Error('A regra GROUP_AVERAGE_NOMINAL é calculada por groupAverageCosts, não por applyBonusAllocation.');
+  }
 
   if (hasBonus && bonusAmount.lt(0)) {
     throw new Error('O valor da bonificação não pode ser negativo.');
