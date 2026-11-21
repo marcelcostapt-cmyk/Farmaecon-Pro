@@ -294,3 +294,13 @@ Contexto único: `GLOSSARY.md` e `docs/adr/` na raiz. Ver `docs/agents/domain.md
   - IBS e CBS (reforma tributária) não entram na base: não foram mencionados. Os valores estão em zero no fixture.
   - `ipiRecoverable` vem por documento, escolhido no endpoint. Não há configuração por empresa; cabe ao Márcio definir se fica por empresa.
 - NÃO FEITO: ensaio com esta versão (não pedido neste turno). Próximo passo: rebuild da API, migrations 20261126 e 20261127 (com backup), validação pelo endpoint.
+
+## Estado consolidado · auditoria 2026-11-21 (branch feature/ml-rate-limit-retry, HEAD d8448e5; base 8cbab63)
+Relatório completo: `.claude/auditoria-farmaecon-2026-11-21.md`. Só leitura; sem alterações de código, schema, migrations, deploy ou commits.
+- **Produção**: API e web `94612a9` (healthy; API 0 restarts, web 1 restart), OBSERVATION, 13 181 orders. Migrations aplicadas: 16 de 24. **Em falta**: `20261120_purchase_item_lot_dates` a `20261127_purchase_items_products_value`. A secção de deploy acima com `e33588e-scheduler` está desatualizada.
+- **Ensaio**: API `8cbab63-rehearsal-20261121-094605` (decisão #2 validada: custo 12,211833 nas linhas 2 e 4), web `bb99b54-officecard`. 24/24 migrations.
+- **Testes** (auditoria): `jest` 55 suites, 410 passam, 1 skip (após d8448e5); cobertura de linhas 78,87% (medida antes de d8448e5). E2E PostgreSQL não reverificado.
+- **Fila ML** (`marketplace-sync`, produção): 27 falhas, todas `ML API error` (26×429, 1×403), ocorrendo quase diariamente desde 15/11 (última 21/11 06:15 UTC). `token-refresh` com 0 falhas. Mitigação implementada em d8448e5 (branch, sem deploy): repete 429 até 3 vezes com Retry-After ou backoff 2/4/8 s, teto 10 s. Falhas concentradas numa conta (`b018bd8f`).
+- **Decisões pendentes do Márcio**: IPI recuperável (empresa ou documento); IBS/CBS na base; vigência (#5, default temporário em `cost-validity.ts`); código fornecedor ↔ SKU (#6); confirmar `GROUP_AVERAGE_NOMINAL`; regra final de consumo de lote (FEFO/FIFO, multi-lote); ADS na margem; multi-conta ML; autorização do deploy de produção das migrations 20261120–27 e do código 8cbab63.
+- **Não existe**: módulo `marketplace-accounts` (contas em `integrations`); endpoint `GET /dre/purchase-documents` (listagem); ficha de produto na web.
+- **Gates** (ordem): G1 decisões → G2 mitigação 429 (feita em d8448e5) → G3 deploy de produção com backup e autorização → G4 E2E no HEAD → G5 vínculo documento↔conta → G6 publicação de custos → G7 ficha de produto → G8 multi-conta.
