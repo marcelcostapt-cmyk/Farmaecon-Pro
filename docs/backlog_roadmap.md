@@ -85,7 +85,7 @@ Esta secção substitui a ordem das épicas acima para decisões de execução. 
 | P1 | Publicação de custos reais | Bloqueada | Decisões IPI, vigência (#5) e código fornecedor↔SKU (#6) |
 | P2 | Integração ADS na margem | Não iniciada | Decisão do Márcio |
 | P2 | Ficha de produto na web (registo Anvisa) | Não iniciada | Decisão #6 |
-| P3 | Escritório de agentes (WeStack) | Não implementado: não há agentes de produto no código da API nem da web. `.claude/agents/` tem só subagentes de desenvolvimento. A página `/escritorio` mostra setores sem dados (estados inventados removidos em 2026-11-21) | Definir modelo de agentes e política de autonomia (nível de observação) |
+| P3 | Escritório de agentes (WeStack) | Gestor e Analista executáveis (branch `feature/office-agents-mvp`, validados no ensaio). Anúncios, Criativo, ADS e SAC: não implementados. SAC e Buy Box só em documentação até confirmar APIs e políticas do Mercado Livre Brasil | Revisão do Draft PR #14; estoque/Full precisa de sincronização de dados |
 | P3 | Multi-conta ML | Não iniciada | Decisão do Márcio |
 
 **Próxima ação:** a branch `feature/ml-rate-limit-retry` está 168 commits à frente de `main`, sem commits exclusivos em `main` (base comum = `main` `4b658d8`). Um merge seria um fast-forward; simulação com `git merge-tree` sem conflitos (2026-11-21). Não foi feito: é uma integração de 168 commits em `main` e exige decisão do dono. Recomendado: abrir PR e rever antes de merge. E2E PostgreSQL no HEAD: 11 suites, 54 testes a passar (2026-11-21).

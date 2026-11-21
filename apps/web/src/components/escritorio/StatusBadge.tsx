@@ -1,4 +1,6 @@
-export type AgentStatus = 'active' | 'attention' | 'idle' | 'blocked' | 'trabalhando' | 'ocioso' | 'offline';
+export type AgentStatus =
+  | 'active' | 'attention' | 'idle' | 'blocked' | 'trabalhando' | 'ocioso' | 'offline'
+  | 'nunca-executado' | 'em-execucao' | 'concluido' | 'bloqueado-dependencia' | 'falhou' | 'nao-implementado' | 'indisponivel';
 
 // Pares de estado do sistema C2 (docs/design/tokens.css): fundo + texto + ponto, SEMPRE com rótulo.
 const STATUS_CONFIG: Record<AgentStatus, { label: string; fg: string; bg: string }> = {
@@ -9,6 +11,13 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; fg: string; bg: string
   ocioso: { label: 'Ocioso', fg: 'var(--fa-info)', bg: 'var(--fa-info-bg)' },
   blocked: { label: 'Bloqueado', fg: 'var(--fa-neg)', bg: 'var(--fa-neg-bg)' },
   offline: { label: 'Offline', fg: 'var(--fa-st-off-fg)', bg: 'var(--fa-st-off-bg)' },
+  'nunca-executado': { label: 'Nunca executado', fg: 'var(--fa-st-off-fg)', bg: 'var(--fa-st-off-bg)' },
+  'em-execucao': { label: 'Em execução', fg: 'var(--fa-info)', bg: 'var(--fa-info-bg)' },
+  concluido: { label: 'Concluído', fg: 'var(--fa-pos)', bg: 'var(--fa-ok-bg)' },
+  'bloqueado-dependencia': { label: 'Bloqueado por dependência', fg: 'var(--fa-warn)', bg: 'var(--fa-warn-bg)' },
+  falhou: { label: 'Falhou', fg: 'var(--fa-neg)', bg: 'var(--fa-neg-bg)' },
+  'nao-implementado': { label: 'Ainda não implementado', fg: 'var(--fa-st-off-fg)', bg: 'var(--fa-st-off-bg)' },
+  indisponivel: { label: 'Estado indisponível', fg: 'var(--fa-st-off-fg)', bg: 'var(--fa-st-off-bg)' },
 };
 
 export function StatusBadge({ status, className = '' }: { status: AgentStatus; className?: string }) {

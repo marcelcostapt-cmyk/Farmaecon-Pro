@@ -168,7 +168,7 @@ describe('Prisma tenant context (mock driver, not PostgreSQL)', () => {
     await expect(prisma.onModuleInit()).rejects.toThrow('non-owner, non-BYPASSRLS');
   });
 
-  it('requires RLS enabled on all seventeen tables, including DRE cost, margin_rules and product_lots', async () => {
+  it('requires RLS enabled on all eighteen tables, including DRE cost, margin_rules, product_lots and agent_runs', async () => {
     driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 16 }]);
     await expect(prisma.onModuleInit()).rejects.toThrow('Required tenant RLS policies are missing');
     const inList = driver.raw.mock.calls[1][0].join('');
@@ -181,7 +181,8 @@ describe('Prisma tenant context (mock driver, not PostgreSQL)', () => {
     expect(inList).toContain("'margin_rules'");
     expect(inList).toContain("'product_lots'");
     expect(inList).toContain("'ads_costs'");
-    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 17 }]);
+    expect(inList).toContain("'agent_runs'");
+    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 18 }]);
     await expect(prisma.onModuleInit()).resolves.toBeUndefined();
   });
 });

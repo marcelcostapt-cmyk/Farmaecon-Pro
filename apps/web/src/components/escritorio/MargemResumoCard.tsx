@@ -11,13 +11,14 @@ function averageMargin(lines: MarginLine[]): string | null {
   return (available.reduce((s, l) => s + Number(l.marginPercent), 0) / available.length).toFixed(1);
 }
 
-export async function MargemResumoCard() {
+export async function MargemResumoCard({ accountId, scopeLabel }: { accountId: string | null; scopeLabel: string }) {
   let belowLimit: number | null = null;
   let avg: string | null = null;
+  const scope = accountId ? `&account_id=${encodeURIComponent(accountId)}` : '';
   try {
     const [{ data: preview }, { data: alerts }] = await Promise.all([
-      fetchApi<MarginPreview>('/margin/preview?group_by=sku'),
-      fetchApi<MarginAlert[]>('/margin/alerts'),
+      fetchApi<MarginPreview>(`/margin/preview?group_by=sku${scope}`),
+      fetchApi<MarginAlert[]>(`/margin/alerts${accountId ? `?account_id=${encodeURIComponent(accountId)}` : ''}`),
     ]);
     belowLimit = alerts.length;
     avg = averageMargin(preview.lines);
@@ -34,6 +35,7 @@ export async function MargemResumoCard() {
     >
       <div className="flex items-center justify-between">
         <p className="text-[13px] font-extrabold text-[var(--fa-navy)]">📈 Margem por SKU</p>
+        <p className="mt-1 text-xs text-[var(--fa-muted)]">{scopeLabel}</p>
         <span className="text-xs font-semibold text-[var(--fa-orange-700)]">ver detalhe →</span>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-4">

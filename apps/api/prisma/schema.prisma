@@ -57,6 +57,7 @@ model Tenant {
   products              Product[]
   orders                Order[]
   marginRules           MarginRule[]
+  agentRuns             AgentRun[]
   productLots          ProductLot[]
   adsCosts             AdsCost[]
 
@@ -102,6 +103,7 @@ model MarketplaceAccount {
   lastSyncAttemptAt DateTime?              @map("last_sync_attempt_at")
   lastSyncError     String?                @map("last_sync_error")
   syncStates        MarketplaceSyncState[]
+  agentRuns         AgentRun[]
 
   /// Razão social da empresa COMPRADORA (destinatário da NF-e), para o vínculo fiscal. Origem/revisão registadas em auditoria.
   businessName           String? @map("business_name") @db.VarChar(255)
@@ -475,4 +477,36 @@ model AdsCost {
   @@unique([tenantId, sourceHash, sourceLine])
   @@index([tenantId, day])
   @@map("ads_costs")
+}
+
+enum AgentRunStatus {
+  RUNNING
+  COMPLETED
+  BLOCKED
+  FAILED
+}
+
+// Execução registada de um agente operacional (ex.: Central Farma). Histórico auditável:
+// só existe linha quando um agente foi de facto executado; nunca é semeada com estados fictícios.
+model AgentRun {
+  id                   String         @id @default(uuid())
+  tenantId             String         @map("tenant_id")
+  marketplaceAccountId String         @map("marketplace_account_id")
+  agentKey             String         @map("agent_key")
+  status               AgentRunStatus
+  blockReason          String?        @map("block_reason")
+  errorMessage         String?        @map("error_message")
+  result               Json?
+  requestedBy          String?        @map("requested_by")
+  startedAt            DateTime       @default(now()) @map("started_at")
+  finishedAt           DateTime?      @map("finished_at")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, agentKey, startedAt])
+  @@index([marketplaceAccountId])
+  @@map("agent_runs")
 }
