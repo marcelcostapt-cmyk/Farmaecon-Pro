@@ -99,3 +99,15 @@ export interface GestorRunResult {
   sources: Array<{ name: string; description: string; count: number }>;
   caveats: string[];
 }
+
+export interface CatalogoRunResult {
+  agentKey: 'vitrine-farma';
+  status: 'COMPLETED' | 'BLOCKED';
+  blockReason: string | null;
+  account: { id: string; name: string };
+  summary: { skusVendidos: number; comCadastro: number; semCadastro: number; comCustoAprovado: number; unidadesVendidas: number };
+  findings: AgentResult['findings'];
+  recommendations: AgentResult['recommendations'];
+  sources: Array<{ name: string; description: string; count: number }>;
+  caveats: string[];
+}

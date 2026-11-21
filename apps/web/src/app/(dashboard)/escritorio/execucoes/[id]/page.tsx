@@ -8,6 +8,7 @@ import type {
   AgentRunDetail,
   AgentRunStatus,
   AgentRunSummary,
+  CatalogoRunResult,
   GestorRunResult,
   MesaReuniao,
 } from '@/components/escritorio/agent-types';
@@ -21,6 +22,7 @@ const AGENT_LABEL: Record<string, string> = {
   'central-farma': 'Gestor (interno: Central Farma)',
   'dose-certa': 'Analista (interno: Dose Certa)',
   'giro-ads': 'ADS (interno: Giro Ads)',
+  'vitrine-farma': 'Anúncios (interno: Vitrine Farma)',
 };
 const SEVERITY_LABEL: Record<string, string> = { risco: 'Risco', pendencia: 'Pendência', info: 'Informação' };
 const RUN_BADGE: Record<AgentRunStatus, AgentStatus> = {
@@ -103,6 +105,7 @@ export default async function AgentRunPage({ params }: { params: Promise<{ id: s
       {run.agentKey === 'giro-ads' && raw ? <AdsSection result={raw as AdsRunResult} /> : null}
       {run.agentKey === 'central-farma' && raw ? <GestorSection result={raw as GestorRunResult} /> : null}
       {run.agentKey === 'dose-certa' && raw ? <MargemSection result={raw as AgentResult} /> : null}
+      {run.agentKey === 'vitrine-farma' && raw ? <CatalogoSection result={raw as CatalogoRunResult} /> : null}
 
       <section aria-labelledby="history-title" className="rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-5">
         <h2 id="history-title" className="text-[13px] font-extrabold text-[var(--fa-navy)]">Histórico desta conta</h2>
@@ -305,3 +308,36 @@ function GestorSection({ result }: { result: GestorRunResult }) {
     </>
   );
 }
+
+function CatalogoSection({ result }: { result: CatalogoRunResult }) {
+  if (result.status !== 'COMPLETED') return null;
+  return (
+    <>
+      <section aria-labelledby="catalogo-summary" className="rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-5">
+        <h2 id="catalogo-summary" className="text-[13px] font-extrabold text-[var(--fa-navy)]">Catálogo dos SKUs vendidos pela conta</h2>
+        <p className="mt-1 text-xs text-[var(--fa-muted)]">Catálogo local (cadastro do utilizador). Não é o anúncio publicado no Mercado Livre.</p>
+        <dl className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-5">
+          <Metric label="SKUs vendidos" value={result.summary.skusVendidos} />
+          <Metric label="Com cadastro" value={result.summary.comCadastro} />
+          <Metric label="Sem cadastro" value={result.summary.semCadastro} />
+          <Metric label="Com custo aprovado" value={result.summary.comCustoAprovado} />
+          <Metric label="Unidades vendidas" value={result.summary.unidadesVendidas} />
+        </dl>
+      </section>
+      <Findings items={result.findings} />
+      <Recommendations items={result.recommendations} />
+      <section className="rounded-[var(--fa-r-xl)] border border-[var(--fa-border)] bg-[var(--fa-surface)] p-5">
+        <h2 className="text-[13px] font-extrabold text-[var(--fa-navy)]">Origem dos dados</h2>
+        <ul className="mt-2 space-y-1 text-sm text-[var(--fa-navy)]">
+          {result.sources.map((s) => (
+            <li key={s.name}>
+              <span className="font-mono text-xs">{s.name}</span> — {s.description}: <strong>{s.count}</strong>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4"><Caveats items={result.caveats} /></div>
+      </section>
+    </>
+  );
+}
+
