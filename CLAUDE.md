@@ -282,3 +282,15 @@ Contexto único: `GLOSSARY.md` e `docs/adr/` na raiz. Ver `docs/agents/domain.md
 - VALIDAÇÃO API (NF-e de teste com med injetado): preview devolve cProdANVISA 0123456789012 (zero preservado), ISENTO com motivo RDC 1234/2020, vPMC 25.9 e 10; ingestão criou o documento e a BD confirma os valores na linha. Regressão no browser (/lots, /escritorio, /margin/preview, /dre/lots) sem erro.
 - Nota: product_costs = 6 no ensaio; a ingestão não grava custo (garantido pelo e2e), mas o número não foi comparado com uma linha de base.
 - RUNBOOK DE ENSAIO (2026-11-21): backup com um só timestamp em /opt/farmaecon/backups/pre-update-rehearsal-20261121-002039/ (dump legível, SHA256 OK). Migrate PASS (sem migrations novas). Health: API {"status":"ok","mode":"OBSERVATION"}, web 200. Imagens mantidas: API 0d5b100-med, web bb99b54-officecard, porque 2df67ef é só documentação (sem diferença em apps/) e não há .local/rehearsal.env: as imagens ficam no compose.
+
+## Decisão CMV #2 aplicada — bonificação (rateio proporcional a valor nominal) · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- DECISÃO DO MÁRCIO: opção 1 (`rateio_proporcional_valor_nominal`). Custo médio = (valor pago + valor bonificado + vOutro + ST + IPI não recuperável) ÷ unidades totais, por EAN (ou código do fornecedor). Só com linha paga do mesmo EAN/código; sem par, custo indisponível (nunca zero). vItem (líquido) quando existe e é > 0; senão vProd. IPI recuperável não entra.
+- FEITO (commits a8afca3, 8c5acc6, 4ff16ff, 49dc2d5):
+  - Parser lê vIPI e vICMSST por linha; migrations aditivas `20261126_purchase_tax_fields` (ipi_amount, icms_st_amount, ipi_recoverable) e `20261127_purchase_items_products_value` (products_value).
+  - Função pura `costs/group-average-cost.ts`. Testes dos três cenários (mesmo EAN rateia; EAN diferente não rateia; vOutro/ST/IPI na base com vItem prevalecendo) e do caso real da NF-e Belajoyce: (13,46 + 8315,01) ÷ 682 nas duas linhas.
+  - Endpoint `POST :id/bonus` aceita `rule: GROUP_AVERAGE_NOMINAL` e `ipiRecoverable` (obrigatório nesta regra; guardado no documento). Regras antigas inalteradas.
+- VERDE: 405 unit (1 skip); 54 e2e PostgreSQL real (1 novo: regra aplicada à NF-e Belajoyce, IPI obrigatório, persistência e limpeza).
+- DECISÕES A CONFIRMAR (não decididas pelo Márcio):
+  - IBS e CBS (reforma tributária) não entram na base: não foram mencionados. Os valores estão em zero no fixture.
+  - `ipiRecoverable` vem por documento, escolhido no endpoint. Não há configuração por empresa; cabe ao Márcio definir se fica por empresa.
+- NÃO FEITO: ensaio com esta versão (não pedido neste turno). Próximo passo: rebuild da API, migrations 20261126 e 20261127 (com backup), validação pelo endpoint.
