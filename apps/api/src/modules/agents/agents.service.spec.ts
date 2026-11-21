@@ -146,4 +146,12 @@ describe('AgentsService — execução da Central Farma', () => {
     const cutoff = prisma.agentRun.updateMany.mock.calls[0][0].where.startedAt.lt;
     expect(now.getTime() - cutoff.getTime()).toBe(STALE_RUN_MS);
   });
+
+  it('catálogo da conta escolhida usa só execuções dessa conta', async () => {
+    const prisma = makePrisma();
+    const service = new AgentsService(prisma as any, makeMargin() as any);
+    await service.listCatalog(TENANT, ACCOUNT.id);
+    const where = prisma.agentRun.findFirst.mock.calls[0][0].where;
+    expect(where).toMatchObject({ tenantId: TENANT, marketplaceAccountId: ACCOUNT.id });
+  });
 });

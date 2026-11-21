@@ -12,6 +12,7 @@ class RunAgentDto {
 }
 
 const DEFAULT_LIMIT = 20;
+const ACCOUNT_ID = /^[0-9a-f-]{36}$/i;
 const MAX_LIMIT = 50;
 
 /** Escritório de agentes: só leitura sobre dados reais; a única escrita é o registo da execução. */
@@ -21,8 +22,9 @@ export class AgentsController {
   constructor(private readonly service: AgentsService) {}
 
   @Get()
-  async catalog(@CurrentTenant() tenantId: string) {
-    return ok(await this.service.listCatalog(tenantId));
+  async catalog(@CurrentTenant() tenantId: string, @Query('account_id') accountId?: string) {
+    if (accountId !== undefined && !ACCOUNT_ID.test(accountId)) throw new BadRequestException('account_id inválido.');
+    return ok(await this.service.listCatalog(tenantId, accountId || undefined));
   }
 
   @Post(':key/runs')
@@ -43,7 +45,7 @@ export class AgentsController {
     @Query('limit') limit?: string,
   ) {
     if (agentKey && !AGENT_CATALOG.some((a) => a.key === agentKey)) throw new BadRequestException('agent_key desconhecido.');
-    if (accountId && !/^[0-9a-f-]{36}$/i.test(accountId)) throw new BadRequestException('account_id inválido.');
+    if (accountId && !ACCOUNT_ID.test(accountId)) throw new BadRequestException('account_id inválido.');
     const parsed = Number(limit ?? DEFAULT_LIMIT);
     const take = Number.isInteger(parsed) && parsed >= 1 ? Math.min(parsed, MAX_LIMIT) : DEFAULT_LIMIT;
     return ok(await this.service.listRuns(tenantId, { agentKey: agentKey || undefined, accountId: accountId || undefined, limit: take }));

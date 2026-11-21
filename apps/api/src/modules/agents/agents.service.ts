@@ -49,13 +49,13 @@ export class AgentsService {
     private readonly margin: MarginService,
   ) {}
 
-  /** Catálogo com a última execução de cada agente (null = nunca executado). */
-  async listCatalog(tenantId: string) {
+  /** Catálogo com a última execução de cada agente, opcionalmente da conta escolhida (null = nunca executado). */
+  async listCatalog(tenantId: string, accountId?: string) {
     await this.recoverStaleRuns(tenantId);
     return Promise.all(
       AGENT_CATALOG.map(async (agent) => {
         const latest = await this.prisma.agentRun.findFirst({
-          where: { tenantId, agentKey: agent.key },
+          where: { tenantId, agentKey: agent.key, ...(accountId ? { marketplaceAccountId: accountId } : {}) },
           orderBy: { startedAt: 'desc' },
         });
         return { ...agent, latestRun: latest ? toSummary(latest) : null };

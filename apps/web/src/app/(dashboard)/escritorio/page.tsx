@@ -8,9 +8,10 @@ import { accountLabel, resolveSelectedAccount, type AccountOption } from '@/lib/
 import { isNextControlError } from '@/lib/next-errors';
 import { RunAgentPanel } from './run-agent-panel';
 
-async function loadAgents(): Promise<AgentCatalogItem[] | null> {
+async function loadAgents(accountId: string | null): Promise<AgentCatalogItem[] | null> {
   try {
-    return (await fetchApi<AgentCatalogItem[]>('/agents')).data;
+    const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : '';
+    return (await fetchApi<AgentCatalogItem[]>(`/agents${query}`)).data;
   } catch (error) {
     if (isNextControlError(error)) throw error;
     return null;
@@ -28,8 +29,9 @@ async function loadAccounts(): Promise<AccountOption[]> {
 
 export default async function EscritorioPage({ searchParams }: { searchParams: Promise<{ conta?: string }> }) {
   const { conta } = await searchParams;
-  const [agents, accounts] = await Promise.all([loadAgents(), loadAccounts()]);
+  const accounts = await loadAccounts();
   const selected = resolveSelectedAccount(accounts, conta);
+  const agents = await loadAgents(selected?.id ?? null);
 
   return (
     <div className="space-y-6">
