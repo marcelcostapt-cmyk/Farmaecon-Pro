@@ -7,6 +7,12 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import { MlOAuthService } from './ml-oauth.service';
 import { RemoteOrder } from './order-validation';
 
+// 429 do Mercado Livre: até 3 novas tentativas por pedido, cada espera com teto de 10 s
+// (no máximo ~30 s por pedido, dentro do tick). Valores não confirmados pela documentação do ML.
+const RATE_LIMIT_MAX_RETRIES = 3;
+const RATE_LIMIT_BASE_WAIT_MS = 2000;
+const RATE_LIMIT_MAX_WAIT_MS = 10000;
+
 export interface MlOrderSearchResult extends RemoteOrder {
   date_closed?: string;
   total_amount_with_shipping?: number;
@@ -276,7 +282,18 @@ export class MlApiService {
     return 'https://api.mercadolibre.com';
   }
 
-  private async requestForAccount<T>(accountId: string, tenantId: string, url: URL, retried = false): Promise<T> {
+  /** Espera de um 429 (ms): Retry-After em segundos quando válido, senão backoff exponencial; sempre com teto. */
+  protected rateLimitWaitMs(retryAfter: string | null, retryIndex: number): number {
+    const seconds = retryAfter !== null && /^\d+$/.test(retryAfter.trim()) ? Number(retryAfter.trim()) : NaN;
+    const base = Number.isFinite(seconds) ? seconds * 1000 : RATE_LIMIT_BASE_WAIT_MS * 2 ** retryIndex;
+    return Math.min(base, RATE_LIMIT_MAX_WAIT_MS);
+  }
+
+  protected sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async requestForAccount<T>(accountId: string, tenantId: string, url: URL, retried = false, rateLimitRetries = 0): Promise<T> {
     const account = await this.prisma.marketplaceAccount.findFirstOrThrow({
       where: { id: accountId, tenantId, source: 'MERCADO_LIVRE', status: 'ACTIVE' },
       select: {
@@ -298,7 +315,18 @@ export class MlApiService {
     if (response.status === 401 && !retried) {
       this.logger.warn(`Mercado Livre token expired for account ${accountId}; refreshing and retrying`);
       await this.mlOAuth.refreshToken(accountId, tenantId);
-      return this.requestForAccount<T>(accountId, tenantId, url, true);
+      return this.requestForAccount<T>(accountId, tenantId, url, true, rateLimitRetries);
+    }
+
+    // 429: espera limitada (Retry-After ou backoff) e nova tentativa. Não repete indefinidamente:
+    // ao esgotar, lança o mesmo erro e a classificação RATE_LIMITED continua a aplicar-se.
+    if (response.status === 429 && rateLimitRetries < RATE_LIMIT_MAX_RETRIES) {
+      const waitMs = this.rateLimitWaitMs(response.headers?.get?.('retry-after') ?? null, rateLimitRetries);
+      this.logger.warn(
+        `Mercado Livre rate limit for account ${accountId}; retry ${rateLimitRetries + 1}/${RATE_LIMIT_MAX_RETRIES} in ${waitMs}ms`,
+      );
+      await this.sleep(waitMs);
+      return this.requestForAccount<T>(accountId, tenantId, url, retried, rateLimitRetries + 1);
     }
 
     if (!response.ok) {
