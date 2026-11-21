@@ -272,3 +272,12 @@ Contexto único: `GLOSSARY.md` e `docs/adr/` na raiz. Ver `docs/agents/domain.md
 - NÃO CONFIRMADO (precisa de parecer jurídico ou fonte oficial): se armazenar XML de terceiros é legal e a LGPD aplicável; se há obrigação de consulta à SEFAZ; se o QR code da DANFE contém a chave de acesso.
 - Protótipo `POST /documents/nfe/upload` NÃO criado: duplicaria o fluxo existente.
 - `.claude/decisoes/erp-bling-olist.md` atualizado: NF-e e preços continuam não confirmados nos dois.
+
+## Grupo med (medicamentos) na NF-e · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- LEIAUTE CONFIRMADO no XSD oficial (leiauteNFe_v4.00.xsd, espelho público do crate dfe 0.6.1; o PDF da NT 2021.004 não é extraível sem ferramentas e o portal dá erro de redirecionamento): `med` é um `xs:choice minOccurs="0"` dentro de `prod`. `cProdANVISA` = `[0-9]{11}|[0-9]{13}|ISENTO`; `xMotivoIsencao` opcional, 1 a 255 caracteres; `vPMC` = TDec_1302 (até 13 inteiros, 2 decimais opcionais). A obrigatoriedade para medicamento é regra da SEFAZ, não do schema.
+- FEITO: parser lê o grupo med (0a3fb68); valores fora do padrão não são gravados e geram aviso. Migration aditiva `20261125_purchase_item_anvisa` (anvisa_register, anvisa_exemption_reason, pmc) e persistência na linha do documento (0d5b100). Preview e ingestão expõem os campos.
+- NÃO FEITO: gravar o registo no produto. Não há chave confiável (Product não tem EAN; código fornecedor → SKU é a decisão 6 pendente). O produto continua com preenchimento manual.
+- Testes: 398 unit (4 novos em nfe-med-group.spec.ts); 53 e2e PostgreSQL real (1 novo em dre-ingest, persistência do grupo med sem criar custo).
+- ENSAIO: API 0d5b100-med (migration 20261125 aplicada), web bb99b54-officecard. Backup: /opt/farmaecon/backups/pre-med-rehearsal-20261121-000403/.
+- VALIDAÇÃO API (NF-e de teste com med injetado): preview devolve cProdANVISA 0123456789012 (zero preservado), ISENTO com motivo RDC 1234/2020, vPMC 25.9 e 10; ingestão criou o documento e a BD confirma os valores na linha. Regressão no browser (/lots, /escritorio, /margin/preview, /dre/lots) sem erro.
+- Nota: product_costs = 6 no ensaio; a ingestão não grava custo (garantido pelo e2e), mas o número não foi comparado com uma linha de base.
