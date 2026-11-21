@@ -9,7 +9,16 @@ import {
   blockReasonFor,
   type AnalysisInput,
   type AnalysisResult,
-} from './central-farma-analysis';
+} from './analista/margem-analysis';
+
+/** O Gestor consolida o resultado do Analista: mesmos dados, sem recalcular. */
+export function consolidateForGestor(analista: AnalysisResult): AnalysisResult {
+  return {
+    ...analista,
+    agentKey: 'central-farma',
+    consolidation: { responsavelCalculo: 'dose-certa', papelGestor: 'consolida e apresenta o resultado do Analista; não recalcula' },
+  };
+}
 
 export interface AgentRunSummary {
   id: string;
@@ -87,7 +96,7 @@ export class AgentsService {
         data: {
           status: analysis.status,
           blockReason: analysis.blockReason,
-          result: toJsonObject(analysis),
+          result: toJsonObject(agent.key === 'central-farma' ? consolidateForGestor(analysis) : analysis),
           finishedAt: new Date(),
         },
       });

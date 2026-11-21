@@ -41,10 +41,10 @@ describe('AgentsService — execução da Central Farma', () => {
     expect(prisma.agentRun.create).not.toHaveBeenCalled();
   });
 
-  it('agente ainda não implementado não executa e não regista nada', async () => {
+  it('agente ainda não implementado (Anúncios) não executa e não regista nada', async () => {
     const prisma = makePrisma();
     const service = new AgentsService(prisma as any, makeMargin() as any);
-    await expect(service.run(TENANT, 'user-1', 'dose-certa', ACCOUNT.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.run(TENANT, 'user-1', 'vitrine-farma', ACCOUNT.id)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.agentRun.create).not.toHaveBeenCalled();
   });
 
@@ -153,5 +153,28 @@ describe('AgentsService — execução da Central Farma', () => {
     await service.listCatalog(TENANT, ACCOUNT.id);
     const where = prisma.agentRun.findFirst.mock.calls[0][0].where;
     expect(where).toMatchObject({ tenantId: TENANT, marketplaceAccountId: ACCOUNT.id });
+  });
+
+  it('Analista (dose-certa) executa a própria análise e o Gestor só consolida o mesmo resultado', async () => {
+    const prisma = makePrisma();
+    const margin = makeMargin();
+    const service = new AgentsService(prisma as any, margin as any);
+    await service.run(TENANT, 'user-1', 'dose-certa', ACCOUNT.id);
+    const createdAs = prisma.agentRun.create.mock.calls[0][0].data.agentKey;
+    expect(createdAs).toBe('dose-certa');
+    const analistaResult = prisma.agentRun.update.mock.calls.at(-1)![0].data.result;
+    expect(analistaResult.agentKey).toBe('dose-certa');
+    expect(analistaResult.consolidation).toBeUndefined();
+
+    prisma.agentRun.create.mockClear();
+    prisma.agentRun.update.mockClear();
+    await service.run(TENANT, 'user-1', 'central-farma', ACCOUNT.id);
+    const gestorResult = prisma.agentRun.update.mock.calls.at(-1)![0].data.result;
+    expect(gestorResult.agentKey).toBe('central-farma');
+    expect(gestorResult.consolidation).toMatchObject({ responsavelCalculo: 'dose-certa' });
+    // Mesmos números: o Gestor não recalcula, só acrescenta a consolidação.
+    const { agentKey: _a, consolidation: _c, ...restG } = gestorResult;
+    const { agentKey: _b, ...restA } = analistaResult;
+    expect(restG).toEqual(restA);
   });
 });

@@ -205,4 +205,16 @@ describe('Escritório de agentes — Central Farma em PostgreSQL real', () => {
     const runsOfA = await inTenant(tenantC, () => agents.listRuns(tenantC, { limit: 20, accountId: accountA }));
     expect(runsOfA).toEqual([]);
   });
+
+  it('Analista (dose-certa) executa em PostgreSQL real e o Gestor consolida o mesmo resultado', async () => {
+    const analista = await inTenant(tenantA, () => agents.run(tenantA, 'user-a', 'dose-certa', accountA));
+    expect(analista.status).toBe('COMPLETED');
+    expect((analista.result as { agentKey: string }).agentKey).toBe('dose-certa');
+    const gestor = await inTenant(tenantA, () => agents.run(tenantA, 'user-a', 'central-farma', accountA));
+    const g = gestor.result as { summary: unknown; findings: unknown; consolidation: { responsavelCalculo: string } };
+    const a = analista.result as { summary: unknown; findings: unknown };
+    expect(g.consolidation.responsavelCalculo).toBe('dose-certa');
+    expect(g.summary).toEqual(a.summary);
+    expect(g.findings).toEqual(a.findings);
+  });
 });

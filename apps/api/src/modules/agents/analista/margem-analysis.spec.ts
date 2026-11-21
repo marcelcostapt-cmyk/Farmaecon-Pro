@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
-import type { MarginAlert, MarginGroupLine, MarginPreview } from '../costs/margin-preview';
-import type { FeeChange } from '../costs/fee-change';
-import { analyseFinancialMargin, blockReasonFor, BLOCK_REASONS, type AnalysisInput } from './central-farma-analysis';
+import type { MarginAlert, MarginGroupLine, MarginPreview } from '../../costs/margin-preview';
+import type { FeeChange } from '../../costs/fee-change';
+import { analyseFinancialMargin, blockReasonFor, BLOCK_REASONS, type AnalysisInput } from './margem-analysis';
 
 const D = (v: string | number) => new Prisma.Decimal(v);
 

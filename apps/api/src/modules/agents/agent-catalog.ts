@@ -1,17 +1,22 @@
-// Catálogo dos agentes do Escritório Virtual.
+// Catálogo dos seis agentes visíveis do Escritório Virtual C2 (nomes públicos aprovados).
 //
-// `publicName` é a interface pública definida no design C2 (docs/design/tokens.css, --fa-ag-*):
-// Gestor, Analista, Anúncios, Criativo, ADS e SAC. `internalName` é a identificação interna usada
-// pela Diretiva Mestre. Correspondência 1:1 (sem duplicações) documentada em docs/agentes-escritorio.md.
+// `publicName` = interface pública: Gestor, Analista, Anúncios, Criativo, ADS e SAC.
+// `internalName` = identificação interna (especialização ou nome de produto da Diretiva), ou null.
+// `key` = identificador técnico. Preservados os já implementados: central-farma, dose-certa,
+// giro-ads, balcao-digital. vitrine-farma passa a Anúncios (antes estava como Criativo).
+// criativo é novo: ainda sem serviço próprio.
 //
-// `key` é o identificador técnico estável (rotas, banco). Não mudar: a Central Farma já executa.
+// Especializações do Analista (não são agentes autónomos, não têm rota nem registo próprio):
+// Dose Certa (custo, margem, CMV, análise financeira) e Mix Ativo (produtos, estoque, giro, Full, ruptura).
+// Mix Ativo ainda não tem implementação.
+//
 // `implemented: false` = sem execução no produto; a API recusa a execução e a UI mostra
 // "Ainda não implementado", nunca um estado ativo. Não confundir com `.claude/agents/`.
 
 export interface AgentDefinition {
   key: string;
   publicName: string;
-  internalName: string;
+  internalName: string | null;
   accent: 'gestor' | 'analista' | 'anuncios' | 'criativo' | 'ads' | 'sac';
   sector: string;
   description: string;
@@ -25,7 +30,7 @@ export const AGENT_CATALOG: readonly AgentDefinition[] = [
     internalName: 'Central Farma',
     accent: 'gestor',
     sector: 'Orquestração e gestão',
-    description: 'Orquestra a análise financeira de leitura por conta: margem por SKU, alertas de limite e variação de taxas ML.',
+    description: 'Coordena as análises, consolida resultados e apresenta prioridades. Não recalcula números do Analista.',
     implemented: true,
   },
   {
@@ -33,26 +38,26 @@ export const AGENT_CATALOG: readonly AgentDefinition[] = [
     publicName: 'Analista',
     internalName: 'Dose Certa',
     accent: 'analista',
-    sector: 'Preço, custo e rentabilidade',
-    description: 'Custos, CMV e rentabilidade. Buy Box e ruptura ainda não implementados.',
-    implemented: false,
-  },
-  {
-    key: 'mix-ativo',
-    publicName: 'Anúncios',
-    internalName: 'Mix Ativo',
-    accent: 'anuncios',
-    sector: 'Catálogo e promoções',
-    description: 'Revisa anúncios e avalia promoções com base na margem validada.',
-    implemented: false,
+    sector: 'Custo, margem e rentabilidade',
+    description: 'Análises determinísticas com evidências: margem por SKU, alertas de limite e variação de taxas ML. Estoque, giro, Full e ruptura (Mix Ativo) ainda não implementados.',
+    implemented: true,
   },
   {
     key: 'vitrine-farma',
-    publicName: 'Criativo',
+    publicName: 'Anúncios',
     internalName: 'Vitrine Farma',
+    accent: 'anuncios',
+    sector: 'Catálogo, qualidade e preços',
+    description: 'Catálogo, qualidade dos anúncios e preços. Análise de Buy Box apenas após confirmação das APIs oficiais.',
+    implemented: false,
+  },
+  {
+    key: 'criativo',
+    publicName: 'Criativo',
+    internalName: null,
     accent: 'criativo',
-    sector: 'Peças e identidade',
-    description: 'Briefings, imagens e infográficos para anúncios.',
+    sector: 'Conteúdos e imagens',
+    description: 'Conteúdos e imagens para anúncios, com serviços próprios a validar.',
     implemented: false,
   },
   {
@@ -60,8 +65,8 @@ export const AGENT_CATALOG: readonly AgentDefinition[] = [
     publicName: 'ADS',
     internalName: 'Giro Ads',
     accent: 'ads',
-    sector: 'Campanhas e desempenho',
-    description: 'Campanhas de publicidade e proposta de verba. Depende da integração ADS na margem.',
+    sector: 'Campanhas e publicidade',
+    description: 'Campanhas, ROAS, ACOS, promoções e margem após publicidade quando houver dados suficientes.',
     implemented: false,
   },
   {
@@ -69,8 +74,8 @@ export const AGENT_CATALOG: readonly AgentDefinition[] = [
     publicName: 'SAC',
     internalName: 'Balcão Digital',
     accent: 'sac',
-    sector: 'Perguntas e reclamações',
-    description: 'Classifica solicitações e prepara rascunhos de resposta para revisão humana.',
+    sector: 'Perguntas, mensagens e reclamações',
+    description: 'Atendimento: perguntas, mensagens e reclamações. Apenas documentação até confirmar APIs e políticas do Mercado Livre Brasil.',
     implemented: false,
   },
 ];

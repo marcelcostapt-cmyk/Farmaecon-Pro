@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
-import type { MarginAlert, MarginGroupLine, MarginPreview } from '../costs/margin-preview';
-import type { FeeChange } from '../costs/fee-change';
+import type { MarginAlert, MarginGroupLine, MarginPreview } from '../../costs/margin-preview';
+import type { FeeChange } from '../../costs/fee-change';
 
 // Análise de leitura da Central Farma. Função PURA: recebe dados já lidos de serviços reais
 // (margem por SKU, alertas, variação de taxas, contagens) e devolve achados determinísticos.
@@ -43,7 +43,8 @@ export interface SourceRef {
 }
 
 export interface AnalysisResult {
-  agentKey: 'central-farma';
+  agentKey: 'dose-certa' | 'central-farma';
+  consolidation?: { responsavelCalculo: 'dose-certa'; papelGestor: string };
   account: { id: string; name: string };
   status: 'COMPLETED' | 'BLOCKED';
   blockReason: BlockReason | null;
@@ -117,7 +118,7 @@ export function analyseFinancialMargin(input: AnalysisInput): AnalysisResult {
   };
 
   if (blockReason !== null) {
-    return { agentKey: 'central-farma', account: { id: account.id, name: account.name }, status: 'BLOCKED', blockReason, summary: emptySummary, findings: [], recommendations: [], sources, caveats: ANALYSIS_CAVEATS };
+    return { agentKey: 'dose-certa', account: { id: account.id, name: account.name }, status: 'BLOCKED', blockReason, summary: emptySummary, findings: [], recommendations: [], sources, caveats: ANALYSIS_CAVEATS };
   }
 
   const unavailableBy = { semTaxa: 0, semCustoPublicado: 0, custoNaoAprovado: 0 };
@@ -183,7 +184,7 @@ export function analyseFinancialMargin(input: AnalysisInput): AnalysisResult {
   });
 
   return {
-    agentKey: 'central-farma',
+    agentKey: 'dose-certa',
     account: { id: account.id, name: account.name },
     status: 'COMPLETED',
     blockReason: null,
