@@ -4,21 +4,15 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import { MarginService } from '../margin/margin.service';
 import { toJsonSafe } from '../costs/decimal-json';
 import { AGENT_CATALOG, findAgent } from './agent-catalog';
+import { AdsService } from '../ads/ads.service';
+import { analyseAds, type AdsAnalysisInput, type AnalistaContext } from './giro-ads/ads-analysis';
+import { consolidarMesa, type AgenteConsultado, type EstadoAgente } from './gestor/consolidacao';
 import {
   analyseFinancialMargin,
   blockReasonFor,
   type AnalysisInput,
   type AnalysisResult,
 } from './analista/margem-analysis';
-
-/** O Gestor consolida o resultado do Analista: mesmos dados, sem recalcular. */
-export function consolidateForGestor(analista: AnalysisResult): AnalysisResult {
-  return {
-    ...analista,
-    agentKey: 'central-farma',
-    consolidation: { responsavelCalculo: 'dose-certa', papelGestor: 'consolida e apresenta o resultado do Analista; não recalcula' },
-  };
-}
 
 export interface AgentRunSummary {
   id: string;
@@ -36,6 +30,12 @@ interface AccountRef {
   name: string;
   displayName: string | null;
   status: 'ACTIVE' | 'WARNING' | 'DISCONNECTED';
+}
+
+/** Forma mínima do resultado persistido que o Gestor consolida (ver consolidacao.ts). */
+interface PersistedResult {
+  findings?: AgenteConsultado['result'] extends infer R ? (R extends { findings: infer F } ? F : never) : never;
+  recommendations?: Array<{ text: string; basedOn: string[] }>;
 }
 
 const FAILURE_MESSAGE = 'A análise falhou. Tente novamente; se persistir, consulte os registos do servidor.';
@@ -56,6 +56,7 @@ export class AgentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly margin: MarginService,
+    private readonly ads: AdsService,
   ) {}
 
   /** Catálogo com a última execução de cada agente, opcionalmente da conta escolhida (null = nunca executado). */
@@ -90,13 +91,13 @@ export class AgentsService {
     });
 
     try {
-      const analysis = await this.analyse(tenantId, account);
+      const outcome = await this.execute(agent.key, tenantId, account);
       const updated = await this.prisma.agentRun.update({
         where: { id: run.id },
         data: {
-          status: analysis.status,
-          blockReason: analysis.blockReason,
-          result: toJsonObject(agent.key === 'central-farma' ? consolidateForGestor(analysis) : analysis),
+          status: outcome.status,
+          blockReason: outcome.blockReason,
+          result: toJsonObject(outcome.result),
           finishedAt: new Date(),
         },
       });
@@ -156,6 +157,88 @@ export class AgentsService {
     return toRunView(run);
   }
 
+  /** Despacha a execução por agente. Cada agente calcula só o que é seu; o Gestor só consolida. */
+  private async execute(agentKey: string, tenantId: string, account: AccountRef) {
+    if (agentKey === 'dose-certa') {
+      const analysis = await this.analyse(tenantId, account);
+      return { status: analysis.status, blockReason: analysis.blockReason, result: analysis as unknown };
+    }
+    if (agentKey === 'giro-ads') {
+      const profile = await this.ads.profile(tenantId, account.id);
+      const analista = await this.analistaContext(tenantId, account.id);
+      const input: AdsAnalysisInput = {
+        account: { id: account.id, name: account.displayName ?? account.name, status: account.status },
+        profile: profile.rows > 0 ? profile : null,
+        analista: analista.context,
+      };
+      const analysis = analyseAds(input);
+      return { status: analysis.status, blockReason: analysis.blockReason, result: analysis as unknown };
+    }
+    if (agentKey === 'central-farma') return this.consolidate(tenantId, account);
+    throw new BadRequestException('Este agente ainda não está implementado.');
+  }
+
+  /** Último resultado do Analista para a conta (persistido). Usado pelo ADS para cruzar margem. */
+  private async analistaContext(tenantId: string, accountId: string): Promise<{ context: AnalistaContext }> {
+    const run = await this.prisma.agentRun.findFirst({
+      where: { tenantId, agentKey: 'dose-certa', marketplaceAccountId: accountId },
+      orderBy: { startedAt: 'desc' },
+    });
+    if (!run || run.status === 'RUNNING') return { context: { status: 'NOT_RUN', runId: null, runAt: null, marginAlertSkus: [] } };
+    if (run.status !== 'COMPLETED') return { context: { status: run.status as 'BLOCKED' | 'FAILED', runId: run.id, runAt: run.startedAt.toISOString(), marginAlertSkus: [] } };
+    const result = run.result as { findings?: Array<{ id: string; evidence: Record<string, unknown> }> } | null;
+    const marginAlertSkus = (result?.findings ?? [])
+      .filter((f) => f.id.startsWith('alerta-') && typeof f.evidence.sku === 'string')
+      .map((f) => f.evidence.sku as string);
+    return { context: { status: 'COMPLETED', runId: run.id, runAt: run.startedAt.toISOString(), marginAlertSkus } };
+  }
+
+  /** Gestor: lê a última execução persistida de cada agente da conta e consolida. Não recalcula. */
+  private async consolidate(tenantId: string, account: AccountRef) {
+    const agentes: AgenteConsultado[] = [];
+    for (const def of AGENT_CATALOG.filter((a) => a.key === 'dose-certa' || a.key === 'giro-ads')) {
+      const row = await this.prisma.agentRun.findFirst({
+        where: { tenantId, agentKey: def.key, marketplaceAccountId: account.id },
+        orderBy: { startedAt: 'desc' },
+      });
+      const completed = row && row.status === 'COMPLETED' ? (row.result as PersistedResult | null) : null;
+      agentes.push({
+        agentKey: def.key as 'dose-certa' | 'giro-ads',
+        publicName: def.publicName,
+        internalName: def.internalName ?? def.publicName,
+        run: row ? { id: row.id, status: row.status, startedAt: row.startedAt.toISOString(), blockReason: row.blockReason, errorMessage: row.errorMessage } : null,
+        result: completed ? { findings: completed.findings ?? [], recommendations: completed.recommendations ?? [] } : null,
+      });
+    }
+    const mesa = consolidarMesa(agentes);
+    const analistaRow = await this.prisma.agentRun.findFirst({
+      where: { tenantId, agentKey: 'dose-certa', marketplaceAccountId: account.id, status: 'COMPLETED' },
+      orderBy: { startedAt: 'desc' },
+    });
+    const analista = (analistaRow?.result ?? null) as { summary?: unknown; findings?: unknown } | null;
+    const temResultados = mesa.temResultados;
+    return {
+      status: temResultados ? ('COMPLETED' as const) : ('BLOCKED' as const),
+      blockReason: temResultados ? null : 'SEM_RESULTADOS',
+      result: {
+        agentKey: 'central-farma',
+        account: { id: account.id, name: account.displayName ?? account.name },
+        status: temResultados ? 'COMPLETED' : 'BLOCKED',
+        blockReason: temResultados ? null : 'SEM_RESULTADOS',
+        summary: analista?.summary ?? null,
+        findings: analista?.findings ?? [],
+        recommendations: mesa.recomendacoes,
+        consolidation: {
+          responsavelCalculo: analistaRow ? 'dose-certa' : null,
+          papelGestor: 'consolida e apresenta os resultados persistidos dos agentes; não recalcula',
+          mesa,
+        },
+        sources: agentes.map((a) => ({ name: `agent_runs:${a.agentKey}`, description: `Última execução de ${a.publicName}`, count: a.run ? 1 : 0 })),
+        caveats: ['O Gestor não recalcula. Cada número vem do agente de origem, com a data da execução.'],
+      },
+    };
+  }
+
   /** Lê os dados reais da conta. Sem dependências, não calcula nada e devolve o bloqueio. */
   private async analyse(tenantId: string, account: AccountRef): Promise<AnalysisResult> {
     const accountName = account.displayName ?? account.name;
@@ -184,7 +267,7 @@ function emptyPreview(): AnalysisInput['preview'] {
   return { group_by: 'sku', lines: [], totals: { revenue: new Prisma.Decimal(0), groupsAvailable: 0, groupsUnavailable: 0 } };
 }
 
-function toJsonObject(value: AnalysisResult): Prisma.InputJsonObject {
+function toJsonObject(value: unknown): Prisma.InputJsonObject {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
 }
 
