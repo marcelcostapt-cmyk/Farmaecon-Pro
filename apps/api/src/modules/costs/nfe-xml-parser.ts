@@ -26,6 +26,9 @@ export interface ParsedInvoiceLine {
   discount: Prisma.Decimal | null; // vDesc da linha
   otherExpense: Prisma.Decimal | null; // vOutro da linha
   lots: ParsedLot[];
+  anvisaRegister: string | null; // med/cProdANVISA: 11 ou 13 dígitos, ou ISENTO (validado pelo XSD)
+  anvisaExemptionReason: string | null; // med/xMotivoIsencao: 1 a 255 caracteres
+  pmc: Prisma.Decimal | null; // med/vPMC: preço máximo ao consumidor (TDec_1302)
   isBonus: boolean;
   warnings: string[];
 }
@@ -66,6 +69,10 @@ const BONUS_TEXT = /\bBONIFIC/i;
 
 // Non-validating parse: external entities / DTD are not resolved (XXE-safe); values kept as
 // strings so EANs keep leading zeros and money keeps full precision until an explicit Decimal.
+// Padrões do XSD oficial (leiauteNFe_v4.00): grupo med (medicamentos).
+const ANVISA_PATTERN = /^(\d{11}|\d{13}|ISENTO)$/;
+const PMC_PATTERN = /^(0|0\.\d{2}|[1-9]\d{0,12}(\.\d{2})?)$/;
+
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -115,6 +122,17 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
       expiryDate: isoDate(r.dVal),
     }));
 
+    // Grupo med: valores inválidos ficam de fora e geram aviso (nunca se grava dado fora do XSD).
+    const med = (prod.med ?? null) as Record<string, unknown> | null;
+    const anvisaRaw = med ? text(med.cProdANVISA) : null;
+    const anvisaRegister = anvisaRaw !== null && ANVISA_PATTERN.test(anvisaRaw) ? anvisaRaw : null;
+    if (anvisaRaw !== null && anvisaRegister === null)
+      w.push(`cProdANVISA inválido "${anvisaRaw}" (esperado 11 ou 13 dígitos, ou ISENTO): não gravado`);
+    const pmcRaw = med ? text(med.vPMC) : null;
+    const pmc = pmcRaw !== null && PMC_PATTERN.test(pmcRaw) ? new Prisma.Decimal(pmcRaw) : null;
+    if (pmcRaw !== null && pmc === null) w.push(`vPMC inválido "${pmcRaw}": não gravado`);
+    const exemptionReason = med ? text(med.xMotivoIsencao) : null; // opcional no XSD (1 a 255 caracteres)
+
     // Bonificação na linha: CFOP 5910, ou ausência de vItem (tag) com vProd > 0.
     const isBonus = cfop === BONUS_CFOP || (vItemAbsent && productsValue !== null && productsValue.gt(0));
     const lineNumber = (nItemAttr ?? nItemEl) ?? '';
@@ -138,6 +156,9 @@ export function parseNfeXml(buffer: Buffer | string): ParsedInvoice {
       discount: dec(prod.vDesc),
       otherExpense: dec(prod.vOutro),
       lots,
+      anvisaRegister,
+      anvisaExemptionReason: exemptionReason,
+      pmc,
       isBonus,
       warnings: w,
     };
