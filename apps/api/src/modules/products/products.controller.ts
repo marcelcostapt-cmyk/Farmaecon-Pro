@@ -3,13 +3,14 @@ import { AuthGuard } from '@nestjs/passport';
 import { ProductsService } from './products.service';
 import { CurrentTenant } from '../../shared/decorators/tenant.decorator';
 import { ok } from '../../shared/types/api-response.type';
-import { IsString, IsNumber, IsPositive } from 'class-validator';
+import { IsString, IsNumber, IsPositive, IsOptional, MaxLength } from 'class-validator';
 
 class UpsertProductDto {
   @IsString() sku: string;
   @IsString() title: string;
   @IsNumber() @IsPositive() costPrice: number;
   @IsNumber() @IsPositive() basePrice: number;
+  @IsOptional() @IsString() @MaxLength(30) anvisaRegister?: string | null;
 }
 
 @UseGuards(AuthGuard('jwt'))

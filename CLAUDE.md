@@ -188,3 +188,119 @@ Perguntas p/ Marcio: operação real = observação+DRE ou modo ativo? custo por
 - Verde: npm run build --workspace web OK. Screenshots antes (/tmp .../ui-escritorio.png) e depois desktop+tablet (ui-escritorio-after*.png); responsividade desktop 1280 + tablet 820 OK.
 - Validação visual feita com imagem farmaecon-web:escritorio-c2 trocada temporariamente no ensaio e REVERTIDA para 94612a9 (ensaio de volta ao estado validado, web healthy). Nada tocou produção.
 - Nota: a sidebar é o shell partilhado → o navy/laranja aparece em TODAS as páginas do dashboard (consistente com o sistema, por design). Falta eventual: estado "ativo" por rota (precisa de client nav) não implementado.
+
+## Heróis e vilões por margem (GET /margin/ranking) · 2026-11-20 (branch feature/westack-margin-manager, só leitura, NÃO em produção)
+- FEITO: `costs/margin-ranking.ts` (puro) — heróis = maior margem % com margem positiva; vilões = menor margem % do que sobra; indisponíveis ficam de fora e são contados. Endpoint `GET /margin/ranking` (account_id/start_date/end_date) reusa o cálculo do preview. Sem UI.
+- Verde: tsc limpo; 357 unit (6 novos em margin-ranking.spec.ts); 35 e2e em PostgreSQL real (`npm run test:postgres`, incl. ranking e isolamento por tenant).
+- LIÇÃO: `npm run lint --workspace=api` corre `eslint --fix` sobre todo o src/test e reformata ~113 ficheiros; NÃO o correr para validar. O estilo commitado é mais largo que o do lint.
+- Infra de teste descartável: containers `farmaecon-e2e-pg` (127.0.0.1:55432) e `farmaecon-e2e-redis` (127.0.0.1:6379), criados para o e2e; remover quando não forem precisos.
+- UI FEITA: secção "Melhores/Piores margens" em /margin/preview (Server Component, `GET /margin/ranking`, sem Server Action). `tsc` e `build web` OK. Não validado no browser nem em ensaio (imagem da API precisa do endpoint novo).
+- UI REGRAS FEITA: lista de regras + formulário ADMIN em /margin/preview (rule-form.tsx, cliente) → `PUT /api/margin/rules` (route handler via api-bridge; bridge aceita PUT agora). Só percentual; limite em valor fica só na API. `build web` OK. Sem teste e2e de UI (web não tem testes).
+- (c) ALERTA DE TARIFA ML FEITO: `costs/fee-change.ts` (puro) — taxa efetiva por SKU/mês = Σ saleFee / Σ receita; compara os dois últimos meses com dados; alerta |Δ| ≥ 2 pp (limite proposto, registado em /tmp/farmaecon-decision.log). `GET /margin/fee-changes`. Commit 5491237 (backend, 6 unit + e2e com tenant dedicado). UI na mesma página /margin/preview (commit seguinte).
+- PRÓXIMO: validar UI no browser em ensaio (exige imagens API+web com os endpoints novos: ranking, fee-changes, rules PUT). Antes de qualquer deploy em ensaio: backup do compose e das imagens atuais, como nas validações anteriores. Sem migration nova nesta sequência (margin_rules já existe em produção).
+- BLOQUEIO: nenhum; a margem real em produção continua dependente das 7 decisões de negócio.
+- DECISÕES do protocolo autónomo: registadas em /tmp/farmaecon-decision.log (ordem: UI ranking antes de regras por SKU, por ser só leitura).
+
+## Ensaio atualizado para UI de margem · 2026-11-20 (branch feature/westack-margin-manager, NÃO em produção)
+- Imagens do ensaio: farmaecon-api/web:f82647f-margin (build do HEAD f82647f). Compose do ensaio em /opt/farmaecon/docker-compose.rehearsal.yml atualizado (sed nas linhas image:).
+- Backup pré-deploy: /opt/farmaecon/backups/pre-margin-ui-rehearsal-20261120-201754/ (rehearsal.dump, compose.bak, ROLLBACK_IMAGES = 94612a9, SHA256SUMS OK). Rollback: repor compose.bak e `docker compose -p farmaecon-rehearsal-teste -f docker-compose.rehearsal.yml up -d`.
+- Verificado: migrate PASS (sem migrations novas), api health/ready 200, web 200, /margin/preview sem sessão → 307 /login, /margin/ranking|fee-changes|rules → 401 sem token (montados e protegidos).
+- NÃO verificado: UI no browser (sem credenciais do admin de ensaio). Próximo: validar as três secções com login de ensaio, ou pedir credenciais.
+- Produção intocada (94612a9 / e33588e-scheduler / f69965b).
+
+## Validade e fabricação do lote (NF-e) · 2026-11-20 (branch feature/westack-margin-manager, NÃO em produção)
+- FEITO: parser extrai `rastro/dVal` (validade) e `rastro/dFab` (fabricação) por lote, só no formato AAAA-MM-DD (outro formato → null). Persistido em `purchase_invoice_items.expiry_date` e `fabrication_date` (migration aditiva `20261120_purchase_item_lot_dates`, colunas NULL).
+- REGRA CONSERVADORA: linha com vários lotes NÃO persiste validade/fabricação (null + aviso "validade/fabricação por lote não persistidas"). Escolher o vencimento mais cedo ou outra regra seria decisão de negócio — não tomada.
+- Anvisa: NÃO existe na NF-e (é atributo de cadastro do produto). Fora do alcance desta etapa.
+- Verde: tsc limpo; 367 unit (4 novos em nfe-lot-dates.spec.ts); 36 e2e em PostgreSQL real (migration aplicada do zero).
+- Pendente (decisão do Márcio): regra de consumo por lote (FIFO / validade) e tratamento de multi-lote.
+- Ensaio NÃO atualizado com esta alteração (a imagem do ensaio é f82647f-margin).
+- LEITURA FEITA: `GET /dre/lots/expiring?days=` (0–365, default 90) lista lotes vencidos e a vencer, com fatura de origem e estado da fatura (pode estar PENDING_REVIEW — dado ainda não aprovado). Função pura `costs/lot-expiry.ts` + `DrePreviewService.expiringLots`. Só leitura; não altera custo nem CMV.
+- Verde: 5 unit (lot-expiry.spec.ts); e2e PostgreSQL real `test/lot-expiry.postgres.e2e-spec.ts` (limite da janela, vencido, sem validade, isolamento). 372 unit, 39 e2e.
+- Pendente: UI da lista (opcional, pequena) e validação no browser; a validação HTTP do parâmetro days não tem teste dedicado (regex simples, 400 em valor inválido).
+- ENSAIO ATUALIZADO para cd352a4-lots (api+web). Backup pré-deploy: /opt/farmaecon/backups/pre-lots-rehearsal-20261120-210311/ (dump, compose.bak = f82647f-margin, SHA256SUMS OK). Migration 20261120_purchase_item_lot_dates aplicada (colunas expiry_date/fabrication_date confirmadas). api/web healthy; /dre/lots/expiring sem token → 401. Validação no browser ainda pendente (sem credenciais de ensaio).
+- UI LOTES: `/dre/lots` (Server Component, só leitura) lista lotes vencidos/a vencer via `GET /dre/lots/expiring`, com janelas de 30/90/180 dias. Entrada "🧾 Lotes e validades" na barra lateral.
+- Utilizador de teste no ENSAIO (não produção): teste-admin@ensaio.local, tenant ensaio-westack, ADMIN. Palavra-passe gerada, guardada só em /root/.farmaecon-ensaio-test-admin (600). Não guardar em outros ficheiros.
+- Dados de teste no ensaio: NF-e sintética importada (invoice 26a900a9-…): L1 vence 2027-01-10, L2 vence 2026-12-01, L3A+L3B sem validade (multi-lote), L4 sem rastro.
+- ENSAIO web atualizado para f96ec88-lotsui (API continua cd352a4-lots). Backup: /opt/farmaecon/backups/pre-lotsui-rehearsal-20261120-220703/.
+- VALIDAÇÃO NO BROWSER (Playwright, ensaio, utilizador teste-admin@ensaio.local): login ok → /dashboard; /dre/lots?days=30 lista só L2 (11 dias); days=90 lista L2 e L1 (51 dias); L3 (multi-lote) e L4 (sem rastro) corretamente ausentes; /margin/preview carrega sem redirecionamento.
+- NÃO coberto no browser: lote já VENCIDO (não há dado vencido no ensaio); coberto por teste unitário e e2e.
+
+## Gestão de lotes e validades · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- API: modelo `ProductLot` (tabela product_lots, migration aditiva 20261121_product_lots com RLS + GRANT). `GET /lots?product=&status=`, `POST /lots` e `PATCH /lots/:id` (escrita só ADMIN). Estado de validade calculado na leitura (`costs/lot-validity.ts`): vencido, vence_em_30 (0–30 dias), vigente, sem_validade. Sem quantidade/estoque.
+- Duplicado = mesmo produto (nome) + mesmo número de lote → 409. Validade anterior à fabricação → 400.
+- Boot RLS check 15 → 16 tabelas (product_lots adicionada ao conjunto `models` e à lista).
+- Web: `/lots` (listagem, filtros por produto/EAN/SKU e estado, cadastro e edição inline para ADMIN). Route handlers `/api/lots` e `/api/lots/[id]`. Barra lateral "Lotes e validades" aponta para /lots; /dre/lots (lotes da NF-e) continua acessível pelo link.
+- Verde: tsc; 377 unit (5 novos em lot-validity.spec.ts; prisma.service.spec atualizado para 16); 44 e2e PostgreSQL real (5 novos em lots.postgres.e2e-spec.ts); build web OK.
+- Pendente: validação no browser no ensaio (imagens API e web novas + migration nova com backup).
+- ENSAIO atualizado para 227c489-lotsmgmt (api+web). Backup: /opt/farmaecon/backups/pre-lots-mgmt-rehearsal-20261120-221321/ (dump, compose.bak = f96ec88-lotsui/cd352a4-lots). Migration 20261121_product_lots aplicada (tabela confirmada).
+- VALIDAÇÃO NO BROWSER (Playwright, ensaio, teste-admin@ensaio.local): login ok; cadastro de 3 lotes ("Lote cadastrado."); filtro estado=vencido → só AMOXICILINA; produto=paracetamol → só PARACETAMOL; produto=EAN → só VITAMINA D; edição de lote → gravada na BD (PT-2026-B); duplicado → "Já existe este lote para este produto.". Screenshot: lots-final.png.
+- Teste 68dadd7: OPERATOR recebe 403 ao escrever (controller). Não coberto no browser (só há conta ADMIN de teste).
+- VALIDAÇÃO OPERATOR (ensaio, teste-operador@ensaio.local, role OPERATOR; palavra-passe em /root/.farmaecon-ensaio-test-operador, 600): /lots carrega e lista; botão "Cadastrar lote" e botões "Editar" ausentes; POST /api/lots e PATCH /api/lots/:id → HTTP 403 "Apenas ADMIN pode alterar lotes."; nenhum lote criado (0 linhas). Contas de teste ADMIN: teste-admin@ensaio.local e teste-admin2@ensaio.local.
+- PRÓXIMO PASSO FEITO: card "🧾 Lotes e validades" no escritório (LotesResumoCard, só leitura, liga a /lots). Commit bb99b54. Ensaio web em bb99b54-officecard (API 227c489-lotsmgmt). Backup: /opt/farmaecon/backups/pre-officecard-rehearsal-20261120-223126/.
+- VALIDAÇÃO NO BROWSER (ADMIN de teste): card mostra Lotes 3 / Vencidos 1 / Vencem em 30 dias 1, igual à contagem direta na BD; clique leva a /lots. Screenshot: office/escritorio.png.
+- Pendente geral: CMV real (bloqueado pelas 7 decisões do Márcio); Bling/Olist (escolha de ERP); ADS (inc. 2); estoque por lote (regra de negócio); Anvisa (não está na NF-e).
+
+## Agent skills
+
+### Issue tracker
+
+Issues em GitHub (`github.com/marcelcostapt-cmyk/Farmaecon-Pro`), via `gh`. Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Rótulos padrão: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Contexto único: `GLOSSARY.md` e `docs/adr/` na raiz. Ver `docs/agents/domain.md`.
+
+## Turno autónomo noturno · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- FEITO (commits): lint sem --fix por omissão (b92a148; lint:fix para uso deliberado); alocação FEFO com fallback FIFO, preview sem baixa de estoque, lotes vencidos e sem quantidade fora (a2fa89a); registo Anvisa opcional no produto (562c9da); custos de ADS por importação CSV + resumo por SKU/período (422fa53).
+- NÃO FEITO e porquê: integração do ADS no cálculo de margem (mudaria números já validados; fica preparada: `GET /ads/summary` por SKU). Ficha de produto na web (não existe página de produtos; o campo está na API). Ledger de estoque (baixa real) — fora do preview.
+- DOCUMENTOS DE DECISÃO (não implementam regra de negócio): `.claude/decisoes/cmv-7-decisoes.md` (recomendações para as 7 decisões; decisão continua do Márcio) e `.claude/decisoes/erp-bling-olist.md` (análise com factos confirmados e não confirmados).
+- LINT: o script `lint` continua a falhar com ~3042 problemas porque a configuração de Prettier (80 colunas) não corresponde ao código commitado. Não alterei regras de estilo. Débito técnico.
+- Testes na última execução: 51 suites / 394 unit (1 skip); 52 e2e em PostgreSQL real; tsc limpo.
+- Migrations novas nesta sequência (aditivas): 20261122_product_lots_quantity, 20261123_product_anvisa, 20261124_ads_costs (RLS, boot check 17).
+- ENSAIO (noturno): API e0e6182-noturno (migrations 20261122/23/24 aplicadas, ads_costs confirmada), web bb99b54-officecard. Backup: /opt/farmaecon/backups/pre-noturno-rehearsal-20261120-233538/.
+- VALIDAÇÃO API no ensaio (script com conta ADMIN de teste): alocação FEFO (12 un. → N-A 4 + N-B 8; N-VENC fora por vencido); quantidade negativa → 400; ADS import 3 linhas, reimport 0 (idempotente), resumo 170 total / 20 sem SKU / 150 ABC; Anvisa gravado e lido em GET /products.
+- VALIDAÇÃO BROWSER (regressão, ADMIN de teste): /lots, /escritorio, /margin/preview e /dre/lots carregam sem erro; card de lotes coerente com a BD. Os novos endpoints (alocação, ADS, Anvisa) ainda não têm interface, por isso não foram validados no browser.
+
+## Análise upload direto de NF-e vs ERP · 2026-11-21 (sem código alterado, sem deploy)
+- DECISÃO PROPOSTA (`.claude/decisoes/nfe-upload-direto-vs-erp.md`): opção C híbrida. Upload direto do XML é o caminho principal e JÁ EXISTE (`POST /dre/purchase-documents/preview` e ingestão, com ligação por CNPJ). ERP fica opcional.
+- LACUNA CONFIRMADA: o parser não lê o grupo `med` (registo Anvisa da NT 2018.005). Próximo passo técnico, depois de confirmar as tags no leiaute oficial.
+- NÃO CONFIRMADO (precisa de parecer jurídico ou fonte oficial): se armazenar XML de terceiros é legal e a LGPD aplicável; se há obrigação de consulta à SEFAZ; se o QR code da DANFE contém a chave de acesso.
+- Protótipo `POST /documents/nfe/upload` NÃO criado: duplicaria o fluxo existente.
+- `.claude/decisoes/erp-bling-olist.md` atualizado: NF-e e preços continuam não confirmados nos dois.
+
+## Grupo med (medicamentos) na NF-e · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- LEIAUTE CONFIRMADO no XSD oficial (leiauteNFe_v4.00.xsd, espelho público do crate dfe 0.6.1; o PDF da NT 2021.004 não é extraível sem ferramentas e o portal dá erro de redirecionamento): `med` é um `xs:choice minOccurs="0"` dentro de `prod`. `cProdANVISA` = `[0-9]{11}|[0-9]{13}|ISENTO`; `xMotivoIsencao` opcional, 1 a 255 caracteres; `vPMC` = TDec_1302 (até 13 inteiros, 2 decimais opcionais). A obrigatoriedade para medicamento é regra da SEFAZ, não do schema.
+- FEITO: parser lê o grupo med (0a3fb68); valores fora do padrão não são gravados e geram aviso. Migration aditiva `20261125_purchase_item_anvisa` (anvisa_register, anvisa_exemption_reason, pmc) e persistência na linha do documento (0d5b100). Preview e ingestão expõem os campos.
+- NÃO FEITO: gravar o registo no produto. Não há chave confiável (Product não tem EAN; código fornecedor → SKU é a decisão 6 pendente). O produto continua com preenchimento manual.
+- Testes: 398 unit (4 novos em nfe-med-group.spec.ts); 53 e2e PostgreSQL real (1 novo em dre-ingest, persistência do grupo med sem criar custo).
+- ENSAIO: API 0d5b100-med (migration 20261125 aplicada), web bb99b54-officecard. Backup: /opt/farmaecon/backups/pre-med-rehearsal-20261121-000403/.
+- VALIDAÇÃO API (NF-e de teste com med injetado): preview devolve cProdANVISA 0123456789012 (zero preservado), ISENTO com motivo RDC 1234/2020, vPMC 25.9 e 10; ingestão criou o documento e a BD confirma os valores na linha. Regressão no browser (/lots, /escritorio, /margin/preview, /dre/lots) sem erro.
+- Nota: product_costs = 6 no ensaio; a ingestão não grava custo (garantido pelo e2e), mas o número não foi comparado com uma linha de base.
+- RUNBOOK DE ENSAIO (2026-11-21): backup com um só timestamp em /opt/farmaecon/backups/pre-update-rehearsal-20261121-002039/ (dump legível, SHA256 OK). Migrate PASS (sem migrations novas). Health: API {"status":"ok","mode":"OBSERVATION"}, web 200. Imagens mantidas: API 0d5b100-med, web bb99b54-officecard, porque 2df67ef é só documentação (sem diferença em apps/) e não há .local/rehearsal.env: as imagens ficam no compose.
+
+## Decisão CMV #2 aplicada — bonificação (rateio proporcional a valor nominal) · 2026-11-21 (branch feature/westack-margin-manager, NÃO em produção)
+- DECISÃO DO MÁRCIO: opção 1 (`rateio_proporcional_valor_nominal`). Custo médio = (valor pago + valor bonificado + vOutro + ST + IPI não recuperável) ÷ unidades totais, por EAN (ou código do fornecedor). Só com linha paga do mesmo EAN/código; sem par, custo indisponível (nunca zero). vItem (líquido) quando existe e é > 0; senão vProd. IPI recuperável não entra.
+- FEITO (commits a8afca3, 8c5acc6, 4ff16ff, 49dc2d5):
+  - Parser lê vIPI e vICMSST por linha; migrations aditivas `20261126_purchase_tax_fields` (ipi_amount, icms_st_amount, ipi_recoverable) e `20261127_purchase_items_products_value` (products_value).
+  - Função pura `costs/group-average-cost.ts`. Testes dos três cenários (mesmo EAN rateia; EAN diferente não rateia; vOutro/ST/IPI na base com vItem prevalecendo) e do caso real da NF-e Belajoyce: (13,46 + 8315,01) ÷ 682 nas duas linhas.
+  - Endpoint `POST :id/bonus` aceita `rule: GROUP_AVERAGE_NOMINAL` e `ipiRecoverable` (obrigatório nesta regra; guardado no documento). Regras antigas inalteradas.
+- VERDE: 405 unit (1 skip); 54 e2e PostgreSQL real (1 novo: regra aplicada à NF-e Belajoyce, IPI obrigatório, persistência e limpeza).
+- DECISÕES A CONFIRMAR (não decididas pelo Márcio):
+  - IBS e CBS (reforma tributária) não entram na base: não foram mencionados. Os valores estão em zero no fixture.
+  - `ipiRecoverable` vem por documento, escolhido no endpoint. Não há configuração por empresa; cabe ao Márcio definir se fica por empresa.
+- NÃO FEITO: ensaio com esta versão (não pedido neste turno). Próximo passo: rebuild da API, migrations 20261126 e 20261127 (com backup), validação pelo endpoint.
+
+## Estado consolidado · auditoria 2026-11-21 (branch feature/ml-rate-limit-retry, HEAD d8448e5; base 8cbab63)
+Relatório completo: `.claude/auditoria-farmaecon-2026-11-21.md`. Só leitura; sem alterações de código, schema, migrations, deploy ou commits.
+- **Produção**: API e web `94612a9` (healthy; API 0 restarts, web 1 restart), OBSERVATION, 13 181 orders. Migrations aplicadas: 16 de 24. **Em falta**: `20261120_purchase_item_lot_dates` a `20261127_purchase_items_products_value`. A secção de deploy acima com `e33588e-scheduler` está desatualizada.
+- **Ensaio**: API `8cbab63-rehearsal-20261121-094605` (decisão #2 validada: custo 12,211833 nas linhas 2 e 4), web `bb99b54-officecard`. 24/24 migrations.
+- **Testes** (auditoria): `jest` 55 suites, 410 passam, 1 skip (após d8448e5); cobertura de linhas 78,87% (medida antes de d8448e5). E2E PostgreSQL não reverificado.
+- **Fila ML** (`marketplace-sync`, produção): 27 falhas, todas `ML API error` (26×429, 1×403), ocorrendo quase diariamente desde 15/11 (última 21/11 06:15 UTC). `token-refresh` com 0 falhas. Mitigação implementada em d8448e5 (branch, sem deploy): repete 429 até 3 vezes com Retry-After ou backoff 2/4/8 s, teto 10 s. Falhas concentradas numa conta (`b018bd8f`).
+- **Decisões pendentes do Márcio**: IPI recuperável (empresa ou documento); IBS/CBS na base; vigência (#5, default temporário em `cost-validity.ts`); código fornecedor ↔ SKU (#6); confirmar `GROUP_AVERAGE_NOMINAL`; regra final de consumo de lote (FEFO/FIFO, multi-lote); ADS na margem; multi-conta ML; autorização do deploy de produção das migrations 20261120–27 e do código 8cbab63.
+- **Não existe**: módulo `marketplace-accounts` (contas em `integrations`); endpoint `GET /dre/purchase-documents` (listagem); ficha de produto na web.
+- **Gates** (ordem): G1 decisões → G2 mitigação 429 (feita em d8448e5) → G3 deploy de produção com backup e autorização → G4 E2E no HEAD → G5 vínculo documento↔conta → G6 publicação de custos → G7 ficha de produto → G8 multi-conta.

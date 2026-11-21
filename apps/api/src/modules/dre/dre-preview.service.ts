@@ -9,6 +9,7 @@ import {
 } from '../costs/cost-pool-db';
 import { computeOrderCmvPreview, type CmvPreview, type PreviewOrderItem } from '../costs/cmv-preview';
 import { computeDrePreview, type DrePreview, type DreOrderRow, type GroupBy } from '../costs/dre-preview';
+import { expiringLots, type ExpiringLot, type LotRow } from '../costs/lot-expiry';
 
 export interface DreFilters {
   accountId?: string;
@@ -83,5 +84,40 @@ export class DrePreviewService {
       }
     }
     return computeDrePreview(rows, pool, DEFAULT_STRATEGY, filters.groupBy);
+  }
+
+  /** Lotes vencidos ou a vencer em até `windowDays` dias (só leitura; inclui o estado da fatura de origem). */
+  async expiringLots(tenantId: string, now: Date, windowDays: number): Promise<ExpiringLot[]> {
+    // Inclusivo até ao fim do dia `now + windowDays` (cutoff exclusivo no início do dia seguinte).
+    const cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + windowDays + 1));
+    const items = await this.prisma.purchaseInvoiceItem.findMany({
+      where: { tenantId, expiryDate: { not: null, lt: cutoff } },
+      select: {
+        id: true,
+        purchaseInvoiceId: true,
+        ean: true,
+        description: true,
+        lotNumber: true,
+        quantity: true,
+        expiryDate: true,
+        purchaseInvoice: { select: { originalFilename: true, status: true } },
+      },
+    });
+    const rows: LotRow[] = [];
+    for (const i of items) {
+      if (i.expiryDate === null) continue;
+      rows.push({
+        itemId: i.id,
+        invoiceId: i.purchaseInvoiceId,
+        invoiceFilename: i.purchaseInvoice.originalFilename,
+        invoiceStatus: i.purchaseInvoice.status,
+        ean: i.ean,
+        description: i.description,
+        lotNumber: i.lotNumber,
+        quantity: i.quantity,
+        expiryDate: i.expiryDate,
+      });
+    }
+    return expiringLots(rows, now, windowDays);
   }
 }

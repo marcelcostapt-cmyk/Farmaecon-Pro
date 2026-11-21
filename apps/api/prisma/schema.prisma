@@ -57,6 +57,8 @@ model Tenant {
   products              Product[]
   orders                Order[]
   marginRules           MarginRule[]
+  productLots          ProductLot[]
+  adsCosts             AdsCost[]
 
   @@map("tenants")
 }
@@ -93,6 +95,7 @@ model MarketplaceAccount {
 
   tenant            Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   orders            Order[]
+  adsCosts          AdsCost[]
   source            String                 @default("MERCADO_LIVRE")
   lastSyncedAt      DateTime?              @map("last_synced_at")
   lastSyncState     String                 @default("NOT_SYNCED") @map("last_sync_state")
@@ -124,6 +127,7 @@ model Product {
   basePrice        Float    @map("base_price")
   stockQuantity    Int      @default(0) @map("stock_quantity")
   minStockQuantity Int      @default(0) @map("min_stock_quantity")
+  anvisaRegister   String?  @map("anvisa_register")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -305,6 +309,7 @@ model PurchaseInvoice {
   documentTotal           Decimal?               @map("document_total")
   paymentAmountInDocument Decimal?               @map("payment_amount_in_document")
   hasBonus                Boolean                @default(false) @map("has_bonus")
+  ipiRecoverable      Boolean?  @map("ipi_recoverable")
   bonusAmount             Decimal?               @map("bonus_amount")
   paidAmount              Decimal?               @map("paid_amount")
   status                  CostLifecycle          @default(EXTRACTED)
@@ -360,6 +365,14 @@ model PurchaseInvoiceItem {
   unit                String?
   cfop                String?
   lotNumber           String?   @map("lot_number")
+  anvisaRegister      String?   @map("anvisa_register")
+  anvisaExemptionReason String?  @map("anvisa_exemption_reason")
+  pmc                 Decimal?  @db.Decimal(15, 4)
+  ipiAmount           Decimal?  @map("ipi_amount") @db.Decimal(19, 4)
+  icmsStAmount        Decimal?  @map("icms_st_amount") @db.Decimal(19, 4)
+  productsValue       Decimal?  @map("products_value") @db.Decimal(19, 4)
+  fabricationDate     DateTime? @map("fabrication_date") @db.Date
+  expiryDate          DateTime? @map("expiry_date") @db.Date
   isBonus             Boolean   @default(false) @map("is_bonus")
   paidQuantity        Decimal?  @map("paid_quantity")
   bonusQuantity       Decimal?  @map("bonus_quantity")
@@ -420,4 +433,46 @@ model MarginRule {
   @@unique([tenantId, sku])
   @@index([tenantId])
   @@map("margin_rules")
+}
+
+model ProductLot {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  productName     String    @map("product_name")
+  ean             String?
+  sku             String?
+  lotNumber       String    @map("lot_number")
+  quantity        Decimal?  @db.Decimal(19, 4)
+  fabricationDate DateTime? @map("fabrication_date") @db.Date
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  notes           String?
+  createdBy       String?   @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiryDate])
+  @@index([tenantId, ean])
+  @@map("product_lots")
+}
+
+model AdsCost {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  marketplaceAccountId String   @map("marketplace_account_id")
+  day                  DateTime @db.Date
+  sku                  String?
+  campaign             String?
+  amount               Decimal  @db.Decimal(19, 4)
+  sourceHash           String   @map("source_hash")
+  sourceLine           Int      @map("source_line")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sourceHash, sourceLine])
+  @@index([tenantId, day])
+  @@map("ads_costs")
 }

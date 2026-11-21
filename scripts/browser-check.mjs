@@ -35,7 +35,8 @@ export async function verifyBrowser({ baseURL, apiBase, accounts, secureCookies 
       assert(access.secure === secureCookies && refresh.secure === secureCookies, 'Wrong secure-cookie setting');
       assert(!/access_token|refresh_token/.test(await page.evaluate(() => document.cookie)), 'Client script can read a session cookie');
       phase = 'observation report and tenant isolation';
-      await page.getByRole('link', { name: 'Relatório de observação', exact: true }).click();
+      // O relatório é acedido pelo item "📊 Dashboard" (mesma rota /observation); a entrada duplicada foi removida em e1f35bf.
+      await page.getByRole('link', { name: '📊 Dashboard', exact: true }).click();
       await page.waitForURL('**/observation');
       await page.getByRole('heading', { name: 'O que os dados permitem afirmar', exact: true }).waitFor();
       const reportText = await page.locator('article').innerText();

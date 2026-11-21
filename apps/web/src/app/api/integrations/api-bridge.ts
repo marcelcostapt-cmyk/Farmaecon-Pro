@@ -13,7 +13,12 @@ function messageOf(body: unknown, status: number): string {
 }
 
 /** Same-origin JSON bridge to the API; the httpOnly access token never reaches browser JavaScript. */
-export async function proxyToApi(request: Request, method: 'POST' | 'PATCH' | 'DELETE', apiPath: string, body?: unknown): Promise<NextResponse<ProxyResult>> {
+export async function proxyToApi(
+  request: Request,
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  apiPath: string,
+  body?: unknown,
+): Promise<NextResponse<ProxyResult>> {
   const expectedOrigin = process.env.FRONTEND_URL ?? new URL(request.url).origin;
   if (request.headers.get('origin') !== expectedOrigin) return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
 

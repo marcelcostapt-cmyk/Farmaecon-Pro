@@ -11,28 +11,28 @@ const SECTORS: Array<{
     id: 'gestao',
     label: 'Gestão',
     detail: 'Pauta e decisões',
-    status: 'active',
+    status: 'offline',
     tone: 'from-orange-100 to-amber-50',
   },
   {
     id: 'analise',
     label: 'Análise',
     detail: 'Dados e margem',
-    status: 'active',
+    status: 'offline',
     tone: 'from-sky-100 to-cyan-50',
   },
   {
     id: 'catalogo',
     label: 'Catálogo',
     detail: 'Anúncios e criativos',
-    status: 'attention',
+    status: 'offline',
     tone: 'from-violet-100 to-fuchsia-50',
   },
   {
     id: 'relacionamento',
     label: 'Relacionamento',
     detail: 'SAC e oportunidades',
-    status: 'blocked',
+    status: 'offline',
     tone: 'from-rose-100 to-pink-50',
   },
 ];
@@ -50,10 +50,10 @@ export function OfficeScene() {
               Visão do escritório
             </h2>
             <p className="mt-1 text-xs text-[var(--fa-muted)]">
-              Simulação visual da operação. Os estados reais dependem da próxima sincronização.
+              Visão ilustrativa, sem dados. Nenhum estado de setor é medido nesta versão.
             </p>
           </div>
-          <StatusBadge status="active" />
+          <StatusBadge status="offline" />
         </div>
       </div>
 
