@@ -6,7 +6,8 @@ import { toJsonSafe } from '../costs/decimal-json';
 import { AGENT_CATALOG, findAgent } from './agent-catalog';
 import { AdsService } from '../ads/ads.service';
 import { analyseAds, type AdsAnalysisInput, type AnalistaContext } from './giro-ads/ads-analysis';
-import { consolidarMesa, type AgenteConsultado, type EstadoAgente } from './gestor/consolidacao';
+import { consolidarMesa, type AgenteConsultado } from './gestor/consolidacao';
+import { analyseCatalogo, type CatalogoProduct } from './anuncios/catalogo-analysis';
 import {
   analyseFinancialMargin,
   blockReasonFor,
@@ -174,6 +175,10 @@ export class AgentsService {
       const analysis = analyseAds(input);
       return { status: analysis.status, blockReason: analysis.blockReason, result: analysis as unknown };
     }
+    if (agentKey === 'vitrine-farma') {
+      const analysis = await this.anuncios(tenantId, account);
+      return { status: analysis.status, blockReason: analysis.blockReason, result: analysis as unknown };
+    }
     if (agentKey === 'central-farma') return this.consolidate(tenantId, account);
     throw new BadRequestException('Este agente ainda não está implementado.');
   }
@@ -193,17 +198,58 @@ export class AgentsService {
     return { context: { status: 'COMPLETED', runId: run.id, runAt: run.startedAt.toISOString(), marginAlertSkus } };
   }
 
+  /**
+   * Anúncios (Vitrine Farma): qualidade do catálogo local dos SKUs VENDIDOS pela conta.
+   * Vendas = order_items da conta; cadastro = products do tenant (só esses SKUs); custo = product_costs
+   * APPROVED da conta. Nenhuma chamada ao Mercado Livre.
+   */
+  private async anuncios(tenantId: string, account: AccountRef) {
+    const soldRows = await this.prisma.orderItem.groupBy({
+      by: ['sellerSkuRaw'],
+      where: { tenantId, marketplaceAccountId: account.id, sellerSkuRaw: { not: null } },
+      _sum: { quantity: true },
+    });
+    const sold = soldRows
+      .filter((r) => r.sellerSkuRaw !== null)
+      .map((r) => ({ sku: r.sellerSkuRaw as string, units: r._sum.quantity ?? 0 }));
+    const skus = sold.map((s) => s.sku);
+    const products: CatalogoProduct[] = skus.length
+      ? (await this.prisma.product.findMany({
+          where: { tenantId, sku: { in: skus } },
+          select: { sku: true, title: true, basePrice: true, stockQuantity: true, minStockQuantity: true, anvisaRegister: true },
+        })).map((p) => ({ sku: p.sku, title: p.title, basePrice: p.basePrice, stockQuantity: p.stockQuantity, minStockQuantity: p.minStockQuantity, anvisaRegister: p.anvisaRegister }))
+      : [];
+    // Custo aprovado mais recente por SKU, na conta. Nunca products.cost_price (campo legado).
+    const costRows = skus.length
+      ? await this.prisma.productCost.findMany({
+          where: { tenantId, marketplaceAccountId: account.id, status: 'APPROVED', sku: { in: skus } },
+          select: { sku: true, unitCost: true },
+          orderBy: { validFrom: 'desc' },
+        })
+      : [];
+    const seen = new Set<string>();
+    const costs = costRows
+      .filter((c) => c.sku !== null && !seen.has(c.sku) && (seen.add(c.sku as string), true))
+      .map((c) => ({ sku: c.sku as string, unitCost: new Prisma.Decimal(c.unitCost) }));
+    return analyseCatalogo({
+      account: { id: account.id, name: account.displayName ?? account.name, status: account.status },
+      sold,
+      products,
+      costs,
+    });
+  }
+
   /** Gestor: lê a última execução persistida de cada agente da conta e consolida. Não recalcula. */
   private async consolidate(tenantId: string, account: AccountRef) {
     const agentes: AgenteConsultado[] = [];
-    for (const def of AGENT_CATALOG.filter((a) => a.key === 'dose-certa' || a.key === 'giro-ads')) {
+    for (const def of AGENT_CATALOG.filter((a) => a.key === 'dose-certa' || a.key === 'giro-ads' || a.key === 'vitrine-farma')) {
       const row = await this.prisma.agentRun.findFirst({
         where: { tenantId, agentKey: def.key, marketplaceAccountId: account.id },
         orderBy: { startedAt: 'desc' },
       });
       const completed = row && row.status === 'COMPLETED' ? (row.result as PersistedResult | null) : null;
       agentes.push({
-        agentKey: def.key as 'dose-certa' | 'giro-ads',
+        agentKey: def.key as 'dose-certa' | 'giro-ads' | 'vitrine-farma',
         publicName: def.publicName,
         internalName: def.internalName ?? def.publicName,
         run: row ? { id: row.id, status: row.status, startedAt: row.startedAt.toISOString(), blockReason: row.blockReason, errorMessage: row.errorMessage } : null,

@@ -12,8 +12,8 @@ export interface FindingPersistido {
 }
 
 export interface AgenteConsultado {
-  agentKey: 'dose-certa' | 'giro-ads';
-  publicName: string; // Analista | ADS
+  agentKey: 'dose-certa' | 'giro-ads' | 'vitrine-farma';
+  publicName: string; // Analista | ADS | Anúncios
   internalName: string; // Dose Certa | Giro Ads
   run: { id: string; status: 'RUNNING' | 'COMPLETED' | 'BLOCKED' | 'FAILED'; startedAt: string; blockReason: string | null; errorMessage: string | null } | null;
   // Resultado persistido (apenas quando COMPLETED). Nunca recalculado aqui.

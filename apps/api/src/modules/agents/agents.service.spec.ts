@@ -48,10 +48,10 @@ describe('AgentsService — execução da Central Farma', () => {
     expect(prisma.agentRun.create).not.toHaveBeenCalled();
   });
 
-  it('agente ainda não implementado (Anúncios) não executa e não regista nada', async () => {
+  it('agente ainda não implementado (Criativo) não executa e não regista nada', async () => {
     const prisma = makePrisma();
     const service = new AgentsService(prisma as any, makeMargin() as any, makeAds() as any);
-    await expect(service.run(TENANT, 'user-1', 'vitrine-farma', ACCOUNT.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.run(TENANT, 'user-1', 'criativo', ACCOUNT.id)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.agentRun.create).not.toHaveBeenCalled();
   });
 
