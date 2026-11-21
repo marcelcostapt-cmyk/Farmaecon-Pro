@@ -61,7 +61,7 @@ describe('AgentsService — execução da Central Farma', () => {
       data: expect.objectContaining({ tenantId: TENANT, marketplaceAccountId: ACCOUNT.id, agentKey: 'central-farma', status: 'RUNNING', requestedBy: 'user-1' }),
     });
     expect(margin.preview).not.toHaveBeenCalled();
-    const finalWrite = prisma.agentRun.update.mock.calls.at(-1)[0];
+    const finalWrite = prisma.agentRun.update.mock.calls.at(-1)![0];
     expect(finalWrite.data).toMatchObject({ status: 'BLOCKED', blockReason: 'SEM_PEDIDOS' });
     expect(finalWrite.data.finishedAt).toBeInstanceOf(Date);
     expect(run.status).toBe('BLOCKED');
@@ -75,7 +75,7 @@ describe('AgentsService — execução da Central Farma', () => {
     expect(margin.preview).toHaveBeenCalledWith(TENANT, { accountId: ACCOUNT.id, groupBy: 'sku' });
     expect(margin.alerts).toHaveBeenCalledWith(TENANT, { accountId: ACCOUNT.id, groupBy: 'sku' });
     expect(margin.feeChanges).toHaveBeenCalledWith(TENANT, { accountId: ACCOUNT.id });
-    const finalWrite = prisma.agentRun.update.mock.calls.at(-1)[0];
+    const finalWrite = prisma.agentRun.update.mock.calls.at(-1)![0];
     expect(finalWrite.data.status).toBe('COMPLETED');
     expect(finalWrite.data.result).toMatchObject({
       status: 'COMPLETED',
@@ -88,7 +88,7 @@ describe('AgentsService — execução da Central Farma', () => {
     const margin = makeMargin({ preview: jest.fn().mockRejectedValue(new Error('relation "secret_table" does not exist')) });
     const service = new AgentsService(prisma as any, margin as any);
     const run = await service.run(TENANT, 'user-1', 'central-farma', ACCOUNT.id);
-    const finalWrite = prisma.agentRun.update.mock.calls.at(-1)[0];
+    const finalWrite = prisma.agentRun.update.mock.calls.at(-1)![0];
     expect(finalWrite.data.status).toBe('FAILED');
     expect(finalWrite.data.errorMessage).not.toMatch(/secret_table|relation/);
     expect(finalWrite.data.errorMessage).toMatch(/A análise falhou/);

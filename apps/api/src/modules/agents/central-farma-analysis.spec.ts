@@ -8,7 +8,6 @@ const D = (v: string | number) => new Prisma.Decimal(v);
 function line(partial: Partial<MarginGroupLine> & { sku: string }): MarginGroupLine {
   return {
     key: partial.sku,
-    sku: partial.sku,
     description: `Produto ${partial.sku}`,
     date: null,
     itemsCount: 1,
@@ -20,6 +19,7 @@ function line(partial: Partial<MarginGroupLine> & { sku: string }): MarginGroupL
     margin: D(40),
     marginPercent: D(40),
     ...partial,
+    sku: partial.sku,
   };
 }
 
