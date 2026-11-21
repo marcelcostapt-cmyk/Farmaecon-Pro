@@ -36,6 +36,9 @@ export function AdsImportPanel({ accountId, accountLabel }: { accountId: string;
   const [phase, setPhase] = useState<'idle' | 'previewing' | 'importing'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  // Remonta o campo de ficheiro ao limpar a seleção: senão o navegador não dispara "change"
+  // ao escolher o mesmo ficheiro outra vez (ex.: reimportação), e o botão ficaria desativado.
+  const [inputKey, setInputKey] = useState(0);
 
   function pick(next: File | null) {
     setResult(null);
@@ -74,6 +77,7 @@ export function AdsImportPanel({ accountId, accountLabel }: { accountId: string;
     setResult(r.data);
     setPreview(null);
     setFile(null);
+    setInputKey((k) => k + 1);
     router.refresh();
   }
 
@@ -101,6 +105,7 @@ export function AdsImportPanel({ accountId, accountLabel }: { accountId: string;
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-semibold text-[var(--fa-muted)]">
           Ficheiro CSV
           <input
+            key={inputKey}
             type="file"
             accept=".csv,text/csv"
             onChange={(event) => pick(event.target.files?.[0] ?? null)}
