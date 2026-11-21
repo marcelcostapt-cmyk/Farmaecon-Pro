@@ -1,11 +1,11 @@
 # Relatório de consolidação dos PRs #13 → #14 → #15 → #16
 
-Data: 2026-11-21. Verificado sobre os heads: `main` e1f35bf · #13 `d9ba6f2` · #14 `aeb3ec3` · #15 `f6c85e6` · #16 `01ab4a6`. Todos em Draft. Nenhum merge, deploy ou migração em produção.
+Data: 2026-11-21. Verificado sobre os heads: `main` e1f35bf · #13 `d9ba6f2` · #14 `aeb3ec3` · #15 `f6c85e6` · #16 `a0ed34c`/`3b80fbf` · #17 `ae960df`. Todos em Draft. Nenhum merge, deploy ou migração em produção.
 
 ## 1. Dependências e conflitos
 
-- Cadeia linear: `main` ⊂ #13 ⊂ #14 ⊂ #15 ⊂ #16 (verificado com `git merge-base --is-ancestor`).
-- Cada PR integra sem conflitos com o anterior (`git merge-tree --write-tree`, saída 0).
+- Cadeia linear: `main` ⊂ #13 ⊂ #14 ⊂ #15 ⊂ #16 ⊂ #17 (verificado com `git merge-base --is-ancestor`).
+- Cada PR integra sem conflitos com o anterior (`git merge-tree --write-tree`, saída 0), incluindo #17 sobre #16.
 - Histórico reescrito: nenhum (sem force push).
 
 ## 2. Migrações
@@ -17,6 +17,7 @@ Data: 2026-11-21. Verificado sobre os heads: `main` e1f35bf · #13 `d9ba6f2` · 
 | #14 | 25 | +`20261128_agent_runs` |
 | #15 | 25 | — (sem migração nova) |
 | #16 | 26 | +`20261129_ads_import_batches` |
+| #17 | 26 | — (sem migração nova) |
 
 - Nenhuma migração existente foi editada (diff: só acrescentos).
 - Pendentes em produção: 10 (`20261120`–`20261129`). Não aplicar sem autorização explícita.
@@ -56,7 +57,7 @@ Data: 2026-11-21. Verificado sobre os heads: `main` e1f35bf · #13 `d9ba6f2` · 
 - Analista: Mix Ativo (estoque, giro, Full, ruptura) não implementado.
 - ADS: ROAS e ACOS dependem de uma fonte de receita atribuída.
 - Importação ADS: campos com quebra de linha não são suportados; a deteção de sobreposição é linha a linha (não por campanha inteira).
-- Anúncios: não implementado (ver próximo incremento).
+- Anúncios: implementado sobre o catálogo local (PR #17). Não cobre anúncios publicados nem Buy Box. Os limites das regras são parâmetros de produto a confirmar.
 
 **Bloqueios para operação real**
 - Migrações não aplicadas em produção (10).
@@ -64,12 +65,25 @@ Data: 2026-11-21. Verificado sobre os heads: `main` e1f35bf · #13 `d9ba6f2` · 
 - Nenhum CSV real de ADS validado pelo utilizador.
 - Revisão humana dos PRs.
 
+## 6b. Revisão da importação de custos (PR #13)
+
+- Publicação (`cost-publication.service.ts`): só a partir de `PENDING_REVIEW`; fatura do tenant; exige conta vinculada; recusa custo zero ou negativo; transacional.
+- Base de dados: CHECK `product_costs_publish_requires_rule` impede custo APPROVED sem regra de rateio.
+- Não revisado em profundidade nesta rodada: a vigência por defeito (decisão #5, `cost-validity.ts`) e a regra de bonificação em casos com vários lotes. Ficam como pendências de negócio.
+
+## 6c. Incidente operacional registado
+
+- Durante a sessão, o disco do host (`/`) chegou a 0 MB livres. Causa: cache de build do Docker e imagens de ensaio acumuladas.
+- Ação: `docker builder prune` (cache não usada) e limpeza de ficheiros temporários da própria sessão. Nenhuma imagem com tag, backup ou contentor foi removido.
+- Consequência para a recuperação: antes de cada build ou backup, verificar o espaço livre. Em produção, nunca remover imagens de rollback sem decisão explícita. Manter o disco abaixo de 90%.
+
 ## 7. Decisões pendentes
 
 - Fiscais: IPI recuperável (por documento ou por empresa); IBS/CBS na base; vigência (decisão #5); código fornecedor ↔ SKU (decisão #6); consumo de lote.
 - Operacionais: fonte de receita atribuída às campanhas (ROAS/ACOS); integração do ADS na margem.
 - Permissões: confirmação das APIs oficiais e escopos para SAC e Buy Box (Mercado Livre Brasil).
 - Sobreposição de ADS: aceitar a confirmação de linha a linha, ou exigir confirmação por campanha inteira.
+- Anúncios: limites das regras (título com 10 caracteres, margem de 40%, estoque de 3x o mínimo) e obrigatoriedade do registo Anvisa por categoria.
 
 ## 8. Ordem segura de integração
 
