@@ -51,7 +51,7 @@ describe('Custos de ADS — PostgreSQL real', () => {
 
   it('importa o CSV e resume por SKU e sem SKU', async () => {
     const r = await inTenant(tenantA, () => ads.importCsv(tenantA, accountA, csv, `${prefix}-h1`));
-    expect(r).toEqual({ received: 3, imported: 3, skipped: 0 });
+    expect(r).toMatchObject({ received: 3, imported: 3, skipped: 0 });
     const s = await inTenant(tenantA, () => ads.summary(tenantA, accountA));
     expect(s.total).toBe('170');
     expect(s.unallocated).toBe('20');
@@ -60,7 +60,7 @@ describe('Custos de ADS — PostgreSQL real', () => {
 
   it('reimportar o mesmo ficheiro é idempotente (nada duplicado)', async () => {
     const r = await inTenant(tenantA, () => ads.importCsv(tenantA, accountA, csv, `${prefix}-h1`));
-    expect(r).toEqual({ received: 3, imported: 0, skipped: 3 });
+    expect(r).toMatchObject({ received: 3, imported: 0, skipped: 3 });
     const s = await inTenant(tenantA, () => ads.summary(tenantA, accountA));
     expect(s.total).toBe('170');
   });

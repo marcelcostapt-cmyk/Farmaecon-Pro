@@ -182,7 +182,8 @@ describe('Prisma tenant context (mock driver, not PostgreSQL)', () => {
     expect(inList).toContain("'product_lots'");
     expect(inList).toContain("'ads_costs'");
     expect(inList).toContain("'agent_runs'");
-    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 18 }]);
+    expect(inList).toContain("'ads_import_batches'");
+    driver.raw.mockResolvedValueOnce([{ allowed: true }]).mockResolvedValueOnce([{ count: 19 }]);
     await expect(prisma.onModuleInit()).resolves.toBeUndefined();
   });
 });

@@ -1,13 +1,13 @@
 import { Test } from '@nestjs/testing';
-import { Global, Module, INestApplication, NotFoundException } from '@nestjs/common';
+import { ConflictException, Global, Module, INestApplication, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaService } from '../src/shared/prisma/prisma.service';
 import { inTenant } from '../src/shared/prisma/tenant-context';
 import { MarginService } from '../src/modules/margin/margin.service';
 import { AdsService } from '../src/modules/ads/ads.service';
 import { AgentsService } from '../src/modules/agents/agents.service';
+import { PrismaService } from '../src/shared/prisma/prisma.service';
 import { parseAdsCsv } from '../src/modules/costs/ads-csv';
 
 // Importação de CSV de ADS em PostgreSQL REAL: pré-visualização sem gravar, importação, reimportação
@@ -31,6 +31,7 @@ describe('ADS — importação de CSV em PostgreSQL real', () => {
   let owner: PrismaClient;
   let ads: AdsService;
   let agents: AgentsService;
+  let module_prisma: PrismaService;
   const prefix = `adsimp-${randomUUID()}`;
   const tenantA = `${prefix}-a`;
   const tenantB = `${prefix}-b`;
@@ -50,6 +51,7 @@ describe('ADS — importação de CSV em PostgreSQL real', () => {
     await app.init();
     ads = module.get(AdsService);
     agents = module.get(AgentsService);
+    module_prisma = module.get(PrismaService);
     for (const id of [tenantA, tenantB]) await owner.tenant.create({ data: { id, name: id } });
     for (const [id, tenant] of [[acc1, tenantA], [acc2, tenantA], [accB, tenantB]] as const) {
       await owner.marketplaceAccount.create({ data: { id, tenantId: tenant, platform: 'MERCADO_LIVRE', name: `ML ${id.slice(0, 6)}`, source: 'SIMULATED', status: 'ACTIVE' } });
@@ -74,7 +76,7 @@ describe('ADS — importação de CSV em PostgreSQL real', () => {
     expect(pv.summary?.total.toString()).toBe('100.5');
 
     const result = await inTenant(tenantA, () => ads.importCsv(tenantA, acc1, FILE_V1, hash(FILE_V1)));
-    expect(result).toEqual({ received: 3, imported: 3, skipped: 0 });
+    expect(result).toMatchObject({ received: 3, imported: 3, skipped: 0 });
     const rows = await owner.adsCost.findMany({ where: { tenantId: tenantA, marketplaceAccountId: acc1 }, orderBy: { sourceLine: 'asc' } });
     expect(rows.map((r) => [r.sku, r.campaign, r.amount.toString()])).toEqual([
       ['SKU-A', 'Black; Friday', '30'],
@@ -88,17 +90,24 @@ describe('ADS — importação de CSV em PostgreSQL real', () => {
     expect(pv.alreadyImported).toBe(true);
     expect(pv.warnings.join(' ')).toMatch(/Nenhuma linha será duplicada/);
     const again = await inTenant(tenantA, () => ads.importCsv(tenantA, acc1, FILE_V1, hash(FILE_V1)));
-    expect(again).toEqual({ received: 3, imported: 0, skipped: 3 });
+    expect(again).toMatchObject({ received: 3, imported: 0, skipped: 3 });
     expect(await owner.adsCost.count({ where: { tenantId: tenantA, marketplaceAccountId: acc1 } })).toBe(3);
   });
 
-  it('ficheiro re-exportado (outro hash, mesmo conteúdo) é avisado como possível duplicação', async () => {
+  it('ficheiro re-exportado (outro hash, mesmo conteúdo): pré-visualização exige confirmação e a importação sem ela é recusada', async () => {
     const parsed = parseAdsCsv(FILE_V1_REEXPORT);
     expect(parsed.errors).toEqual([]);
     const pv = await inTenant(tenantA, () => ads.preview(tenantA, acc1, FILE_V1_REEXPORT, hash(FILE_V1_REEXPORT)));
     expect(pv.alreadyImported).toBe(false);
-    expect(pv.overlappingRows).toBeGreaterThan(0);
-    expect(pv.warnings.join(' ')).toMatch(/possível duplicação|re-exportada/);
+    expect(pv.requiresConfirmation).toBe(true);
+    expect(pv.overlap?.count).toBe(3);
+    expect(pv.overlap?.matches[0]).toMatchObject({ newLine: 2, existingLine: 2 });
+    expect(pv.warnings.join(' ')).toMatch(/coincidem com despesas já importadas de outro ficheiro/);
+    const err = await inTenant(tenantA, () => ads.importCsv(tenantA, acc1, FILE_V1_REEXPORT, hash(FILE_V1_REEXPORT))).catch((e) => e);
+    expect(err).toBeInstanceOf(ConflictException);
+    expect(err.getResponse()).toMatchObject({ code: 'OVERLAP_CONFIRMATION_REQUIRED', overlapCount: 3 });
+    // Nada foi gravado: continua a ser o ficheiro original.
+    expect(await owner.adsCost.count({ where: { tenantId: tenantA, marketplaceAccountId: acc1 } })).toBe(3);
   });
 
   it('separação entre contas: a outra conta da mesma empresa começa vazia', async () => {
@@ -135,5 +144,44 @@ describe('ADS — importação de CSV em PostgreSQL real', () => {
     const gestor = await inTenant(tenantA, () => agents.run(tenantA, 'user-a', 'central-farma', acc1));
     const mesa = (gestor.result as { consolidation: { mesa: { agentes: Array<{ publicName: string; estado: string }> } } }).consolidation.mesa;
     expect(mesa.agentes.find((a) => a.publicName === 'ADS')?.estado).toBe('CONCLUIDO');
+  });
+
+  it('sobreposição parcial com confirmação explícita: importa só as linhas novas e grava a auditoria', async () => {
+    // Uma linha coincide com o ficheiro v1 (SKU-A, 30,00, Black; Friday, 10/11), a outra é nova.
+    const partial = 'data;valor;sku;campanha\n2026-11-10;30,00;SKU-A;"Black; Friday"\n2026-11-15;7,00;SKU-Z;C5\n';
+    const pv = await inTenant(tenantA, () => ads.preview(tenantA, acc1, partial, hash(partial)));
+    expect(pv.overlap?.count).toBe(1);
+    expect(pv.requiresConfirmation).toBe(true);
+    const sem = await inTenant(tenantA, () => ads.importCsv(tenantA, acc1, partial, hash(partial))).catch((e) => e);
+    expect(sem).toBeInstanceOf(ConflictException);
+    const com = await inTenant(tenantA, () => ads.importCsv(tenantA, acc1, partial, hash(partial), { confirmOverlap: true, fileName: 'parcial.csv', requestedBy: 'admin-a' }));
+    expect(com).toMatchObject({ received: 2, imported: 2, skipped: 0, overlapCount: 1, overlapConfirmed: true });
+    const batch = await owner.adsImportBatch.findFirstOrThrow({ where: { tenantId: tenantA, sourceHash: hash(partial) } });
+    expect(batch).toMatchObject({ overlapCount: 1, overlapConfirmed: true, rowsImported: 2, fileName: 'parcial.csv', requestedBy: 'admin-a' });
+  });
+
+  it('ficheiro legítimo sem sobreposição importa sem confirmação e fica auditado como não confirmado', async () => {
+    const legit = 'data;valor;sku;campanha\n2026-11-20;12,00;SKU-A;"Semana"\n';
+    const pv = await inTenant(tenantA, () => ads.preview(tenantA, acc1, legit, hash(legit)));
+    expect(pv.overlap?.count).toBe(0);
+    expect(pv.requiresConfirmation).toBe(false);
+    const r = await inTenant(tenantA, () => ads.importCsv(tenantA, acc1, legit, hash(legit)));
+    expect(r).toMatchObject({ imported: 1, overlapCount: 0, overlapConfirmed: false });
+    const batch = await owner.adsImportBatch.findFirstOrThrow({ where: { tenantId: tenantA, sourceHash: hash(legit) } });
+    expect(batch.overlapConfirmed).toBe(false);
+  });
+
+  it('idempotência: reimportar um ficheiro já confirmado não duplica nem exige nova confirmação', async () => {
+    const partial = 'data;valor;sku;campanha\n2026-11-10;30,00;SKU-A;"Black; Friday"\n2026-11-15;7,00;SKU-Z;C5\n';
+    const again = await inTenant(tenantA, () => ads.importCsv(tenantA, acc1, partial, hash(partial)));
+    expect(again).toMatchObject({ imported: 0, skipped: 2 });
+  });
+
+  it('auditoria isolada por tenant: a outra empresa não vê os lotes de importação desta', async () => {
+    const prisma = module_prisma;
+    const mine = await inTenant(tenantA, () => prisma.adsImportBatch.findMany({ where: { marketplaceAccountId: acc1 } }));
+    expect(mine.length).toBeGreaterThan(0);
+    const theirs = await inTenant(tenantB, () => prisma.adsImportBatch.findMany({}));
+    expect(theirs).toEqual([]);
   });
 });

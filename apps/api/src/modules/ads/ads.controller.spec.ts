@@ -21,7 +21,7 @@ describe('ADS — permissões e validação de entrada', () => {
   it('ADMIN pode pré-visualizar e importar', async () => {
     const { controller, service } = setup();
     await controller.previewCsv(admin, 't1', ACCOUNT, csv('data;valor\n2026-11-10;1\n'));
-    await controller.importCsv(admin, 't1', ACCOUNT, csv('data;valor\n2026-11-10;1\n'));
+    await controller.importCsv(admin, 't1', ACCOUNT, undefined, csv('data;valor\n2026-11-10;1\n'));
     expect(service.preview).toHaveBeenCalledWith('t1', ACCOUNT, expect.any(String), expect.stringMatching(/^[0-9a-f]{64}$/));
     expect(service.importCsv).toHaveBeenCalledTimes(1);
   });
@@ -29,7 +29,7 @@ describe('ADS — permissões e validação de entrada', () => {
   it('OPERATOR não pode pré-visualizar nem importar custos de ADS', async () => {
     const { controller, service } = setup();
     await expect(controller.previewCsv(operator, 't1', ACCOUNT, csv('data;valor\n2026-11-10;1\n'))).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(controller.importCsv(operator, 't1', ACCOUNT, csv('data;valor\n2026-11-10;1\n'))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.importCsv(operator, 't1', ACCOUNT, undefined, csv('data;valor\n2026-11-10;1\n'))).rejects.toBeInstanceOf(ForbiddenException);
     expect(service.preview).not.toHaveBeenCalled();
     expect(service.importCsv).not.toHaveBeenCalled();
   });
@@ -46,7 +46,7 @@ describe('ADS — permissões e validação de entrada', () => {
     ['identificador com injeção', "1' OR '1'='1"],
   ])('rejeita %s', async (_label, accountId) => {
     const { controller, service } = setup();
-    await expect(controller.importCsv(admin, 't1', accountId as any, csv('data;valor\n2026-11-10;1\n'))).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.importCsv(admin, 't1', accountId as any, undefined, csv('data;valor\n2026-11-10;1\n'))).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.previewCsv(admin, 't1', accountId as any, csv('data;valor\n2026-11-10;1\n'))).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.overview('t1', accountId as any)).rejects.toBeInstanceOf(BadRequestException);
     expect(service.importCsv).not.toHaveBeenCalled();
@@ -54,13 +54,23 @@ describe('ADS — permissões e validação de entrada', () => {
 
   it('ficheiro ausente ou vazio é recusado', async () => {
     const { controller } = setup();
-    await expect(controller.importCsv(admin, 't1', ACCOUNT, undefined)).rejects.toThrow('Envie um ficheiro CSV.');
-    await expect(controller.importCsv(admin, 't1', ACCOUNT, { buffer: Buffer.alloc(0), size: 0, originalname: 'a.csv' })).rejects.toThrow('Envie um ficheiro CSV.');
+    await expect(controller.importCsv(admin, 't1', ACCOUNT, undefined, undefined)).rejects.toThrow('Envie um ficheiro CSV.');
+    await expect(controller.importCsv(admin, 't1', ACCOUNT, undefined, { buffer: Buffer.alloc(0), size: 0, originalname: 'a.csv' })).rejects.toThrow('Envie um ficheiro CSV.');
   });
 
   it('extensão diferente de .csv é recusada', async () => {
     const { controller } = setup();
     await expect(controller.previewCsv(admin, 't1', ACCOUNT, csv('data;valor\n', 'planilha.xlsx'))).rejects.toThrow('extensão .csv');
     await expect(controller.previewCsv(admin, 't1', ACCOUNT, csv('data;valor\n2026-11-10;1\n', 'RELATORIO.CSV'))).resolves.toBeDefined();
+  });
+
+  it('confirmação de sobreposição só conta com o valor exato "true" e leva o nome do ficheiro e o autor', async () => {
+    const { controller, service } = setup();
+    await controller.importCsv(admin, 't1', ACCOUNT, 'true', csv('data;valor\n2026-11-10;1\n', 'r.csv'));
+    expect(service.importCsv.mock.calls[0][4]).toMatchObject({ confirmOverlap: true, fileName: 'r.csv', requestedBy: 'u1' });
+    await controller.importCsv(admin, 't1', ACCOUNT, 'yes', csv('data;valor\n2026-11-10;1\n'));
+    expect(service.importCsv.mock.calls[1][4]).toMatchObject({ confirmOverlap: false });
+    await controller.importCsv(admin, 't1', ACCOUNT, undefined, csv('data;valor\n2026-11-10;1\n'));
+    expect(service.importCsv.mock.calls[2][4]).toMatchObject({ confirmOverlap: false });
   });
 });

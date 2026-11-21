@@ -52,11 +52,19 @@ export class AdsController {
     @CurrentUser() user: AuthPrincipal,
     @CurrentTenant() tenantId: string,
     @Query('account_id') accountId?: string,
+    @Query('confirm_overlap') confirmOverlap?: string,
     @UploadedFile() file?: UploadedCsv,
   ) {
     if (user.role !== 'ADMIN') throw new ForbiddenException('Apenas ADMIN pode importar custos de ADS.');
     const { text, hash } = readCsv(accountId, file);
-    return ok(await this.service.importCsv(tenantId, accountId!, text, hash));
+    // Confirmação explícita de sobreposição: só o valor exato 'true' conta. Validada no serviço.
+    return ok(
+      await this.service.importCsv(tenantId, accountId!, text, hash, {
+        confirmOverlap: confirmOverlap === 'true',
+        fileName: file?.originalname ?? null,
+        requestedBy: user.sub,
+      }),
+    );
   }
 
   /** Indicadores do ADS da conta (período, investimento, SKU e campanha). Leitura para qualquer papel. */

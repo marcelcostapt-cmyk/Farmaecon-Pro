@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { parseAdsCsv, summarizeAdsRows, type AdsCsvSummary } from '../costs/ads-csv';
+import { findOverlap, OVERLAP_SAMPLE_SIZE, type OverlapMatch } from '../costs/ads-overlap';
 import type { AdsProfile } from '../agents/giro-ads/ads-analysis';
 
 export interface AdsSummary {
@@ -15,39 +16,79 @@ export interface AdsSummary {
 export class AdsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Linhas já importadas da conta, de OUTROS ficheiros, no período do ficheiro novo. Só leitura. */
+  private async existingInPeriod(tenantId: string, accountId: string, firstDay: string, lastDay: string, sourceHash: string) {
+    const rows = await this.prisma.adsCost.findMany({
+      where: {
+        tenantId,
+        marketplaceAccountId: accountId,
+        sourceHash: { not: sourceHash },
+        day: { gte: new Date(`${firstDay}T00:00:00.000Z`), lte: new Date(`${lastDay}T00:00:00.000Z`) },
+      },
+      select: { day: true, sku: true, campaign: true, amount: true, sourceHash: true, sourceLine: true },
+    });
+    return rows.map((r) => ({
+      line: r.sourceLine,
+      day: r.day.toISOString().slice(0, 10),
+      sku: r.sku,
+      campaign: r.campaign,
+      amount: new Prisma.Decimal(r.amount),
+      sourceHash: r.sourceHash,
+    }));
+  }
+
   /**
-   * Pré-visualização SEM gravar: valida tudo, resume e avisa sobre duplicação.
-   * Um ficheiro já importado (mesmo hash) não duplica linhas; um ficheiro diferente
-   * com linhas no mesmo período é avisado, porque pode ser a mesma informação re-exportada.
+   * Pré-visualização SEM gravar: valida tudo, resume e identifica possível sobreposição com
+   * despesas de OUTROS ficheiros da mesma conta. Um ficheiro já importado (mesmo hash) não é sobreposição:
+   * a importação é idempotente. Sobreposição exige confirmação explícita do ADMIN para importar.
    */
   async preview(tenantId: string, accountId: string, csvText: string, sourceHash: string) {
     const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { id: true } });
     if (!account) throw new NotFoundException('Conta não encontrada.');
     const parsed = parseAdsCsv(csvText);
-    const warnings: string[] = [];
     if (parsed.errors.length > 0) {
-      return { valid: false as const, errors: parsed.errors, summary: null, warnings, sourceHash, alreadyImported: false, overlappingRows: 0 };
+      return { valid: false as const, errors: parsed.errors, summary: null, warnings: [], sourceHash, alreadyImported: false, overlap: null, requiresConfirmation: false };
     }
     const summary: AdsCsvSummary = summarizeAdsRows(parsed.rows);
     const alreadyImported = (await this.prisma.adsCost.count({ where: { tenantId, marketplaceAccountId: accountId, sourceHash } })) > 0;
-    let overlappingRows = 0;
-    if (summary.firstDay && summary.lastDay && !alreadyImported) {
-      overlappingRows = await this.prisma.adsCost.count({
-        where: {
-          tenantId,
-          marketplaceAccountId: accountId,
-          day: { gte: new Date(`${summary.firstDay}T00:00:00.000Z`), lte: new Date(`${summary.lastDay}T00:00:00.000Z`) },
-        },
-      });
+    const warnings: string[] = [];
+    let overlap: null | { count: number; amount: string; matches: OverlapMatch[]; sampleSize: number } = null;
+    if (summary.firstDay && summary.lastDay) {
+      const existing = await this.existingInPeriod(tenantId, accountId, summary.firstDay, summary.lastDay, sourceHash);
+      const found = findOverlap(parsed.rows, existing);
+      overlap = { count: found.count, amount: found.amount, matches: found.matches.slice(0, OVERLAP_SAMPLE_SIZE), sampleSize: OVERLAP_SAMPLE_SIZE };
     }
     if (alreadyImported) warnings.push('Este ficheiro já foi importado. Nenhuma linha será duplicada.');
-    if (overlappingRows > 0) {
-      warnings.push(`Já existem ${overlappingRows} linha(s) de outro ficheiro neste período. Confirme que não é a mesma informação re-exportada, para evitar duplicar o investimento.`);
+    if (overlap && overlap.count > 0) {
+      warnings.push(
+        `${overlap.count} linha(s), no valor de ${overlap.amount}, coincidem com despesas já importadas de outro ficheiro desta conta. ` +
+          'Se forem a mesma despesa re-exportada, importar duplicaria o investimento. Só importe se confirmar que são despesas distintas.',
+      );
     }
-    return { valid: true as const, errors: [], summary, warnings, sourceHash, alreadyImported, overlappingRows };
+    return {
+      valid: true as const,
+      errors: [],
+      summary,
+      warnings,
+      sourceHash,
+      alreadyImported,
+      overlap,
+      requiresConfirmation: !!overlap && overlap.count > 0 && !alreadyImported,
+    };
   }
 
-  async importCsv(tenantId: string, accountId: string, csvText: string, sourceHash: string) {
+  /**
+   * Importação. Ficheiro já importado: idempotente (0 novas). Sobreposição com outro ficheiro:
+   * recusada sem confirmação explícita (409 OVERLAP_CONFIRMATION_REQUIRED). Com confirmação, grava
+   * as linhas e a auditoria na mesma transação. Nunca elimina linhas com valores iguais.
+   */
+  async importCsv(
+    tenantId: string,
+    accountId: string,
+    csvText: string,
+    sourceHash: string,
+    options: { confirmOverlap?: boolean; fileName?: string | null; requestedBy?: string | null } = {},
+  ) {
     const account = await this.prisma.marketplaceAccount.findFirst({ where: { id: accountId, tenantId }, select: { id: true } });
     if (!account) throw new NotFoundException('Conta não encontrada.');
 
@@ -55,21 +96,61 @@ export class AdsService {
     if (parsed.errors.length > 0) {
       throw new BadRequestException(`Ficheiro rejeitado (${parsed.errors.length} erro(s)): ${parsed.errors.slice(0, 10).join(' ')}`);
     }
-    // Idempotente: reimportar o mesmo ficheiro não duplica linhas (chave: hash do ficheiro + linha).
-    const result = await this.prisma.adsCost.createMany({
-      data: parsed.rows.map((r) => ({
-        tenantId,
-        marketplaceAccountId: accountId,
-        day: new Date(`${r.day}T00:00:00.000Z`),
-        sku: r.sku,
-        campaign: r.campaign,
-        amount: r.amount,
-        sourceHash,
-        sourceLine: r.line,
-      })),
-      skipDuplicates: true,
+    // Ficheiro já importado (mesmo hash): idempotente. Não é sobreposição nem exige confirmação.
+    const alreadyImported = (await this.prisma.adsCost.count({ where: { tenantId, marketplaceAccountId: accountId, sourceHash } })) > 0;
+    let overlapCount = 0;
+    if (!alreadyImported && parsed.rows.length > 0) {
+      const days = parsed.rows.map((r) => r.day).sort();
+      const existing = await this.existingInPeriod(tenantId, accountId, days[0], days[days.length - 1], sourceHash);
+      overlapCount = findOverlap(parsed.rows, existing).count;
+    }
+    if (overlapCount > 0 && !options.confirmOverlap) {
+      throw new ConflictException({
+        code: 'OVERLAP_CONFIRMATION_REQUIRED',
+        message: `${overlapCount} linha(s) coincidem com despesas já importadas de outro ficheiro. Confirme explicitamente para importar.`,
+        overlapCount,
+      });
+    }
+    const overlapConfirmed = overlapCount > 0 && options.confirmOverlap === true;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Idempotente por (conta, hash, linha): reimportar o mesmo ficheiro não duplica.
+      const result = await tx.adsCost.createMany({
+        data: parsed.rows.map((r) => ({
+          tenantId,
+          marketplaceAccountId: accountId,
+          day: new Date(`${r.day}T00:00:00.000Z`),
+          sku: r.sku,
+          campaign: r.campaign,
+          amount: r.amount,
+          sourceHash,
+          sourceLine: r.line,
+        })),
+        skipDuplicates: true,
+      });
+      const outcome = {
+        received: parsed.rows.length,
+        imported: result.count,
+        skipped: parsed.rows.length - result.count,
+        overlapCount,
+        overlapConfirmed,
+      };
+      await tx.adsImportBatch.create({
+        data: {
+          tenantId,
+          marketplaceAccountId: accountId,
+          sourceHash,
+          fileName: options.fileName ?? null,
+          rowsReceived: outcome.received,
+          rowsImported: outcome.imported,
+          rowsSkipped: outcome.skipped,
+          overlapCount,
+          overlapConfirmed,
+          requestedBy: options.requestedBy ?? null,
+        },
+      });
+      return outcome;
     });
-    return { received: parsed.rows.length, imported: result.count, skipped: parsed.rows.length - result.count };
   }
 
   /**
